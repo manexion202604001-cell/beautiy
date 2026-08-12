@@ -21,8 +21,8 @@
   --color-amber: #b08a3e;
   --color-amber-tint: #f6efe0;
 
-  --font-display: 'Cormorant Garamond', Georgia, 'Hiragino Mincho ProN', 'Yu Mincho', YuMincho, serif;
-  --font-body: 'Avenir Next', Avenir, 'Helvetica Neue', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', system-ui, sans-serif;
+  --font-display: 'Cormorant Garamond', Georgia, 'Hiragino Mincho ProN', 'Yu Mincho', YuMincho, 'Noto Serif JP', serif;
+  --font-body: 'Hiragino Mincho ProN', 'Yu Mincho', YuMincho, 'Noto Serif JP', Georgia, 'Times New Roman', serif;
 
   --radius-sm: 2px;
   --radius-md: 4px;

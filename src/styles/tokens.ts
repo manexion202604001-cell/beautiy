@@ -36,8 +36,9 @@ export const colors = {
 } as const
 
 export const font = {
-  display: `'Cormorant Garamond', Georgia, 'Hiragino Mincho ProN', 'Yu Mincho', YuMincho, serif`,
-  body: `'Avenir Next', Avenir, 'Helvetica Neue', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', system-ui, sans-serif`,
+  display: `'Cormorant Garamond', Georgia, 'Hiragino Mincho ProN', 'Yu Mincho', YuMincho, 'Noto Serif JP', serif`,
+  /** 本文も明朝体で統一（高級ブランドトーン） */
+  body: `'Hiragino Mincho ProN', 'Yu Mincho', YuMincho, 'Noto Serif JP', Georgia, 'Times New Roman', serif`,
 } as const
 
 export const radius = {
