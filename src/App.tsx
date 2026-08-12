@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, HashRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AppShell } from './components/AppShell'
 import { SessionProvider, useSession } from './hooks/useSession'
 import { Calendar } from './pages/Calendar'
@@ -25,10 +25,13 @@ function Protected({ children }: { children: ReactNode }) {
   return <AppShell>{children}</AppShell>
 }
 
+// 静的ホスティングでのデモ配信時のみハッシュルーティングを使用（本番はBrowserRouter）
+const Router = import.meta.env.VITE_DEMO_HASH_ROUTER === '1' ? HashRouter : BrowserRouter
+
 export function App() {
   return (
     <SessionProvider>
-      <BrowserRouter>
+      <Router>
         <Routes>
           {/* S-01 */}
           <Route path="/login" element={<Login />} />
@@ -54,7 +57,7 @@ export function App() {
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
-      </BrowserRouter>
+      </Router>
     </SessionProvider>
   )
 }
