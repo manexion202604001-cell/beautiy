@@ -1,0 +1,75 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-porcelain: #f6f4ef;
+  --color-paper: #ffffff;
+  --color-paper-warm: #fbfaf6;
+  --color-ink: #1b1916;
+  --color-ink-soft: #45413a;
+  --color-stone: #8c867b;
+  --color-line: #e7e3da;
+  --color-line-strong: #d6d0c3;
+  --color-gold: #a18a5b;
+  --color-gold-deep: #82704a;
+  --color-gold-tint: #f1ece0;
+  --color-night: #171512;
+  --color-night-soft: #26231e;
+  --color-sage: #6f7d63;
+  --color-sage-tint: #eef1ea;
+  --color-clay: #a05248;
+  --color-clay-tint: #f5eae8;
+  --color-amber: #b08a3e;
+  --color-amber-tint: #f6efe0;
+
+  --font-display: 'Cormorant Garamond', Georgia, 'Hiragino Mincho ProN', 'Yu Mincho', YuMincho, serif;
+  --font-body: 'Avenir Next', Avenir, 'Helvetica Neue', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', system-ui, sans-serif;
+
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 8px;
+
+  --tracking-luxe: 0.18em;
+  --tracking-wide2: 0.08em;
+}
+
+html {
+  background: var(--color-porcelain);
+}
+
+body {
+  font-family: var(--font-body);
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: 'palt';
+}
+
+/* 見出し用ヘアライン装飾 */
+.rule-gold {
+  position: relative;
+}
+.rule-gold::after {
+  content: '';
+  display: block;
+  width: 2rem;
+  height: 1px;
+  background: var(--color-gold);
+  margin-top: 0.6rem;
+}
+
+/* 数値の等幅 */
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* スクロールバーを控えめに */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-line-strong);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
