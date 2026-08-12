@@ -1,2 +1,80 @@
-# beautiy
-美容関係アプリ
+# BEAUTIY — サロン向けカルテ＆予約統合管理システム
+
+美容室・理容室向けの「カルテ・予約・会計/POS・メッセージ・分析」一気通貫管理システム。
+正式な要件は [docs/requirements.md](docs/requirements.md)、開発ルールは [CLAUDE.md](CLAUDE.md) を参照。
+
+## デザイン
+
+ミニマル×ラグジュアリー。ハイブランドの世界観に寄せた配色・タイポグラフィを採用しています。
+
+| トークン | 値 | 用途 |
+|---|---|---|
+| Porcelain | `#F6F4EF` | ページ背景（磁器のようなアイボリー） |
+| Ink | `#1B1916` | 主要テキスト（墨色） |
+| Gold | `#A18A5B` | アクセント（シャンパンゴールド） |
+| Night | `#171512` | ダーク面（サイドバー・ログイン） |
+| Clay / Sage / Amber | — | 彩度を抑えた状態色 |
+
+デザイントークンは `src/styles/tokens.ts` と `src/styles/index.css`（Tailwind `@theme`）で一元管理。
+チャート配色（`#B8862F` / `#7A5A9E`）は色覚多様性シミュレーションで検証済み。
+
+## セットアップ
+
+```bash
+npm install
+npm run dev      # 開発サーバー (http://localhost:5173)
+npm run build    # 型チェック + 本番ビルド
+npm test         # Vitest（空き枠計算・排他制御ロジック）
+```
+
+現状は **モックデータによるデモモード** で動作します（Supabase 認証情報不要）。
+デモログイン: `/login` で任意のスタッフを選択してサインイン。
+
+## 実装済み画面（要件定義書 7章）
+
+| # | 画面 | パス |
+|---|---|---|
+| S-01 | ログイン | `/login` |
+| S-02 | ホームダッシュボード | `/` |
+| S-03 | 予約カレンダー（日×スタッフ別） | `/calendar` |
+| S-04 | 予約登録 / 詳細 | `/reservations/new`, `/reservations/:id` |
+| S-05 | 顧客一覧 / 検索 | `/customers` |
+| S-06 | 顧客カルテ詳細（警告・履歴・レシピ・メモ） | `/customers/:id` |
+| S-07 | カルテ入力（構造化レシピ） | `/customers/:id/karte/new` |
+| S-08 | 会計（下書き→確定・複合支払・打消し伝票） | `/checkout` |
+| S-09 | レジ締め（実査・差異表示） | `/register-close` |
+| S-10 | メッセージ（LINE/アプリ・自動送信表示） | `/messages` |
+| S-11 | レポート（売上・顧客分析） | `/reports` |
+| S-12 | 店舗設定（メニュー・権限・連携・監査ログ） | `/settings` |
+| S-13 | 多店舗サマリー | `/reports` 内 |
+| C-01 | 顧客向けWeb予約（空き枠自動計算） | `/booking` |
+| C-02 | カウンセリングシート事前記入 | `/booking/counseling` |
+| C-03 | 予約確認 / 変更 / キャンセル | `/booking/manage` |
+
+## アーキテクチャ
+
+```
+src/
+├── styles/          デザイントークン + Tailwind @theme
+├── lib/
+│   ├── domain/      ドメイン型定義
+│   ├── api/         リポジトリ層（現在はモック。Supabase 実装に差し替え可能）
+│   └── booking/     空き枠計算（純関数・テスト済み）
+├── hooks/           セッション / ストア購読
+├── components/      共通UI（AppShell, ui primitives）
+└── pages/           画面（S-01〜S-13, C-01〜C-03）
+supabase/
+└── migrations/      スキーマ + RLS + 予約排他制約（EXCLUDE USING gist）
+```
+
+- **リポジトリ層**: コンポーネントは `src/lib/api/` 経由でのみデータアクセス。Supabase 移行時は同層の実装のみ差し替え。
+- **排他制御**: アプリ層チェック（`findConflict`）に加え、`supabase/migrations/0001` の `EXCLUDE USING gist` 制約がDB層の最終防衛線（受け入れ基準 10-1）。
+- **テナント分離 / 所有権**: 全テーブル RLS + `tenant_id` 強制、顧客の `owner_type: salon | staff` 分離ポリシー実装済み（受け入れ基準 10-3, 10-6）。
+- **会計不変性**: 確定伝票は DB トリガーで UPDATE 禁止。修正は打消し伝票方式のみ。
+
+## Supabase 接続（次フェーズ）
+
+1. Supabase プロジェクト作成後、`supabase/migrations/` を `supabase db push` で適用
+2. `.env.local` に `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` を設定
+3. `src/lib/api/` のモック実装を supabase-js 実装に差し替え（IF は維持）
+4. LINE・自動メッセージ・AI 処理は n8n Webhook（`n8n-gateway` Edge Function）に委譲
