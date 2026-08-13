@@ -1,4 +1,5 @@
 import { differenceInYears, format } from 'date-fns'
+import { ja } from 'date-fns/locale'
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Button, Card, EmptyState, PageHeader, SectionLabel, Tag, Textarea, yen } from '../components/ui'
@@ -6,6 +7,8 @@ import { useSession } from '../hooks/useSession'
 import { useStoreVersion } from '../hooks/useStore'
 import { addMemo, getCustomer, listKarteMemos, listKartes } from '../lib/api/customers'
 import { staffList } from '../lib/api/store'
+import { buildTimeline, ltvStats } from '../lib/api/timeline'
+import type { TimelineEventType } from '../lib/api/timeline'
 
 /** S-06 顧客カルテ詳細 */
 export function CustomerDetail() {
@@ -21,6 +24,8 @@ export function CustomerDetail() {
   const memos = listKarteMemos(customer.id)
   const staffName = (sid: string) => staffList.find((s) => s.id === sid)?.name ?? '—'
   const age = customer.birthday ? differenceInYears(new Date(), new Date(customer.birthday)) : null
+  const ltv = ltvStats(customer.id)
+  const timeline = buildTimeline(customer.id)
 
   return (
     <div>
@@ -86,21 +91,40 @@ export function CustomerDetail() {
           </Card>
 
           <Card className="p-5">
-            <SectionLabel>ご利用サマリー</SectionLabel>
-            <div className="grid grid-cols-3 gap-3 text-center">
+            <SectionLabel>LTV サマリー</SectionLabel>
+            <div className="grid grid-cols-2 gap-x-3 gap-y-4 text-center">
               <div>
-                <p className="tnum font-display text-[22px]">{customer.visitCount}</p>
-                <p className="text-[11px] text-stone">来店回数</p>
+                <p className="tnum font-display text-[20px] leading-tight">{yen(ltv.totalNetSales)}</p>
+                <p className="mt-0.5 text-[11px] text-stone">累計売上（LTV）</p>
               </div>
               <div>
-                <p className="tnum font-display text-[22px]">{customer.visitCycleDays ?? '—'}</p>
-                <p className="text-[11px] text-stone">来店周期(日)</p>
+                <p className="tnum font-display text-[20px] leading-tight">{yen(ltv.averageSpend)}</p>
+                <p className="mt-0.5 text-[11px] text-stone">平均客単価</p>
               </div>
               <div>
-                <p className="tnum font-display text-[18px] leading-[30px]">{yen(customer.totalSpent)}</p>
-                <p className="text-[11px] text-stone">累計利用額</p>
+                <p className="tnum font-display text-[20px] leading-tight">{ltv.visitCount} 回</p>
+                <p className="mt-0.5 text-[11px] text-stone">来店回数</p>
+              </div>
+              <div>
+                <p className="tnum font-display text-[20px] leading-tight">
+                  {ltv.averageIntervalDays ? `${ltv.averageIntervalDays} 日` : '—'}
+                </p>
+                <p className="mt-0.5 text-[11px] text-stone">平均来店周期</p>
               </div>
             </div>
+            {ltv.nextVisitPrediction ? (
+              <div className="mt-4 rounded-md bg-gold-tint px-4 py-3">
+                <p className="text-[11px] uppercase tracking-[0.16em] text-gold-deep">次回来店予測</p>
+                <div className="mt-1 flex items-baseline justify-between gap-3">
+                  <p className="text-[15px]">
+                    {format(new Date(ltv.nextVisitPrediction), 'M月d日（E）ごろ', { locale: ja })}
+                  </p>
+                  <Link to="/reservations/new" className="shrink-0 text-[12px] tracking-wide text-gold-deep hover:underline">
+                    この日程で予約 →
+                  </Link>
+                </div>
+              </div>
+            ) : null}
             {customer.note ? (
               <p className="mt-4 border-t border-line pt-3 text-[13px] leading-relaxed text-ink-soft">{customer.note}</p>
             ) : null}
@@ -217,8 +241,51 @@ export function CustomerDetail() {
           )}
         </div>
       </div>
+
+      {/* Customer Timeline（マスター要件 §88: 予約・カルテ・会計・メッセージを統一時系列表示） */}
+      <div className="mt-10">
+        <SectionLabel>カスタマータイムライン</SectionLabel>
+        {timeline.length === 0 ? (
+          <EmptyState>アクティビティはまだありません</EmptyState>
+        ) : (
+          <Card>
+            <ul className="divide-y divide-line">
+              {timeline.map((e, i) => (
+                <li key={i} className="flex items-center gap-4 px-5 py-3.5">
+                  <span className="tnum w-[120px] shrink-0 text-[12px] text-stone">
+                    {format(new Date(e.at), 'yyyy.MM.dd HH:mm')}
+                  </span>
+                  <TimelineChip type={e.type} />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[13px]">{e.title}</p>
+                    {e.detail ? <p className="truncate text-[12px] text-stone">{e.detail}</p> : null}
+                  </div>
+                  {e.amount !== null ? (
+                    <span className={`tnum shrink-0 text-[13px] ${e.amount < 0 ? 'text-clay' : 'text-ink-soft'}`}>
+                      {yen(e.amount)}
+                    </span>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          </Card>
+        )}
+      </div>
     </div>
   )
+}
+
+function TimelineChip({ type }: { type: TimelineEventType }) {
+  switch (type) {
+    case 'reservation':
+      return <Tag tone="gold">予約</Tag>
+    case 'karte':
+      return <Tag tone="sage">カルテ</Tag>
+    case 'payment':
+      return <Tag tone="neutral">会計</Tag>
+    case 'message':
+      return <Tag tone="amber">連絡</Tag>
+  }
 }
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
