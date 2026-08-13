@@ -4,6 +4,8 @@
  * UIコンポーネントは lib/api 配下のリポジトリ関数と hooks 経由でのみアクセスすること。
  */
 import { addDays, format, setHours, setMinutes, subDays } from 'date-fns'
+import { loadSnapshot, saveSnapshot } from './persist'
+import type { DbSnapshot } from './persist'
 import type {
   AuditLog,
   CashierClosing,
@@ -233,6 +235,7 @@ export function subscribe(fn: () => void) {
 }
 export function notify() {
   version += 1
+  persist()
   listeners.forEach((fn) => fn())
 }
 
@@ -241,3 +244,52 @@ export function nextId(prefix: string) {
   idSeq += 1
   return `${prefix}-${idSeq}`
 }
+
+/* ---- ローカル永続化 ----
+ * 変更のたびにスナップショットを保存し、起動時に復元する。
+ * 上記のデモデータは初回起動（保存データなし）のときだけシードとして使われる。
+ */
+function currentSnapshot(): DbSnapshot {
+  return {
+    customers,
+    kartes,
+    karteMemos,
+    menus,
+    reservations,
+    payments,
+    closings,
+    threads,
+    messages,
+    auditLogs,
+    idSeq,
+  }
+}
+
+function persist(): void {
+  saveSnapshot(currentSnapshot())
+}
+
+function replaceInPlace<T>(target: T[], source: T[] | undefined): void {
+  if (Array.isArray(source)) {
+    target.length = 0
+    target.push(...source)
+  }
+}
+
+function hydrate(): void {
+  const saved = loadSnapshot()
+  if (!saved) return
+  replaceInPlace(customers, saved.customers)
+  replaceInPlace(kartes, saved.kartes)
+  replaceInPlace(karteMemos, saved.karteMemos)
+  replaceInPlace(menus, saved.menus)
+  replaceInPlace(reservations, saved.reservations)
+  replaceInPlace(payments, saved.payments)
+  replaceInPlace(closings, saved.closings)
+  replaceInPlace(threads, saved.threads)
+  replaceInPlace(messages, saved.messages)
+  replaceInPlace(auditLogs, saved.auditLogs)
+  if (typeof saved.idSeq === 'number') idSeq = saved.idSeq
+}
+
+hydrate()

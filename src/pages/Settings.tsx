@@ -1,6 +1,7 @@
 import { format } from 'date-fns'
-import { Card, PageHeader, SectionLabel, Tag, yen } from '../components/ui'
+import { Button, Card, PageHeader, SectionLabel, Tag, yen } from '../components/ui'
 import { useStoreVersion } from '../hooks/useStore'
+import { hasSavedData, resetDb } from '../lib/api/persist'
 import { auditLogs, menus, salon, staffList } from '../lib/api/store'
 import { roleLabel } from './Login'
 
@@ -50,6 +51,28 @@ export function Settings() {
               フリーランス顧客はシェアサロン情報分離設定により他スタッフから非表示にできます。
               招待はメール / QRコード、退職時はカルテ所有権処理を実行します。
             </p>
+          </div>
+
+          <div className="mt-8">
+            <SectionLabel>データ管理</SectionLabel>
+            <Card className="p-5">
+              <p className="text-[13px] leading-relaxed text-ink-soft">
+                データはこの端末（ブラウザ）に自動保存されます
+                {hasSavedData() ? '（保存データあり）' : ''}。
+                複数端末での共有・バックアップは Supabase 接続（docs/golive.md）で有効になります。
+              </p>
+              <Button
+                variant="danger"
+                className="mt-4"
+                onClick={() => {
+                  if (window.confirm('保存されたデータをすべて削除し、初期デモデータに戻します。よろしいですか？')) {
+                    resetDb()
+                  }
+                }}
+              >
+                データを初期化（デモデータに戻す）
+              </Button>
+            </Card>
           </div>
 
           <div className="mt-8">
