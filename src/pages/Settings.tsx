@@ -24,7 +24,7 @@ export function Settings() {
                 {salon.openTime} – {salon.closeTime}（月曜定休）
               </Row>
               <Row label="適格請求書番号">
-                <span className="tnum">{salon.invoiceNumber}</span>
+                <span className="tnum font-serif">{salon.invoiceNumber}</span>
               </Row>
               <Row label="Web予約URL">
                 <a href="/booking" className="text-gold-deep hover:underline">
@@ -120,8 +120,8 @@ export function Settings() {
                   <tr key={m.id}>
                     <td className="px-5 py-3 text-stone">{m.category}</td>
                     <td className="px-5 py-3">{m.name}</td>
-                    <td className="tnum px-5 py-3 text-right">{m.durationMin}分</td>
-                    <td className="tnum px-5 py-3 text-right">{yen(m.price)}</td>
+                    <td className="tnum font-serif px-5 py-3 text-right">{m.durationMin}分</td>
+                    <td className="tnum font-serif px-5 py-3 text-right">{yen(m.price)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -139,7 +139,7 @@ export function Settings() {
                       <span className="mx-2 text-gold-deep">{a.action}</span>
                       <span className="text-ink-soft">{a.target}</span>
                     </p>
-                    <p className="tnum mt-0.5 text-[11px] text-stone">{format(new Date(a.at), 'yyyy.MM.dd HH:mm')}</p>
+                    <p className="tnum font-serif mt-0.5 text-[11px] text-stone">{format(new Date(a.at), 'yyyy.MM.dd HH:mm')}</p>
                   </li>
                 ))}
               </ul>
