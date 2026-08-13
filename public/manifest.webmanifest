@@ -1,0 +1,14 @@
+{
+  "name": "BEAUTIY — サロン統合管理",
+  "short_name": "BEAUTIY",
+  "description": "カルテ・予約・会計を一気通貫で管理するサロン向けシステム",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#F7F6F1",
+  "theme_color": "#0F3D34",
+  "lang": "ja",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
