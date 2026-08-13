@@ -65,4 +65,5 @@
 | 会計 payments（打消し伝票） | Transaction + Refund Transaction |
 | 施術履歴 kartes | Karte / Visit |
 
-スキーマ改名は Supabase 本接続の前に判断する（§96: Reservation/Customer モデルの途中大幅変更は全モジュールに影響するため、改名するなら接続前の今が唯一のタイミング）。
+**【決定 2026-08-13】** スキーマ命名は現行の `tenants / salons` を維持する（オーナー確認済み・どちらでも可とのこと）。
+マスター要件の Organization / Shop は概念名として読み替え、上表の対応で恒久運用する。以後この論点は再検討しない。
