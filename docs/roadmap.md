@@ -10,11 +10,11 @@
 |---|---|---|
 | Customer（顧客CRUD・検索・タグ・警告・所有区分） | ✅ 実装済 | CUSTOMER-001〜003, 007。名寄せ/統合（005-006）は未 |
 | Customer Timeline（§88） | ✅ 実装済 | 予約/カルテ/会計/メッセージを顧客詳細で統一時系列表示 |
-| Reservation（作成・状態・競合判定・カレンダー） | ✅ 実装済 | 状態は簡易版5種。§63の8状態への拡張は未。ドラッグ変更（007）未 |
+| Reservation（作成・状態・競合判定・カレンダー） | ✅ 実装済 | §63の状態遷移 + 変更履歴 + キャンセル理由 実装済（アプリ層/DB層トリガー両方）。ドラッグ変更（007）未 |
 | Availability Engine | ✅ 実装済 | 純関数 + テスト。勤務時間・設備Capacity考慮（004）は未 |
 | Karte（施術記録・レシピ・メモ） | ✅ 実装済 | 写真加工/スケッチ/テンプレート/音声（005-009）は未 |
 | Staff / Shop | ✅ 基本実装 | 複数店舗所属・勤務時間・プライベート予定（002-004）は未 |
-| Auth | 🔶 デモ実装 | Supabase Auth接続で本実装（migrations準備済） |
+| Auth | 🔶 デモ実装 | supabase-jsクライアント設定済（src/lib/supabase）。URL/anon key 支給後に接続 |
 | Multi Tenant Security | ✅ スキーマ実装済 | RLS + tenant_id 強制（supabase/migrations）。稼働はSupabase接続後 |
 
 ## Priority A
@@ -23,7 +23,7 @@
 |---|---|---|
 | LINE（通知・リマインド・履歴） | 🔶 設計済 | n8n-gateway Edge Function 準備済。履歴表示UIあり |
 | POS（複合支払・下書き・打消し伝票・レジ締め・領収書） | ✅ 実装済 | 値引き（POS-003）・税抜設定（004）・独自支払方法（006）は未 |
-| Payment（Square等） | ⬜ 未着手 | PaymentProvider抽象化から着手（§23） |
+| Payment（Square等） | 🔶 抽象化済 | PaymentProviderインターフェース + Idempotency（§23/§79）実装済。会計確定/返金がProvider経由に。Square実装は資格情報待ち |
 | Reporting（売上・顧客・スタッフ別） | ✅ 基本実装 | 現状は固定サンプル値。実データ集計への切替が次段 |
 | 次回来店予測・予約日提案（§20） | ✅ 実装済 | 平均来店周期から推奨日を算出し顧客詳細に表示 |
 | LTV KPI（§32 LTV-001） | ✅ 実装済 | 累計売上/平均客単価/来店回数/平均周期を顧客詳細に表示 |

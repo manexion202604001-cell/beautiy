@@ -60,7 +60,7 @@ export function Checkout() {
                     {p.status === 'fixed' ? <Tag tone="sage">確定</Tag> : null}
                     {p.status === 'voided' ? <Tag tone="clay">取消済</Tag> : null}
                     {p.status === 'draft' ? (
-                      <Button variant="ghost" onClick={() => fixPayment(p.id)}>
+                      <Button variant="ghost" onClick={() => void fixPayment(p.id)}>
                         確定
                       </Button>
                     ) : null}
@@ -74,7 +74,7 @@ export function Checkout() {
                         variant="danger"
                         onClick={() => {
                           const reason = window.prompt('取消理由を入力してください（監査ログに記録されます）')
-                          if (reason) reversePayment(p.id, reason)
+                          if (reason) void reversePayment(p.id, reason)
                         }}
                       >
                         取消
@@ -117,7 +117,7 @@ function NewPaymentForm({ onDone }: { onDone: () => void }) {
     ])
   }
 
-  const save = (asDraft: boolean) => {
+  const save = async (asDraft: boolean) => {
     const customer = customers.find((c) => c.id === customerId)
     const p = saveDraft({
       customerId: customer?.id ?? null,
@@ -125,7 +125,7 @@ function NewPaymentForm({ onDone }: { onDone: () => void }) {
       items,
       tenders,
     })
-    if (!asDraft) fixPayment(p.id)
+    if (!asDraft) await fixPayment(p.id)
     onDone()
   }
 
@@ -221,10 +221,10 @@ function NewPaymentForm({ onDone }: { onDone: () => void }) {
       </div>
 
       <div className="flex gap-3">
-        <Button disabled={items.length === 0 || remaining !== 0} onClick={() => save(false)}>
+        <Button disabled={items.length === 0 || remaining !== 0} onClick={() => void save(false)}>
           会計を確定
         </Button>
-        <Button variant="ghost" disabled={items.length === 0} onClick={() => save(true)}>
+        <Button variant="ghost" disabled={items.length === 0} onClick={() => void save(true)}>
           下書き保存（施術中）
         </Button>
       </div>

@@ -1,3 +1,4 @@
+import { paymentProvider } from '../payments/provider'
 import type { Payment } from '../domain/types'
 import * as db from './store'
 
@@ -27,10 +28,22 @@ export function saveDraft(input: Omit<Payment, 'id' | 'status' | 'fixedAt' | 'cr
   return created
 }
 
-/** 会計確定。確定後の伝票は不変（修正は打消し伝票方式のみ） */
-export function fixPayment(id: string) {
+/**
+ * 会計確定。確定後の伝票は不変（修正は打消し伝票方式のみ）。
+ * 各支払は PaymentProvider 経由で処理し、Idempotency Key（伝票ID+支払行）で
+ * 二重確定・二重課金を防止する（§41, §79）。
+ */
+export async function fixPayment(id: string): Promise<void> {
   const p = db.payments.find((x) => x.id === id)
   if (!p || p.status !== 'draft') return
+  for (let i = 0; i < p.tenders.length; i++) {
+    const tender = p.tenders[i]
+    const provider = await paymentProvider.createPayment(
+      { amount: tender.amount, method: tender.kind, description: `${p.customerName} / ${tender.label}` },
+      `${p.id}:${i}`,
+    )
+    tender.providerPaymentId = provider.providerPaymentId
+  }
   p.status = 'fixed'
   p.fixedAt = new Date().toISOString()
   db.auditLogs.unshift({
@@ -43,10 +56,15 @@ export function fixPayment(id: string) {
   db.notify()
 }
 
-/** 打消し伝票（マイナス伝票）を発行して会計を取消す (F-04-08) */
-export function reversePayment(id: string, reason: string): Payment | undefined {
+/** 打消し伝票（マイナス伝票）を発行して会計を取消す (F-04-08)。プロバイダ側も返金する */
+export async function reversePayment(id: string, reason: string): Promise<Payment | undefined> {
   const src = db.payments.find((x) => x.id === id)
   if (!src || src.status !== 'fixed') return undefined
+  for (const tender of src.tenders) {
+    if (tender.providerPaymentId) {
+      await paymentProvider.refundPayment(tender.providerPaymentId, tender.amount)
+    }
+  }
   const reversal: Payment = {
     id: db.nextId('p'),
     customerId: src.customerId,
