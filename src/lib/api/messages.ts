@@ -1,4 +1,5 @@
 import type { ChatMessage, MessageThread } from '../domain/types'
+import { isRemoteActive, sync } from './remote'
 import * as db from './store'
 
 export function listThreads(): MessageThread[] {
@@ -12,18 +13,20 @@ export function listMessages(threadId: string): ChatMessage[] {
 }
 
 export function sendMessage(threadId: string, body: string) {
-  db.messages.push({
+  const message: ChatMessage = {
     id: db.nextId('ms'),
     threadId,
     from: 'salon',
     body,
     at: new Date().toISOString(),
     read: true,
-  })
+  }
+  db.messages.push(message)
   const th = db.threads.find((t) => t.id === threadId)
   if (th) {
     th.lastMessageAt = new Date().toISOString()
     th.unread = 0
+    if (isRemoteActive()) sync.insertMessage(message, th)
   }
   db.notify()
 }
@@ -35,6 +38,7 @@ export function markRead(threadId: string) {
     db.messages.forEach((m) => {
       if (m.threadId === threadId) m.read = true
     })
+    if (isRemoteActive()) sync.markThreadRead(threadId, th)
     db.notify()
   }
 }

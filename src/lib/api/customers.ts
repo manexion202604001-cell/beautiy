@@ -1,4 +1,5 @@
 import type { Customer, Karte, KarteMemo } from '../domain/types'
+import { isRemoteActive, sync } from './remote'
 import * as db from './store'
 
 export interface CustomerFilter {
@@ -64,18 +65,25 @@ export function addKarte(karte: Omit<Karte, 'id'>): Karte {
     action: 'カルテ作成',
     target: customer?.name ?? karte.customerId,
   })
+  if (isRemoteActive()) {
+    sync.insertKarte(created)
+    sync.upsertCustomer(customer!)
+    sync.insertAuditLog(db.auditLogs[0])
+  }
   db.notify()
   return created
 }
 
 export function addMemo(customerId: string, staffId: string, body: string) {
-  db.karteMemos.unshift({
+  const memo: KarteMemo = {
     id: db.nextId('km'),
     customerId,
     staffId,
     date: new Date().toISOString().slice(0, 10),
     body,
-  })
+  }
+  db.karteMemos.unshift(memo)
+  if (isRemoteActive()) sync.insertKarteMemo(memo)
   db.notify()
 }
 
@@ -101,6 +109,10 @@ export function createCustomer(input: CustomerInput): Customer {
     action: '顧客登録',
     target: created.name,
   })
+  if (isRemoteActive()) {
+    sync.upsertCustomer(created)
+    sync.insertAuditLog(db.auditLogs[0])
+  }
   db.notify()
   return created
 }
@@ -116,6 +128,10 @@ export function updateCustomer(id: string, patch: Partial<CustomerInput>): Custo
     action: '顧客情報編集',
     target: customer.name,
   })
+  if (isRemoteActive()) {
+    sync.upsertCustomer(customer)
+    sync.insertAuditLog(db.auditLogs[0])
+  }
   db.notify()
   return customer
 }
@@ -132,6 +148,10 @@ export function deleteCustomer(id: string): void {
     action: '顧客削除（論理削除）',
     target: customer.name,
   })
+  if (isRemoteActive()) {
+    sync.upsertCustomer(customer)
+    sync.insertAuditLog(db.auditLogs[0])
+  }
   db.notify()
 }
 
@@ -161,6 +181,7 @@ export function exportCustomersCsv(): string {
     action: '顧客CSVエクスポート',
     target: `${rows.length}件`,
   })
+  if (isRemoteActive()) sync.insertAuditLog(db.auditLogs[0])
   db.notify()
   return [header.join(','), ...rows].join('\r\n')
 }

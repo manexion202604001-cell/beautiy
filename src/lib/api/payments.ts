@@ -1,4 +1,5 @@
 import { paymentProvider } from '../payments/provider'
+import { isRemoteActive, sync } from './remote'
 import type { Payment } from '../domain/types'
 import * as db from './store'
 
@@ -24,6 +25,7 @@ export function saveDraft(input: Omit<Payment, 'id' | 'status' | 'fixedAt' | 'cr
     reversalOf: null,
   }
   db.payments.unshift(created)
+  if (isRemoteActive()) sync.upsertPayment(created)
   db.notify()
   return created
 }
@@ -53,6 +55,10 @@ export async function fixPayment(id: string): Promise<void> {
     action: '会計確定',
     target: `${p.customerName} ¥${paymentTotal(p).toLocaleString()}`,
   })
+  if (isRemoteActive()) {
+    sync.upsertPayment(p)
+    sync.insertAuditLog(db.auditLogs[0])
+  }
   db.notify()
 }
 
@@ -85,6 +91,11 @@ export async function reversePayment(id: string, reason: string): Promise<Paymen
     action: '会計取消（打消し伝票）',
     target: `${src.customerName} / 理由: ${reason}`,
   })
+  if (isRemoteActive()) {
+    sync.upsertPayment(reversal)
+    sync.upsertPayment(src)
+    sync.insertAuditLog(db.auditLogs[0])
+  }
   db.notify()
   return reversal
 }
@@ -101,14 +112,15 @@ export function todayCashTheoretical(): number {
 
 export function closeRegister(counted: number, staffId: string) {
   const dateKey = new Date().toISOString().slice(0, 10)
-  db.closings.unshift({
+  const closing = {
     id: db.nextId('cl'),
     date: dateKey,
     theoreticalCash: todayCashTheoretical(),
     countedCash: counted,
     closedAt: new Date().toISOString(),
     closedBy: staffId,
-  })
+  }
+  db.closings.unshift(closing)
   db.auditLogs.unshift({
     id: db.nextId('a'),
     at: new Date().toISOString(),
@@ -116,5 +128,9 @@ export function closeRegister(counted: number, staffId: string) {
     action: 'レジ締め確定',
     target: dateKey,
   })
+  if (isRemoteActive()) {
+    sync.insertClosing(closing)
+    sync.insertAuditLog(db.auditLogs[0])
+  }
   db.notify()
 }

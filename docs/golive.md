@@ -25,11 +25,17 @@
 
 ### 2. スキーマ適用（15分）
 
+**簡単な方法（CLI不要）**: Supabaseダッシュボード → SQL Editor に
+`supabase/setup_all.sql` の内容を貼り付けて実行する（スキーマ + RLS + シードが一括適用される。
+実行前に seed 部分の店舗名・メニュー・インボイス番号を自店舗の値へ書き換えること）。
+
+CLI を使う場合:
+
 ```bash
 npm install -g supabase
 supabase login
 supabase link --project-ref <プロジェクトID>
-supabase db push          # supabase/migrations/ の 0001〜0003 を適用
+supabase db push          # supabase/migrations/ の 0001〜0004 を適用
 ```
 
 適用されるもの:
@@ -48,16 +54,23 @@ supabase db push          # supabase/migrations/ の 0001〜0003 を適用
 2. 発行された `auth.users.id` を使って staff テーブルに INSERT（seed.sql 末尾の例を参照）
 3. オーナーは Authentication → MFA の有効化を推奨
 
-### 5. フロントエンド接続・デプロイ（30分）
+### 5. フロントエンド接続・デプロイ（15分）
 
 ```bash
-cp .env.example .env.local   # URL / anon key を記入
+cp .env.example .env.local   # URL / publishable(anon) key を記入
 ```
 
-`src/lib/api/` のモック実装を supabase-js 実装へ差し替え（リポジトリ層のインターフェースは同一。
-**この差し替え作業は未実装のため、Supabase認証情報の支給後に開発チーム（本セッション）が実施する**）。
+**切り替えは自動**: 環境変数が設定されているとアプリは起動時にSupabaseモードで動作する。
+ログインは Supabase Auth（メール+パスワード）に切り替わり、サインイン後に全データを
+クラウドから読み込む。以後の書き込み（顧客・予約・カルテ・会計・メッセージ・監査ログ）は
+すべてSupabaseへ自動同期される（同期エラーは設定画面に表示）。
+ダブルブッキングはDBの排他制約が最終判定し、競合時はローカル側の予約を自動取消する。
 
 デプロイは Vercel 推奨（`vercel --prod`、環境変数に上記2つを設定）。独自ドメインもここで設定。
+
+**現時点の制限**: 顧客向けWeb予約ページ（/booking）は匿名アクセスのため、Supabaseモードでは
+RLSによりデータを読めない。公開予約はEdge Function経由の空き枠APIで次段階に対応する
+（店内スタッフ運用は全機能利用可）。
 
 ### 6. n8n / LINE 連携（別途半日）
 

@@ -243,8 +243,20 @@ export function notify() {
   listeners.forEach((fn) => fn())
 }
 
+/* ---- 動作モード ----
+ * remoteMode=true（Supabase接続時）はローカル永続化を停止し、IDをUUIDで発行する。
+ */
+let remoteMode = false
+export function setRemoteMode(on: boolean) {
+  remoteMode = on
+}
+export function isRemoteMode(): boolean {
+  return remoteMode
+}
+
 let idSeq = 100
 export function nextId(prefix: string) {
+  if (remoteMode) return crypto.randomUUID()
   idSeq += 1
   return `${prefix}-${idSeq}`
 }
@@ -271,6 +283,7 @@ function currentSnapshot(): DbSnapshot {
 }
 
 function persist(): void {
+  if (remoteMode) return // リモート接続時の正はDB。ローカルへは書かない
   saveSnapshot(currentSnapshot())
 }
 

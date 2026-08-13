@@ -1,7 +1,10 @@
+import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { BrowserRouter, HashRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AppShell } from './components/AppShell'
 import { SessionProvider, useSession } from './hooks/useSession'
+import { initRemote, isRemoteActive } from './lib/api/remote'
+import { isSupabaseConfigured } from './lib/supabase/client'
 import { Calendar } from './pages/Calendar'
 import { Checkout } from './pages/Checkout'
 import { CustomerDetail } from './pages/CustomerDetail'
@@ -21,17 +24,48 @@ import { Booking } from './pages/booking/Booking'
 import { BookingManage } from './pages/booking/BookingManage'
 import { Counseling } from './pages/booking/Counseling'
 
+/**
+ * リモート接続時、リロード後に保持済みのSupabase認証セッションで
+ * データを再ブートストラップしてから画面を表示する。
+ */
+function RemoteBoot({ children }: { children: ReactNode }) {
+  const [state, setState] = useState<'loading' | 'ready' | 'unauthenticated'>(
+    isSupabaseConfigured && !isRemoteActive() ? 'loading' : 'ready',
+  )
+  useEffect(() => {
+    if (state !== 'loading') return
+    initRemote()
+      .then((staff) => setState(staff ? 'ready' : 'unauthenticated'))
+      .catch(() => setState('unauthenticated'))
+  }, [state])
+
+  if (state === 'loading') {
+    return (
+      <div className="flex min-h-dvh flex-col items-center justify-center bg-porcelain">
+        <p className="font-display text-[22px] tracking-[0.3em] text-night">BEAUTIY</p>
+        <p className="mt-3 text-[12px] tracking-wide text-stone">クラウドデータを読み込んでいます…</p>
+      </div>
+    )
+  }
+  if (state === 'unauthenticated') return <Navigate to="/login" replace />
+  return <>{children}</>
+}
+
 function Protected({ children }: { children: ReactNode }) {
   const { user } = useSession()
   if (!user) return <Navigate to="/login" replace />
-  return <AppShell>{children}</AppShell>
+  return (
+    <RemoteBoot>
+      <AppShell>{children}</AppShell>
+    </RemoteBoot>
+  )
 }
 
 /** 認証必須だがナビゲーションを持たない画面（印刷用など） */
 function ProtectedBare({ children }: { children: ReactNode }) {
   const { user } = useSession()
   if (!user) return <Navigate to="/login" replace />
-  return <>{children}</>
+  return <RemoteBoot>{children}</RemoteBoot>
 }
 
 // 静的ホスティングでのデモ配信時のみハッシュルーティングを使用（本番はBrowserRouter）

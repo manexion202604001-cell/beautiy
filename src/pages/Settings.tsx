@@ -2,6 +2,7 @@ import { format } from 'date-fns'
 import { Button, Card, PageHeader, SectionLabel, Tag, yen } from '../components/ui'
 import { useStoreVersion } from '../hooks/useStore'
 import { hasSavedData, resetDb } from '../lib/api/persist'
+import { isRemoteActive, syncErrors } from '../lib/api/remote'
 import { auditLogs, menus, salon, staffList } from '../lib/api/store'
 import { isSupabaseConfigured } from '../lib/supabase/client'
 import { roleLabel } from './Login'
@@ -59,12 +60,19 @@ export function Settings() {
             <Card className="p-5">
               <p className="mb-3 flex items-center gap-2 text-[13px]">
                 接続モード：
-                {isSupabaseConfigured ? (
-                  <Tag tone="sage">Supabase（クラウド）</Tag>
+                {isRemoteActive() ? (
+                  <Tag tone="sage">Supabase（クラウド・同期中）</Tag>
+                ) : isSupabaseConfigured ? (
+                  <Tag tone="amber">Supabase設定済（未サインイン）</Tag>
                 ) : (
                   <Tag tone="amber">ローカル（この端末のみ）</Tag>
                 )}
               </p>
+              {syncErrors.length > 0 ? (
+                <div className="mb-3 rounded-md bg-clay-tint px-4 py-3">
+                  <p className="text-[12px] text-clay">クラウド同期エラー {syncErrors.length} 件（最新: {syncErrors[0].operation} — {syncErrors[0].message}）</p>
+                </div>
+              ) : null}
               <p className="text-[13px] leading-relaxed text-ink-soft">
                 データはこの端末（ブラウザ）に自動保存されます
                 {hasSavedData() ? '（保存データあり）' : ''}。

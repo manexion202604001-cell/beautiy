@@ -5,6 +5,7 @@ import type {
   ReservationHistory,
   ReservationStatus,
 } from '../domain/types'
+import { isRemoteActive, sync } from './remote'
 import * as db from './store'
 
 export function listReservations(): Reservation[] {
@@ -96,6 +97,7 @@ export function transitionReservation(
   }
   r.status = to
   db.reservationHistories.unshift(history)
+  if (isRemoteActive()) sync.updateReservationStatus(r, opts.reason ?? null)
   db.notify()
   return r
 }
@@ -115,6 +117,17 @@ export function createReservation(input: Omit<Reservation, 'id'>): Reservation {
   if (conflict) throw new DoubleBookingError(conflict)
   const created: Reservation = { ...input, id: db.nextId('r') }
   db.reservations.push(created)
+  if (isRemoteActive()) {
+    // DBの排他制約が最終防衛線。同時予約で拒否されたらローカルもロールバックする
+    sync.insertReservation(created, () => {
+      const idx = db.reservations.findIndex((x) => x.id === created.id)
+      if (idx >= 0) db.reservations.splice(idx, 1)
+      db.notify()
+      if (typeof window !== 'undefined') {
+        window.alert('他の端末で同時刻に予約が確定したため、この予約は取り消されました。別の時間をお選びください。')
+      }
+    })
+  }
   db.notify()
   return created
 }
