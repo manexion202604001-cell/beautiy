@@ -29,6 +29,13 @@ jobs:
       - run: npx vite build --base=./
         env:
           VITE_DEMO_HASH_ROUTER: '1'
+      # 実運用アプリ（/app/ 配下）: Supabase接続版
+      # publishable キーはクライアント配布前提の公開キー（データ保護はRLS）
+      - run: npx vite build --base=./ --outDir=dist/app
+        env:
+          VITE_DEMO_HASH_ROUTER: '1'
+          VITE_SUPABASE_URL: https://yfxubvdgdgvtogwrggmg.supabase.co
+          VITE_SUPABASE_ANON_KEY: sb_publishable_QW9pxuzWHJuQCJqBhKcsJw_y3PJAzre
       - uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
