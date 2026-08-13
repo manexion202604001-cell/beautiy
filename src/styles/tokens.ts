@@ -1,38 +1,39 @@
 /**
- * デザイントークン — Minimal Luxury
- * 高級メゾンの世界観: 磁器のようなアイボリー地 / 墨色 / シャンパンゴールド
+ * デザイントークン — Emerald & Cream（支給ブランドパレット）
+ * 基調5色: #0F3D34 / #134E43 / #E6F0E9 / #F7F6F1 / #C8A96A
  * KICKOFF_PROMPT の「デザイントークンを src/styles/tokens.ts として支給」に対応する正式トークン。
  * Tailwind 側 (@theme in index.css) と同期させること。
  */
 
 export const colors = {
-  /** ページ背景 — 温かみのある磁器色 */
-  porcelain: '#F6F4EF',
+  /** ページ背景 — クリーム #F7F6F1 */
+  porcelain: '#F7F6F1',
   /** カード・面 */
   paper: '#FFFFFF',
-  paperWarm: '#FBFAF6',
-  /** 主要テキスト — 墨色 */
-  ink: '#1B1916',
-  inkSoft: '#45413A',
+  /** 淡いミント面（ホバー・内側パネル）#E6F0E9 */
+  paperWarm: '#E6F0E9',
+  /** 主要テキスト — 深緑がかった墨色 */
+  ink: '#14211C',
+  inkSoft: '#3D4B45',
   /** 補助テキスト */
-  stone: '#8C867B',
+  stone: '#75817A',
   /** 罫線 */
-  line: '#E7E3DA',
-  lineStrong: '#D6D0C3',
-  /** アクセント — シャンパンゴールド */
-  gold: '#A18A5B',
-  goldDeep: '#82704A',
-  goldTint: '#F1ECE0',
-  /** ダーク面（ナイトヘッダー・ログイン） */
-  night: '#171512',
-  nightSoft: '#26231E',
+  line: '#DFE7E1',
+  lineStrong: '#C8D3CB',
+  /** アクセント — ゴールド #C8A96A */
+  gold: '#C8A96A',
+  goldDeep: '#9A7E45',
+  goldTint: '#F2EBDA',
+  /** ダーク面 — ディープエメラルド #0F3D34 / #134E43 */
+  night: '#0F3D34',
+  nightSoft: '#134E43',
   /** 状態色 — 彩度を抑えた高級トーン */
-  sage: '#6F7D63',
-  sageTint: '#EEF1EA',
+  sage: '#4A7A5C',
+  sageTint: '#E6F0E9',
   clay: '#A05248',
   clayTint: '#F5EAE8',
-  amber: '#B08A3E',
-  amberTint: '#F6EFE0',
+  amber: '#A8853E',
+  amberTint: '#F4EDDC',
 } as const
 
 export const font = {

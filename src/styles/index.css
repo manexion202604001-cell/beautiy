@@ -1,25 +1,27 @@
 @import 'tailwindcss';
 
 @theme {
-  --color-porcelain: #f6f4ef;
+  /* Emerald & Cream — 支給ブランドパレット
+     #0F3D34 / #134E43 / #E6F0E9 / #F7F6F1 / #C8A96A */
+  --color-porcelain: #f7f6f1;
   --color-paper: #ffffff;
-  --color-paper-warm: #fbfaf6;
-  --color-ink: #1b1916;
-  --color-ink-soft: #45413a;
-  --color-stone: #8c867b;
-  --color-line: #e7e3da;
-  --color-line-strong: #d6d0c3;
-  --color-gold: #a18a5b;
-  --color-gold-deep: #82704a;
-  --color-gold-tint: #f1ece0;
-  --color-night: #171512;
-  --color-night-soft: #26231e;
-  --color-sage: #6f7d63;
-  --color-sage-tint: #eef1ea;
+  --color-paper-warm: #e6f0e9;
+  --color-ink: #14211c;
+  --color-ink-soft: #3d4b45;
+  --color-stone: #75817a;
+  --color-line: #dfe7e1;
+  --color-line-strong: #c8d3cb;
+  --color-gold: #c8a96a;
+  --color-gold-deep: #9a7e45;
+  --color-gold-tint: #f2ebda;
+  --color-night: #0f3d34;
+  --color-night-soft: #134e43;
+  --color-sage: #4a7a5c;
+  --color-sage-tint: #e6f0e9;
   --color-clay: #a05248;
   --color-clay-tint: #f5eae8;
-  --color-amber: #b08a3e;
-  --color-amber-tint: #f6efe0;
+  --color-amber: #a8853e;
+  --color-amber-tint: #f4eddc;
 
   --font-display: 'Cormorant Garamond', Georgia, 'Hiragino Mincho ProN', 'Yu Mincho', YuMincho, 'Noto Serif JP', serif;
   --font-body: 'Hiragino Mincho ProN', 'Yu Mincho', YuMincho, 'Noto Serif JP', Georgia, 'Times New Roman', serif;

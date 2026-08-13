@@ -39,7 +39,7 @@ create table staff (
   name text not null,
   name_kana text not null default '',
   role staff_role not null default 'stylist',
-  color text not null default '#A18A5B',
+  color text not null default '#C8A96A',
   accept_start time,
   accept_end time,
   active boolean not null default true,

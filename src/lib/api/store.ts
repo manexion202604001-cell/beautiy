@@ -34,10 +34,10 @@ export const salon: Salon = {
 }
 
 export const staffList: Staff[] = [
-  { id: 'st-1', salonId: 'salon-1', name: '真行寺 蓮', nameKana: 'シンギョウジ レン', role: 'owner', color: '#A18A5B', active: true },
-  { id: 'st-2', salonId: 'salon-1', name: '桐生 美月', nameKana: 'キリュウ ミツキ', role: 'manager', color: '#6F7D63', active: true },
-  { id: 'st-3', salonId: 'salon-1', name: '早乙女 汐里', nameKana: 'サオトメ シオリ', role: 'stylist', color: '#8A6E7E', active: true },
-  { id: 'st-4', salonId: 'salon-1', name: '氷室 隼', nameKana: 'ヒムロ ジュン', role: 'freelance', color: '#5E7287', active: true },
+  { id: 'st-1', salonId: 'salon-1', name: '真行寺 蓮', nameKana: 'シンギョウジ レン', role: 'owner', color: '#C8A96A', active: true },
+  { id: 'st-2', salonId: 'salon-1', name: '桐生 美月', nameKana: 'キリュウ ミツキ', role: 'manager', color: '#134E43', active: true },
+  { id: 'st-3', salonId: 'salon-1', name: '早乙女 汐里', nameKana: 'サオトメ シオリ', role: 'stylist', color: '#4A7A5C', active: true },
+  { id: 'st-4', salonId: 'salon-1', name: '氷室 隼', nameKana: 'ヒムロ ジュン', role: 'freelance', color: '#9A7E45', active: true },
 ]
 
 export const menus: Menu[] = [

@@ -2,11 +2,12 @@ import { Card, PageHeader, SectionLabel, Stat, yen } from '../components/ui'
 
 /**
  * S-11 レポート（売上・顧客分析） / S-13 多店舗サマリー
- * チャート配色は CVD 検証済み: gold #B8862F / aubergine #7A5A9E（白面・コントラスト3:1以上）
+ * チャート配色はブランドパレット準拠: emerald #134E43 / deep gold #9A7E45（白面3:1以上・CVD ΔE 19+）
+ * 彩度を抑えたブランド色のため、全マークに直接ラベル + 凡例で識別性を担保する
  */
 
-const CHART_GOLD = '#B8862F'
-const CHART_AUBERGINE = '#7A5A9E'
+const CHART_EMERALD = '#134E43'
+const CHART_GOLD = '#9A7E45'
 
 const monthly = [
   { label: '3月', service: 1832, product: 214 },
@@ -53,8 +54,8 @@ export function Reports() {
             <MonthlySalesChart />
             <Legend
               items={[
-                { label: '技術売上', color: CHART_GOLD },
-                { label: '店販売上', color: CHART_AUBERGINE },
+                { label: '技術売上', color: CHART_EMERALD },
+                { label: '店販売上', color: CHART_GOLD },
               ]}
             />
           </Card>
@@ -66,8 +67,8 @@ export function Reports() {
             <CustomerMixChart />
             <Legend
               items={[
-                { label: 'リピート', color: CHART_GOLD },
-                { label: '新規', color: CHART_AUBERGINE },
+                { label: 'リピート', color: CHART_EMERALD },
+                { label: '新規', color: CHART_GOLD },
               ]}
             />
           </Card>
@@ -145,7 +146,7 @@ function MonthlySalesChart() {
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="月次売上の積み上げ棒グラフ">
-      <line x1={PAD.left} x2={W - PAD.right} y1={PAD.top + innerH} y2={PAD.top + innerH} stroke="#E7E3DA" />
+      <line x1={PAD.left} x2={W - PAD.right} y1={PAD.top + innerH} y2={PAD.top + innerH} stroke="#DFE7E1" />
       {monthly.map((m, i) => {
         const x = PAD.left + band * i + (band - barW) / 2
         const total = m.service + m.product
@@ -154,12 +155,12 @@ function MonthlySalesChart() {
         return (
           <g key={m.label} className="transition-opacity hover:opacity-80">
             <title>{`${m.label}: 技術 ${m.service}千円 / 店販 ${m.product}千円`}</title>
-            <rect x={x} y={svcTop} width={barW} height={PAD.top + innerH - svcTop} fill={CHART_GOLD} rx={0} />
-            <rect x={x} y={prodTop} width={barW} height={svcTop - prodTop - 2} fill={CHART_AUBERGINE} rx={4} />
-            <text x={x + barW / 2} y={prodTop - 6} textAnchor="middle" className="fill-[#45413A] text-[10px]">
+            <rect x={x} y={svcTop} width={barW} height={PAD.top + innerH - svcTop} fill={CHART_EMERALD} rx={0} />
+            <rect x={x} y={prodTop} width={barW} height={svcTop - prodTop - 2} fill={CHART_GOLD} rx={4} />
+            <text x={x + barW / 2} y={prodTop - 6} textAnchor="middle" className="fill-[#3D4B45] text-[10px]">
               {total.toLocaleString()}
             </text>
-            <text x={x + barW / 2} y={H - 8} textAnchor="middle" className="fill-[#8C867B] text-[10px]">
+            <text x={x + barW / 2} y={H - 8} textAnchor="middle" className="fill-[#75817A] text-[10px]">
               {m.label}
             </text>
           </g>
@@ -180,7 +181,7 @@ function CustomerMixChart() {
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="月別の新規・リピート来店数">
-      <line x1={PAD.left} x2={W - PAD.right} y1={PAD.top + innerH} y2={PAD.top + innerH} stroke="#E7E3DA" />
+      <line x1={PAD.left} x2={W - PAD.right} y1={PAD.top + innerH} y2={PAD.top + innerH} stroke="#DFE7E1" />
       {customerMix.map((m, i) => {
         const x = PAD.left + band * i + (band - barW) / 2
         const total = m.repeat + m.fresh
@@ -189,12 +190,12 @@ function CustomerMixChart() {
         return (
           <g key={m.label} className="transition-opacity hover:opacity-80">
             <title>{`${m.label}: リピート ${m.repeat}人 / 新規 ${m.fresh}人`}</title>
-            <rect x={x} y={repTop} width={barW} height={PAD.top + innerH - repTop} fill={CHART_GOLD} />
-            <rect x={x} y={totTop} width={barW} height={repTop - totTop - 2} fill={CHART_AUBERGINE} rx={4} />
-            <text x={x + barW / 2} y={totTop - 6} textAnchor="middle" className="fill-[#45413A] text-[10px]">
+            <rect x={x} y={repTop} width={barW} height={PAD.top + innerH - repTop} fill={CHART_EMERALD} />
+            <rect x={x} y={totTop} width={barW} height={repTop - totTop - 2} fill={CHART_GOLD} rx={4} />
+            <text x={x + barW / 2} y={totTop - 6} textAnchor="middle" className="fill-[#3D4B45] text-[10px]">
               {total}
             </text>
-            <text x={x + barW / 2} y={H - 8} textAnchor="middle" className="fill-[#8C867B] text-[10px]">
+            <text x={x + barW / 2} y={H - 8} textAnchor="middle" className="fill-[#75817A] text-[10px]">
               {m.label}
             </text>
           </g>
@@ -218,11 +219,11 @@ function StaffSalesChart() {
         return (
           <g key={s.name} className="transition-opacity hover:opacity-80">
             <title>{`${s.name}: ${s.amount}千円 / 指名 ${s.nominated}件`}</title>
-            <text x={0} y={cy + 3.5} className="fill-[#45413A] text-[11px]">
+            <text x={0} y={cy + 3.5} className="fill-[#3D4B45] text-[11px]">
               {s.name}
             </text>
-            <rect x={labelW} y={cy - 7} width={barLen} height={14} fill={CHART_GOLD} rx={4} />
-            <text x={labelW + barLen + 8} y={cy + 3.5} className="fill-[#45413A] text-[11px]">
+            <rect x={labelW} y={cy - 7} width={barLen} height={14} fill={CHART_EMERALD} rx={4} />
+            <text x={labelW + barLen + 8} y={cy + 3.5} className="fill-[#3D4B45] text-[11px]">
               {s.amount.toLocaleString()}
             </text>
           </g>
