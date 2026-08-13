@@ -4,6 +4,9 @@
 LiME相当のサロン管理SaaSを自社オーダーメイドで開発する。
 カルテ・予約・会計/POS・LINEメッセージ・分析を一気通貫で管理するマルチテナントシステム。
 正式な要件は `docs/requirements.md`（要件定義書 v1.0）を必ず参照すること。
+上位構想として `docs/master-requirements.md`（マスター要件定義書 v1.0）があり、
+中長期のスコープ・設計原則（Customer中心設計 / Customer Timeline / 開発禁止事項 / Done Definition）はこちらに従う。
+両者の実装状況とギャップは `docs/roadmap.md` で管理する。
 
 ## 技術スタック（変更禁止。変更提案がある場合は実装前に必ず確認を取る）
 - フロントエンド: React + TypeScript + Vite（PWA対応、スマホファースト）
