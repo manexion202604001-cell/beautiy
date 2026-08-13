@@ -14,6 +14,7 @@ import type {
   MessageThread,
   Payment,
   Reservation,
+  ReservationHistory,
 } from '../domain/types'
 
 const KEY = 'beautiy.db.v1'
@@ -24,6 +25,7 @@ export interface DbSnapshot {
   karteMemos: KarteMemo[]
   menus: Menu[]
   reservations: Reservation[]
+  reservationHistories?: ReservationHistory[]
   payments: Payment[]
   closings: CashierClosing[]
   threads: MessageThread[]

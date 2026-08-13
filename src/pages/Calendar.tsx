@@ -138,9 +138,9 @@ function ReservationBlock({ reservation: r, color }: { reservation: Reservation;
       </p>
       <p className="truncate text-[12px] leading-tight">{r.customerName}</p>
       <p className="truncate text-[10px] text-stone">{names}</p>
-      {r.status === 'tentative' ? (
+      {r.status === 'requested' ? (
         <div className="mt-0.5">
-          <Tag tone="amber">仮</Tag>
+          <Tag tone="amber">要確定</Tag>
         </div>
       ) : null}
     </Link>

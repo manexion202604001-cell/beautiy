@@ -1,17 +1,47 @@
 import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
+import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { Button, Card, PageHeader, Tag, yen } from '../components/ui'
+import { Button, Card, PageHeader, SectionLabel, Tag, yen } from '../components/ui'
+import { useSession } from '../hooks/useSession'
 import { useStoreVersion } from '../hooks/useStore'
 import { getCustomer } from '../lib/api/customers'
-import { getReservation, updateStatus } from '../lib/api/reservations'
+import { getReservation, listHistory, nextStatuses, transitionReservation } from '../lib/api/reservations'
 import { menus, staffList } from '../lib/api/store'
+import type { CancelReason, ReservationStatus } from '../lib/domain/types'
 
-/** S-04 予約詳細 */
+export const statusLabels: Record<ReservationStatus, string> = {
+  requested: 'リクエスト',
+  confirmed: '確定',
+  checked_in: 'チェックイン',
+  in_service: '施術中',
+  completed: '完了',
+  cancelled: 'キャンセル',
+  no_show: '無断キャンセル',
+}
+
+const cancelReasons: { value: CancelReason; label: string }[] = [
+  { value: 'customer_request', label: 'お客様都合' },
+  { value: 'shop_request', label: '店舗都合' },
+  { value: 'duplicate', label: '重複予約' },
+  { value: 'other', label: 'その他' },
+]
+
+/** 進行方向の遷移に対する操作ラベル（§63 正常系） */
+const forwardActionLabels: Partial<Record<ReservationStatus, string>> = {
+  confirmed: '予約を確定',
+  checked_in: 'チェックイン',
+  in_service: '施術を開始',
+  completed: '施術完了',
+}
+
+/** S-04 予約詳細（§63 状態遷移 + RESERVATION-008 変更履歴） */
 export function ReservationDetail() {
   useStoreVersion()
   const { id } = useParams()
   const navigate = useNavigate()
+  const { user } = useSession()
+  const [cancelling, setCancelling] = useState(false)
   const reservation = id ? getReservation(id) : undefined
   if (!reservation) {
     return <p className="text-stone">予約が見つかりません。</p>
@@ -20,18 +50,34 @@ export function ReservationDetail() {
   const customer = reservation.customerId ? getCustomer(reservation.customerId) : undefined
   const items = reservation.menuIds.map((mid) => menus.find((m) => m.id === mid)).filter((m) => m !== undefined)
   const total = items.reduce((s, m) => s + m.price, 0)
+  const history = listHistory(reservation.id)
+  const changedBy = user?.name ?? 'スタッフ'
 
-  const statusTag = {
-    confirmed: <Tag tone="sage">確定</Tag>,
-    tentative: <Tag tone="amber">仮予約</Tag>,
-    done: <Tag tone="gold">来店済</Tag>,
-    cancelled: <Tag tone="clay">キャンセル</Tag>,
-    no_show: <Tag tone="clay">無断キャンセル</Tag>,
-  }[reservation.status]
+  const statusTone = (
+    {
+      requested: 'amber',
+      confirmed: 'sage',
+      checked_in: 'gold',
+      in_service: 'gold',
+      completed: 'gold',
+      cancelled: 'clay',
+      no_show: 'clay',
+    } as const
+  )[reservation.status]
+
+  const forward = nextStatuses(reservation.status).filter(
+    (s) => s !== 'cancelled' && s !== 'no_show',
+  )
+  const canCancel = nextStatuses(reservation.status).includes('cancelled')
+  const canNoShow = nextStatuses(reservation.status).includes('no_show')
 
   return (
     <div className="max-w-2xl">
-      <PageHeader eyebrow="Reservations" title="予約詳細" action={statusTag} />
+      <PageHeader
+        eyebrow="Reservations"
+        title="予約詳細"
+        action={<Tag tone={statusTone}>{statusLabels[reservation.status]}</Tag>}
+      />
       <Card className="p-6">
         <dl className="grid gap-x-8 gap-y-4 text-[14px] sm:grid-cols-2">
           <Item label="お客様">
@@ -63,20 +109,36 @@ export function ReservationDetail() {
           {reservation.note ? <Item label="申し送り">{reservation.note}</Item> : null}
         </dl>
 
-        <div className="mt-6 flex flex-wrap gap-3 border-t border-line pt-5">
+        <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-line pt-5">
           {customer ? (
             <Link to={`/customers/${customer.id}`}>
               <Button variant="ghost">カルテを開く</Button>
             </Link>
           ) : null}
-          {reservation.status === 'tentative' ? (
-            <Button onClick={() => updateStatus(reservation.id, 'confirmed')}>予約を確定</Button>
+          {forward.map((to) => (
+            <Button key={to} onClick={() => transitionReservation(reservation.id, to, { changedBy })}>
+              {forwardActionLabels[to] ?? statusLabels[to]}
+            </Button>
+          ))}
+          {reservation.status === 'in_service' ? (
+            <Link to="/checkout">
+              <Button variant="ghost">会計へ</Button>
+            </Link>
           ) : null}
-          {reservation.status === 'confirmed' ? (
-            <Button onClick={() => updateStatus(reservation.id, 'done')}>来店済みにする</Button>
+          {canNoShow ? (
+            <Button
+              variant="danger"
+              onClick={() => {
+                if (window.confirm('無断キャンセルとして記録しますか？')) {
+                  transitionReservation(reservation.id, 'no_show', { changedBy, reason: 'no_show' })
+                }
+              }}
+            >
+              無断キャンセル
+            </Button>
           ) : null}
-          {reservation.status !== 'cancelled' && reservation.status !== 'done' ? (
-            <Button variant="danger" onClick={() => updateStatus(reservation.id, 'cancelled')}>
+          {canCancel && !cancelling ? (
+            <Button variant="danger" onClick={() => setCancelling(true)}>
               キャンセル
             </Button>
           ) : null}
@@ -84,7 +146,54 @@ export function ReservationDetail() {
             戻る
           </Button>
         </div>
+
+        {cancelling ? (
+          <div className="mt-4 rounded-md bg-clay-tint px-4 py-3">
+            <p className="mb-2 text-[12px] text-clay">キャンセル理由を選択してください（履歴に記録されます）</p>
+            <div className="flex flex-wrap gap-2">
+              {cancelReasons.map((r) => (
+                <button
+                  key={r.value}
+                  onClick={() => {
+                    transitionReservation(reservation.id, 'cancelled', { changedBy, reason: r.value })
+                    setCancelling(false)
+                  }}
+                  className="rounded-md border border-clay/40 bg-paper px-3 py-1.5 text-[13px] text-clay hover:bg-clay hover:text-paper"
+                >
+                  {r.label}
+                </button>
+              ))}
+              <button onClick={() => setCancelling(false)} className="px-3 py-1.5 text-[13px] text-stone hover:text-ink">
+                やめる
+              </button>
+            </div>
+          </div>
+        ) : null}
       </Card>
+
+      {history.length > 0 ? (
+        <div className="mt-8">
+          <SectionLabel>変更履歴</SectionLabel>
+          <Card>
+            <ul className="divide-y divide-line">
+              {history.map((h) => (
+                <li key={h.id} className="flex flex-wrap items-center gap-3 px-5 py-3 text-[13px]">
+                  <span className="tnum text-[12px] text-stone">
+                    {format(new Date(h.changedAt), 'yyyy.MM.dd HH:mm')}
+                  </span>
+                  <span>
+                    {statusLabels[h.before]} → {statusLabels[h.after]}
+                  </span>
+                  {h.reason ? (
+                    <Tag tone="clay">{cancelReasons.find((r) => r.value === h.reason)?.label ?? h.reason}</Tag>
+                  ) : null}
+                  <span className="ml-auto text-[12px] text-stone">{h.changedBy}</span>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        </div>
+      ) : null}
     </div>
   )
 }

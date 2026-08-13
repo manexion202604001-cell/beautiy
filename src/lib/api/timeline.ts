@@ -27,9 +27,11 @@ export function buildTimeline(customerId: string): TimelineEvent[] {
       .filter(Boolean)
       .join('・')
     const statusLabel = {
+      requested: 'リクエスト',
       confirmed: '確定',
-      tentative: '仮予約',
-      done: '来店済',
+      checked_in: 'チェックイン',
+      in_service: '施術中',
+      completed: '完了',
       cancelled: 'キャンセル',
       no_show: '無断キャンセル',
     }[r.status]

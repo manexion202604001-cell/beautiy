@@ -105,7 +105,9 @@ create table resources (
 -- ---------------------------------------------------------------
 -- 予約（排他制御: 受け入れ基準 10-1）
 -- ---------------------------------------------------------------
-create type reservation_status as enum ('confirmed', 'tentative', 'done', 'cancelled', 'no_show');
+-- マスター要件 §63 の8状態（deleted は行の deleted_at で表現するため enum に含めない）
+create type reservation_status as enum
+  ('requested', 'confirmed', 'checked_in', 'in_service', 'completed', 'cancelled', 'no_show');
 
 create table reservations (
   id uuid primary key default gen_random_uuid(),
@@ -127,13 +129,14 @@ create table reservations (
     exclude using gist (
       staff_id with =,
       time_range with &&
-    ) where (status in ('confirmed', 'tentative', 'done')),
+    ) where (status in ('requested', 'confirmed', 'checked_in', 'in_service', 'completed')),
   -- 同一設備の時間帯重複もブロック
   constraint reservations_resource_no_overlap
     exclude using gist (
       resource_id with =,
       time_range with &&
-    ) where (resource_id is not null and status in ('confirmed', 'tentative', 'done'))
+    ) where (resource_id is not null
+             and status in ('requested', 'confirmed', 'checked_in', 'in_service', 'completed'))
 );
 
 create index reservations_range_idx on reservations using gist (tenant_id, time_range);

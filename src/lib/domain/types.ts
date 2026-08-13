@@ -75,12 +75,34 @@ export interface Menu {
   active: boolean
 }
 
+/** マスター要件 §63 の状態遷移に準拠 */
 export type ReservationStatus =
+  | 'requested'
   | 'confirmed'
-  | 'tentative'
-  | 'done'
+  | 'checked_in'
+  | 'in_service'
+  | 'completed'
   | 'cancelled'
   | 'no_show'
+
+/** RESERVATION-009 キャンセル理由 */
+export type CancelReason =
+  | 'customer_request'
+  | 'shop_request'
+  | 'no_show'
+  | 'duplicate'
+  | 'other'
+
+/** RESERVATION-008 予約変更履歴 */
+export interface ReservationHistory {
+  id: string
+  reservationId: string
+  before: ReservationStatus
+  after: ReservationStatus
+  changedBy: string
+  changedAt: string
+  reason: CancelReason | null
+}
 
 export interface Reservation {
   id: string
@@ -107,6 +129,8 @@ export interface PaymentTender {
   kind: PaymentMethodKind
   label: string
   amount: number
+  /** 決済プロバイダ側の決済ID（§23 PAYMENT-002: transaction と provider payment の紐付け） */
+  providerPaymentId?: string
 }
 
 export interface PaymentItem {

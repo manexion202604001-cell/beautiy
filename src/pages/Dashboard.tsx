@@ -63,7 +63,10 @@ export function Dashboard() {
                       </div>
                       <div className="hidden text-[12px] text-stone sm:block">{staffName(r.staffId)}</div>
                       <Tag tone={r.nominated ? 'gold' : 'neutral'}>{r.nominated ? '指名' : 'フリー'}</Tag>
-                      {r.status === 'tentative' ? <Tag tone="amber">仮予約</Tag> : null}
+                      {r.status === 'requested' ? <Tag tone="amber">リクエスト</Tag> : null}
+                      {r.status === 'checked_in' || r.status === 'in_service' ? (
+                        <Tag tone="gold">{r.status === 'checked_in' ? '来店中' : '施術中'}</Tag>
+                      ) : null}
                     </Link>
                   </li>
                 ))}

@@ -17,6 +17,8 @@ import type {
   MessageThread,
   Payment,
   Reservation,
+  ReservationHistory,
+  ReservationStatus,
   Salon,
   Staff,
 } from '../domain/types'
@@ -160,7 +162,7 @@ export const reservations: Reservation[] = [
   { id: 'r-1', customerId: 'c-1', customerName: '綾瀬 花恋', staffId: 'st-1', menuIds: ['m-1', 'm-3'], start: at(today, 10, 0), end: at(today, 12, 30), nominated: true, status: 'confirmed', source: 'line', note: 'ノンジアミン' },
   { id: 'r-2', customerId: 'c-2', customerName: '如月 蒼真', staffId: 'st-3', menuIds: ['m-1'], start: at(today, 11, 0), end: at(today, 12, 0), nominated: false, status: 'confirmed', source: 'web', note: '' },
   { id: 'r-3', customerId: 'c-4', customerName: '橘 京香', staffId: 'st-2', menuIds: ['m-4', 'm-7'], start: at(today, 13, 0), end: at(today, 14, 40), nominated: true, status: 'confirmed', source: 'phone', note: 'スパ強め' },
-  { id: 'r-4', customerId: 'c-6', customerName: '鷺沢 一颯', staffId: 'st-4', menuIds: ['m-5'], start: at(today, 16, 0), end: at(today, 18, 0), nominated: true, status: 'tentative', source: 'line', note: '' },
+  { id: 'r-4', customerId: 'c-6', customerName: '鷺沢 一颯', staffId: 'st-4', menuIds: ['m-5'], start: at(today, 16, 0), end: at(today, 18, 0), nominated: true, status: 'requested', source: 'line', note: '' },
   { id: 'r-5', customerId: null, customerName: '新規：宇佐美 様', staffId: 'st-3', menuIds: ['m-3'], start: at(today, 15, 0), end: at(today, 16, 30), nominated: false, status: 'confirmed', source: 'web', note: '初来店。カウンセリング長めに。' },
   { id: 'r-6', customerId: 'c-5', customerName: '水無月 泉', staffId: 'st-2', menuIds: ['m-1'], start: at(addDays(today, 1), 18, 0), end: at(addDays(today, 1), 19, 0), nominated: false, status: 'confirmed', source: 'web', note: '' },
   { id: 'r-7', customerId: 'c-3', customerName: '篠宮 るい', staffId: 'st-4', menuIds: ['m-3', 'm-6'], start: at(addDays(today, 2), 12, 0), end: at(addDays(today, 2), 14, 30), nominated: true, status: 'confirmed', source: 'line', note: 'ケアブリーチ相談' },
@@ -214,6 +216,8 @@ export const messages: ChatMessage[] = [
   { id: 'ms-4', threadId: 'th-3', from: 'auto', body: 'ご無沙汰しております。ハイトーンの色味キープには8週間以内のメンテナンスがおすすめです。', at: at(subDays(today, 4), 15, 2), read: true },
 ]
 
+export const reservationHistories: ReservationHistory[] = []
+
 export const auditLogs: AuditLog[] = [
   { id: 'a-1', at: at(today, 9, 45), actor: '桐生 美月', action: 'カルテ閲覧', target: '綾瀬 花恋' },
   { id: 'a-2', at: at(subDays(today, 1), 20, 25), actor: '桐生 美月', action: 'レジ締め確定', target: day(-1) },
@@ -256,6 +260,7 @@ function currentSnapshot(): DbSnapshot {
     karteMemos,
     menus,
     reservations,
+    reservationHistories,
     payments,
     closings,
     threads,
@@ -284,6 +289,16 @@ function hydrate(): void {
   replaceInPlace(karteMemos, saved.karteMemos)
   replaceInPlace(menus, saved.menus)
   replaceInPlace(reservations, saved.reservations)
+  replaceInPlace(reservationHistories, saved.reservationHistories)
+  // 旧バージョンの保存データを §63 の8状態へ移行
+  const legacyStatusMap: Record<string, ReservationStatus> = {
+    tentative: 'requested',
+    done: 'completed',
+  }
+  for (const r of reservations) {
+    const mapped = legacyStatusMap[r.status as string]
+    if (mapped) r.status = mapped
+  }
   replaceInPlace(payments, saved.payments)
   replaceInPlace(closings, saved.closings)
   replaceInPlace(threads, saved.threads)

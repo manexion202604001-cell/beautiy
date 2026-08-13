@@ -3,7 +3,7 @@ import { ja } from 'date-fns/locale'
 import { Link } from 'react-router-dom'
 import { Button, Card, Tag } from '../../components/ui'
 import { useStoreVersion } from '../../hooks/useStore'
-import { listReservations, updateStatus } from '../../lib/api/reservations'
+import { canTransition, listReservations, transitionReservation } from '../../lib/api/reservations'
 import { menus, staffList } from '../../lib/api/store'
 import { BookingLayout } from './BookingLayout'
 
@@ -44,7 +44,7 @@ export function BookingManage() {
                   </div>
                   {cancelled ? <Tag tone="clay">キャンセル済</Tag> : <Tag tone="sage">確定</Tag>}
                 </div>
-                {!cancelled ? (
+                {!cancelled && canTransition(r.status, 'cancelled') ? (
                   <div className="mt-4 flex gap-3 border-t border-line pt-4">
                     <Link to="/booking" className="flex-1">
                       <Button variant="ghost" className="w-full">
@@ -54,7 +54,12 @@ export function BookingManage() {
                     <Button
                       variant="danger"
                       onClick={() => {
-                        if (window.confirm('この予約をキャンセルしますか？')) updateStatus(r.id, 'cancelled')
+                        if (window.confirm('この予約をキャンセルしますか？')) {
+                          transitionReservation(r.id, 'cancelled', {
+                            changedBy: 'お客様（Web）',
+                            reason: 'customer_request',
+                          })
+                        }
                       }}
                     >
                       キャンセル
