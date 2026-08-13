@@ -5,11 +5,13 @@ import { SessionProvider, useSession } from './hooks/useSession'
 import { Calendar } from './pages/Calendar'
 import { Checkout } from './pages/Checkout'
 import { CustomerDetail } from './pages/CustomerDetail'
+import { CustomerForm } from './pages/CustomerForm'
 import { Customers } from './pages/Customers'
 import { Dashboard } from './pages/Dashboard'
 import { KarteNew } from './pages/KarteNew'
 import { Login } from './pages/Login'
 import { Messages } from './pages/Messages'
+import { Receipt } from './pages/Receipt'
 import { RegisterClose } from './pages/RegisterClose'
 import { Reports } from './pages/Reports'
 import { ReservationDetail } from './pages/ReservationDetail'
@@ -23,6 +25,13 @@ function Protected({ children }: { children: ReactNode }) {
   const { user } = useSession()
   if (!user) return <Navigate to="/login" replace />
   return <AppShell>{children}</AppShell>
+}
+
+/** 認証必須だがナビゲーションを持たない画面（印刷用など） */
+function ProtectedBare({ children }: { children: ReactNode }) {
+  const { user } = useSession()
+  if (!user) return <Navigate to="/login" replace />
+  return <>{children}</>
 }
 
 // 静的ホスティングでのデモ配信時のみハッシュルーティングを使用（本番はBrowserRouter）
@@ -47,9 +56,12 @@ export function App() {
           <Route path="/reservations/new" element={<Protected><ReservationNew /></Protected>} />
           <Route path="/reservations/:id" element={<Protected><ReservationDetail /></Protected>} />
           <Route path="/customers" element={<Protected><Customers /></Protected>} />
+          <Route path="/customers/new" element={<Protected><CustomerForm /></Protected>} />
           <Route path="/customers/:id" element={<Protected><CustomerDetail /></Protected>} />
+          <Route path="/customers/:id/edit" element={<Protected><CustomerForm /></Protected>} />
           <Route path="/customers/:id/karte/new" element={<Protected><KarteNew /></Protected>} />
           <Route path="/checkout" element={<Protected><Checkout /></Protected>} />
+          <Route path="/receipts/:id" element={<ProtectedBare><Receipt /></ProtectedBare>} />
           <Route path="/register-close" element={<Protected><RegisterClose /></Protected>} />
           <Route path="/messages" element={<Protected><Messages /></Protected>} />
           <Route path="/reports" element={<Protected><Reports /></Protected>} />

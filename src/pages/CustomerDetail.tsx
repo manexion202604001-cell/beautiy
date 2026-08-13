@@ -28,9 +28,14 @@ export function CustomerDetail() {
         eyebrow="Customer Karte"
         title={`${customer.name} 様`}
         action={
-          <Link to={`/customers/${customer.id}/karte/new`}>
-            <Button>カルテを書く</Button>
-          </Link>
+          <div className="flex gap-2">
+            <Link to={`/customers/${customer.id}/edit`}>
+              <Button variant="ghost">編集</Button>
+            </Link>
+            <Link to={`/customers/${customer.id}/karte/new`}>
+              <Button>カルテを書く</Button>
+            </Link>
+          </div>
         }
       />
 

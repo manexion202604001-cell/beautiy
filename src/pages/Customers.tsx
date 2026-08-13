@@ -1,13 +1,25 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
-import { Card, EmptyState, Input, PageHeader, Select, Tag } from '../components/ui'
+import { Link, useNavigate } from 'react-router-dom'
+import { Button, Card, EmptyState, Input, PageHeader, Select, Tag } from '../components/ui'
 import { useStoreVersion } from '../hooks/useStore'
-import { listAllTags, searchCustomers } from '../lib/api/customers'
+import { exportCustomersCsv, listAllTags, searchCustomers } from '../lib/api/customers'
 import { staffList } from '../lib/api/store'
+
+function downloadCsv(): void {
+  // BOM付きUTF-8（Excelでの文字化け防止）
+  const blob = new Blob(['﻿' + exportCustomersCsv()], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `customers-${new Date().toISOString().slice(0, 10)}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+}
 
 /** S-05 顧客一覧 / 検索 */
 export function Customers() {
   useStoreVersion()
+  const navigate = useNavigate()
   const [query, setQuery] = useState('')
   const [tag, setTag] = useState('')
   const [staffId, setStaffId] = useState('')
@@ -16,7 +28,18 @@ export function Customers() {
 
   return (
     <div>
-      <PageHeader eyebrow="Customers" title="顧客台帳" />
+      <PageHeader
+        eyebrow="Customers"
+        title="顧客台帳"
+        action={
+          <div className="flex gap-2">
+            <Button variant="ghost" onClick={downloadCsv}>
+              CSV出力
+            </Button>
+            <Button onClick={() => navigate('/customers/new')}>新規顧客</Button>
+          </div>
+        }
+      />
 
       <div className="mb-5 grid gap-3 sm:grid-cols-[1fr_180px_180px]">
         <Input
