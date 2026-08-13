@@ -1,5 +1,6 @@
 import { format } from 'date-fns'
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Button, Card, EmptyState, Field, Input, PageHeader, SectionLabel, Select, Tag, yen } from '../components/ui'
 import { useSession } from '../hooks/useSession'
 import { useStoreVersion } from '../hooks/useStore'
@@ -62,6 +63,11 @@ export function Checkout() {
                       <Button variant="ghost" onClick={() => fixPayment(p.id)}>
                         確定
                       </Button>
+                    ) : null}
+                    {p.status === 'fixed' && !p.reversalOf ? (
+                      <Link to={`/receipts/${p.id}`}>
+                        <Button variant="ghost">領収書</Button>
+                      </Link>
                     ) : null}
                     {p.status === 'fixed' && !p.reversalOf ? (
                       <Button
