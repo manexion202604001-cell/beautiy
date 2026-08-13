@@ -3,6 +3,7 @@ import { Button, Card, PageHeader, SectionLabel, Tag, yen } from '../components/
 import { useStoreVersion } from '../hooks/useStore'
 import { hasSavedData, resetDb } from '../lib/api/persist'
 import { auditLogs, menus, salon, staffList } from '../lib/api/store'
+import { isSupabaseConfigured } from '../lib/supabase/client'
 import { roleLabel } from './Login'
 
 /** S-12 店舗設定（営業・メニュー・スタッフ権限・連携・監査ログ） */
@@ -56,6 +57,14 @@ export function Settings() {
           <div className="mt-8">
             <SectionLabel>データ管理</SectionLabel>
             <Card className="p-5">
+              <p className="mb-3 flex items-center gap-2 text-[13px]">
+                接続モード：
+                {isSupabaseConfigured ? (
+                  <Tag tone="sage">Supabase（クラウド）</Tag>
+                ) : (
+                  <Tag tone="amber">ローカル（この端末のみ）</Tag>
+                )}
+              </p>
               <p className="text-[13px] leading-relaxed text-ink-soft">
                 データはこの端末（ブラウザ）に自動保存されます
                 {hasSavedData() ? '（保存データあり）' : ''}。
