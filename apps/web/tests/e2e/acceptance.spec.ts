@@ -4,7 +4,7 @@
 import { test, expect, type BrowserContext, type Page } from '@playwright/test';
 import { prisma } from '@salonos/db';
 import { signLineLink } from '../../lib/server/line-link';
-import { pathOf, pickFirstSlot, stat, TINY_PNG } from './helpers';
+import { pathOf, pickFirstSlot, ready, stat, TINY_PNG, visit } from './helpers';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -49,7 +49,7 @@ test.afterAll(async () => {
 
 test('a. owner signs up and lands on the dashboard', async () => {
   const page = ownerPage;
-  await page.goto('/signup');
+  await visit(page, '/signup');
   await page.getByLabel('サロン名（組織名）').fill(orgName);
   await page.getByLabel('最初の店舗名').fill(shopName);
   await page.getByLabel('オーナーのお名前').fill(owner.name);
@@ -61,7 +61,7 @@ test('a. owner signs up and lands on the dashboard', async () => {
 
 test('b. owner invites a stylist who accepts and becomes bookable', async () => {
   const page = ownerPage;
-  await page.goto('/settings/staff');
+  await visit(page, '/settings/staff');
   await page.getByRole('button', { name: 'スタッフを招待' }).click();
   const dialog = page.getByRole('dialog');
   await dialog.getByLabel('氏名').fill(stylist.name);
@@ -76,7 +76,7 @@ test('b. owner invites a stylist who accepts and becomes bookable', async () => 
 
   // stylist accepts in a separate browser
   const s = stylistPage;
-  await s.goto(pathOf(inviteUrl));
+  await visit(s, pathOf(inviteUrl));
   await expect(s.getByRole('heading', { name: `${orgName} に参加` })).toBeVisible();
   await expect(s.getByLabel('お名前')).toHaveValue(stylist.name);
   await s.getByLabel('パスワード（8文字以上）').fill(stylist.password);
@@ -84,7 +84,7 @@ test('b. owner invites a stylist who accepts and becomes bookable', async () => 
   await expect(s).toHaveURL(/\/dashboard/);
 
   // back as owner: the stylist is a member assigned to the shop and takes online bookings
-  await page.goto('/settings/staff');
+  await visit(page, '/settings/staff');
   const row = page.getByRole('row').filter({ hasText: stylist.email });
   await expect(row).toContainText(stylist.name);
   await expect(row).toContainText('スタイリスト');
@@ -103,7 +103,7 @@ test('c. owner configures menu, seats and business hours', async () => {
   const page = ownerPage;
 
   // menu
-  await page.goto('/settings/menus');
+  await visit(page, '/settings/menus');
   await page.getByRole('button', { name: 'メニューを追加' }).click();
   const dialog = page.getByRole('dialog');
   await dialog.getByLabel('カテゴリ').fill(menu.category);
@@ -117,23 +117,25 @@ test('c. owner configures menu, seats and business hours', async () => {
   await expect(menuRow).toContainText('掲載');
 
   // seats (+ read the public slug)
-  await page.goto('/settings/shop');
+  await visit(page, '/settings/shop');
   await page.getByLabel('席数（同時に施術できる数）').fill('2');
   await page.getByRole('button', { name: '保存', exact: true }).click();
   await expect(page.getByRole('status')).toContainText('保存しました');
   await page.reload();
+  await ready(page);
   await expect(page.getByLabel('席数（同時に施術できる数）')).toHaveValue('2');
   shopSlug = await page.getByLabel('公開URL（スラッグ）').inputValue();
   expect(shopSlug).toMatch(/^[a-z0-9-]+$/);
 
   // business hours: open every day so the journey does not depend on today's weekday
-  await page.goto('/settings/hours');
+  await visit(page, '/settings/hours');
   const closed = page.getByRole('checkbox', { name: '定休日' });
   await expect(closed).toHaveCount(7);
   for (let i = 0; i < 7; i++) await closed.nth(i).uncheck();
   await page.getByRole('button', { name: '営業時間を保存' }).click();
   await expect(page.getByRole('status')).toContainText('営業時間を保存しました');
   await page.reload();
+  await ready(page);
   for (let i = 0; i < 7; i++) await expect(closed.nth(i)).not.toBeChecked();
 });
 
@@ -142,7 +144,7 @@ test('d. customer books on the public page through a LINE link', async () => {
   const lk = signLineLink(shop.organizationId, lineUserId);
 
   const page = await customerCtx.newPage();
-  await page.goto(`/book/${shopSlug}?lk=${encodeURIComponent(lk)}`);
+  await visit(page, `/book/${shopSlug}?lk=${encodeURIComponent(lk)}`);
   const openedAt = Date.now();
   await expect(page.getByText('LINEと連携してご予約いただけます')).toBeVisible();
 
@@ -180,7 +182,7 @@ test('d. customer books on the public page through a LINE link', async () => {
   apptDate = `${when![1]}-${when![2].padStart(2, '0')}-${when![3].padStart(2, '0')}`;
 
   // the manage URL works for the customer
-  await page.goto(pathOf(manageUrl));
+  await visit(page, pathOf(manageUrl));
   await expect(page.getByText('予約確定')).toBeVisible();
   await expect(page.getByText(`${customerName} 様`)).toBeVisible();
   await page.close();
@@ -188,7 +190,7 @@ test('d. customer books on the public page through a LINE link', async () => {
 
 test('e. reservation is in the staff ledger and the customer has a LINE identity', async () => {
   const page = ownerPage;
-  await page.goto(`/reservations?view=day&date=${apptDate}`);
+  await visit(page, `/reservations?view=day&date=${apptDate}`);
   const block = page.getByRole('button', { name: new RegExp(customerName) });
   await expect(block).toBeVisible();
   await expect(block).toHaveAccessibleName(/確定/);
@@ -211,13 +213,13 @@ test('e. reservation is in the staff ledger and the customer has a LINE identity
 
 test('f. stylist opens the customer and writes a karte with a photo', async () => {
   const page = stylistPage;
-  await page.goto(`/customers/${customerId}`);
+  await visit(page, `/customers/${customerId}`);
   await expect(page.getByRole('heading', { name: new RegExp(customerName) })).toBeVisible();
   // stylists do not see raw contact details
   const phone = page.locator('dt', { hasText: '電話' }).locator('xpath=following-sibling::dd[1]');
   await expect(phone).toHaveText(new RegExp(`^\\*+${customer.phone.slice(-4)}$`));
 
-  await page.goto(`/karte/new?appointmentId=${appointmentId}`);
+  await visit(page, `/karte/new?appointmentId=${appointmentId}`);
   await expect(page.getByRole('heading', { name: `${customerName} 様の新規カルテ` })).toBeVisible();
   await page.getByLabel('施術内容').fill(`E2E施術メモ ${tag}: 全体2cmカット`);
   await page.getByLabel('お客様へのケアメモ').fill('2日間はシャンプー控えめに');
@@ -234,15 +236,14 @@ test('f. stylist opens the customer and writes a karte with a photo', async () =
 
 test('g. POS checkout of the appointment paid in cash', async () => {
   const page = ownerPage;
-  await page.goto('/pos/register');
+  await visit(page, '/pos/register');
   const open = page.getByRole('button', { name: 'レジを開ける' });
-  if (await open.isVisible()) {
-    await open.click();
-    await expect(page.getByText('レジを開けました')).toBeVisible();
-  }
-  await expect(page.getByRole('button', { name: 'レジを締める' })).toBeVisible();
+  // (a success toast flashes, but the refresh swaps the open form for the close form right away)
+  if (await open.isVisible()) await open.click();
+  await expect(page.getByRole('heading', { name: 'レジ締め', exact: true })).toBeVisible();
+  await expect(page.getByText('営業中')).toBeVisible();
 
-  await page.goto(`/pos/checkout?appointmentId=${appointmentId}`);
+  await visit(page, `/pos/checkout?appointmentId=${appointmentId}`);
   await expect(page.getByRole('textbox', { name: '品目名' }).first()).toHaveValue(menu.name);
   await page.getByRole('button', { name: '現金', exact: true }).click();
   const confirm = page.getByRole('button', { name: /^会計確定/ });
@@ -259,21 +260,21 @@ test('g. POS checkout of the appointment paid in cash', async () => {
 
 test('h. visit count, LTV, sales report and appointment status are updated', async () => {
   const page = ownerPage;
-  await page.goto(`/customers/${customerId}`);
+  await visit(page, `/customers/${customerId}`);
   await expect(stat(page, '来店回数')).toHaveText('1回');
   await expect(stat(page, '累計売上（LTV）')).toHaveText(paidTotal);
 
-  await page.goto('/reports?range=today');
+  await visit(page, '/reports?range=today');
   await expect(stat(page, '純売上（返金控除後）')).toHaveText(paidTotal);
   await expect(stat(page, '会計件数')).toHaveText('1件');
 
-  await page.goto(`/reservations?view=day&date=${apptDate}`);
+  await visit(page, `/reservations?view=day&date=${apptDate}`);
   await expect(page.getByRole('button', { name: new RegExp(customerName) })).toHaveAccessibleName(/完了/);
 });
 
 test('i. an outbound message to the customer is logged', async () => {
   const page = ownerPage;
-  await page.goto('/messages/logs');
+  await visit(page, '/messages/logs');
   const row = page.getByRole('row').filter({ hasText: customerName });
   await expect(row.first()).toBeVisible();
   await expect(row.first()).toContainText('LINE');

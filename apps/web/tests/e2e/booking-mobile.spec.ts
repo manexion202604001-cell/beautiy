@@ -1,14 +1,14 @@
 // Public, no-account booking on a phone against the seeded demo shop, then the customer
 // reschedules and cancels through the manage page from the confirmation screen.
 import { test, expect } from '@playwright/test';
-import { pickFirstSlot } from './helpers';
+import { pickFirstSlot, visit } from './helpers';
 
 const SHOP = 'aoyama';
 // fixed identity: repeated runs resolve to the same demo customer instead of piling up new ones
 const guest = { name: 'E2E モバイル', kana: 'イーツーイー モバイル', phone: '080-0000-0101' };
 
 test('customer books on mobile, changes the time and cancels', async ({ page }) => {
-  await page.goto(`/book/${SHOP}`);
+  await visit(page, `/book/${SHOP}`);
   const openedAt = Date.now();
   await expect(page.getByRole('heading', { name: 'メニューを選ぶ' })).toBeVisible();
 

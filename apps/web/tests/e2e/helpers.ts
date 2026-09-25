@@ -8,8 +8,27 @@ export const TINY_PNG = Buffer.from(
   'base64',
 );
 
+/**
+ * Wait until React has hydrated every interactive element. Clicking server-rendered markup before
+ * hydration does nothing (buttons) or submits natively (ActionForm forms) — common on a cold dev server.
+ */
+export async function ready(page: Page) {
+  await page.waitForFunction(() => {
+    const els = document.querySelectorAll('button, input:not([type=hidden]), select, textarea, form');
+    return document.readyState === 'complete'
+      && Array.from(els).every((el) => Object.keys(el).some((k) => k.startsWith('__reactProps$')));
+  }, undefined, { timeout: 120_000 });
+}
+
+/** page.goto + wait for hydration. */
+export async function visit(page: Page, url: string) {
+  const res = await page.goto(url);
+  await ready(page);
+  return res;
+}
+
 export async function login(page: Page, email: string, password = DEMO_PASSWORD) {
-  await page.goto('/login');
+  await visit(page, '/login');
   await page.getByLabel('メールアドレス').fill(email);
   await page.getByLabel('パスワード').fill(password);
   await page.getByRole('button', { name: 'ログイン' }).click();
