@@ -1,13 +1,14 @@
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { localToUtc, todayIn } from '@salonos/core';
 import { signStripePayload } from '@salonos/core/integrations/payments';
 import { prisma } from '@salonos/db';
 import { createAppointment } from '@/lib/server/booking';
 import { pointsBalance } from '@/lib/server/customers';
 import {
-  checkout, closeRegister, createDraft, dailyReport, openRegister, refundTransaction, registerSummary, saveDraft, updateDraft, voidTransaction,
+  cancelPendingPayment, checkout, closeRegister, createDraft, dailyReport, openRegister, refundTransaction, registerSummary, saveDraft, startProviderPayment, updateDraft, voidTransaction,
   type PosActor,
 } from '@/lib/server/pos';
+import { writeConfig } from '@/lib/server/integrations';
 import { createRecommendation, createStoreOrder, markOrderPaid, orderToken, transitionOrder, updateSubscription, verifyOrderToken } from '@/lib/server/commerce';
 import { handlePaymentWebhook } from '@/lib/server/payments/webhooks';
 import type { DraftLine } from '@/lib/pos-shared';
@@ -416,5 +417,164 @@ describe('commerce operations', () => {
     await expect(createStoreOrder({ ...base, items: [{ productId: product.id, quantity: 2 }] })).rejects.toThrow(/在庫/);
     const hidden = await prisma.product.create({ data: { organizationId: org.id, name: '非公開', price: 100, stock: 5, onlineSale: false } });
     await expect(createStoreOrder({ ...base, items: [{ productId: hidden.id, quantity: 1 }] })).rejects.toThrow(/販売を終了/);
+  });
+});
+
+describe('provider payments: refunds, pending links, references', () => {
+  const stripeEvent = (id: string, type: string, object: Record<string, unknown>) => JSON.stringify({ id, type, data: { object } });
+  const send = (body: string) => handlePaymentWebhook('STRIPE', body, new Headers({ 'stripe-signature': signStripePayload(body, WH_SECRET) }), new URL('http://localhost/api/webhooks/stripe'));
+  let evt = 0;
+  const eid = (p: string) => `evt_${p}_${Date.now().toString(36)}_${evt++}`;
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  /** Org with a live (mocked) Stripe account; fetch answers from `routes`. */
+  async function liveStripe(s: Awaited<ReturnType<typeof setup>>, routes: Record<string, (body: string) => unknown>) {
+    await prisma.integration.create({ data: { organizationId: s.org.id, provider: 'STRIPE', status: 'ACTIVE', configEnc: writeConfig({ secretKey: 'sk_test_mock' }) } });
+    const calls: string[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      const path = new URL(url).pathname;
+      calls.push(`${init?.method ?? 'GET'} ${path}`);
+      const route = Object.keys(routes).find((k) => path.startsWith(k));
+      if (!route) return new Response(JSON.stringify({ error: { message: `unmocked ${path}` } }), { status: 404 });
+      return new Response(JSON.stringify(routes[route](String(init?.body ?? ''))), { status: 200 });
+    }));
+    return calls;
+  }
+
+  it('M1: the same Stripe refund via API response, refund.* and charge.refunded is recorded once', async () => {
+    const s = await setup();
+    const pi = `pi_m1_${Date.now().toString(36)}`;
+    const d = await saveDraft(s.actor, { shopId: s.shop.id, draft: draft([svc(s.cut)], { customerId: s.customer.id }) });
+    expect((await send(stripeEvent(eid('pay'), 'payment_intent.succeeded', { id: pi, amount_received: 5500, metadata: { transaction_id: d.id } }))).body).toMatchObject({ processed: true });
+    let nextRefund = '';
+    const calls = await liveStripe(s, { '/v1/refunds': () => ({ id: nextRefund, status: 'succeeded' }) });
+    const refundObj = (id: string, amount: number) => ({ id, object: 'refund', status: 'succeeded', amount, payment_intent: pi });
+
+    // A) webhook first, then the cashier's API call returns the same re_ id
+    const re1 = `re_a_${Date.now().toString(36)}`;
+    await send(stripeEvent(eid('r'), 'refund.updated', refundObj(re1, 2000)));
+    nextRefund = re1;
+    const r1 = await refundTransaction(s.actor, d.id, { amount: 2000, method: 'STRIPE', reason: '一部返金' });
+    expect(r1.duplicate).toBe(true);
+    // charge.refunded without expanded refunds must not synthesize anything
+    await send(stripeEvent(eid('ch'), 'charge.refunded', { id: 'ch_1', payment_intent: pi, amount_refunded: 2000 }));
+    let t = await prisma.transaction.findUniqueOrThrow({ where: { id: d.id }, include: { refunds: true } });
+    expect(t.refunds.map((r) => r.externalRef)).toEqual([re1]);
+    expect(t.refundedTotal).toBe(2000);
+
+    // B) cashier first (API response), then refund.updated + charge.refunded (with and without refunds list)
+    const re2 = `re_b_${Date.now().toString(36)}`;
+    nextRefund = re2;
+    const r2 = await refundTransaction(s.actor, d.id, { amount: 1000, method: 'STRIPE', reason: '追加返金' });
+    expect(r2.duplicate).toBeUndefined();
+    expect(r2.refundedTotal).toBe(3000);
+    await send(stripeEvent(eid('r'), 'refund.updated', refundObj(re2, 1000)));
+    await send(stripeEvent(eid('ch'), 'charge.refunded', { id: 'ch_1', payment_intent: pi, amount_refunded: 3000 }));
+    await send(stripeEvent(eid('ch'), 'charge.refunded', { id: 'ch_1', payment_intent: pi, amount_refunded: 3000, refunds: { data: [refundObj(re1, 2000), refundObj(re2, 1000)] } }));
+
+    // C) API call and webhook racing
+    const re3 = `re_c_${Date.now().toString(36)}`;
+    nextRefund = re3;
+    await Promise.all([
+      refundTransaction(s.actor, d.id, { amount: 500, method: 'STRIPE', reason: '同時' }),
+      send(stripeEvent(eid('r'), 'refund.created', refundObj(re3, 500))),
+    ]);
+    t = await prisma.transaction.findUniqueOrThrow({ where: { id: d.id }, include: { refunds: true } });
+    expect(t.refunds).toHaveLength(3);
+    expect(new Set(t.refunds.map((r) => r.externalRef))).toEqual(new Set([re1, re2, re3]));
+    expect(t.refundedTotal).toBe(3500);
+    expect(t.status).toBe('PARTIALLY_REFUNDED');
+    expect(calls.filter((c) => c === 'POST /v1/refunds')).toHaveLength(3);
+    expect(await prisma.refund.count({ where: { externalRef: { startsWith: 'stripe_evt_' }, transactionId: d.id } })).toBe(0);
+  });
+
+  it('M2: a pending payment link locks the ticket until paid or cancelled', async () => {
+    const s = await setup();
+    await openRegister(s.actor, s.shop.id, 1000);
+    const d = await saveDraft(s.actor, { shopId: s.shop.id, draft: draft([svc(s.cut)]) });
+    const link = await startProviderPayment(s.actor, d.id, 'STRIPE');
+    expect(link.sandbox).toBe(true);
+    const pending = await prisma.payment.findFirstOrThrow({ where: { transactionId: d.id } });
+    expect(pending).toMatchObject({ status: 'PENDING', method: 'STRIPE', amount: 5500, externalRef: link.reference });
+
+    await expect(updateDraft(s.actor, d.id, draft([svc(s.color)]))).rejects.toThrow(/完了待ち/);
+    await updateDraft(s.actor, d.id, draft([svc(s.cut)])); // same amount: harmless re-save
+    await expect(checkout(s.actor, d.id, { tenders: [{ method: 'CASH', amount: 5500 }] })).rejects.toThrow(/完了待ち/);
+    await expect(startProviderPayment(s.actor, d.id, 'SQUARE')).rejects.toThrow(/完了待ち/);
+
+    await cancelPendingPayment(s.actor, d.id);
+    expect((await prisma.payment.findUniqueOrThrow({ where: { id: pending.id } })).status).toBe('FAILED');
+    await expect(cancelPendingPayment(s.actor, d.id)).rejects.toThrow(/ありません/);
+    await updateDraft(s.actor, d.id, draft([svc(s.color)]));
+    await checkout(s.actor, d.id, { tenders: [{ method: 'CASH', amount: 8800 }] });
+    const t = await prisma.transaction.findUniqueOrThrow({ where: { id: d.id }, include: { payments: true } });
+    expect(t.status).toBe('PAID');
+    expect(t.payments.map((p) => [p.method, p.status])).toEqual([['CASH', 'SUCCEEDED']]);
+    expect(await prisma.auditLog.count({ where: { organizationId: s.org.id, action: 'pos.payment_pending_cancelled', resourceId: d.id } })).toBe(1);
+
+    // the pending link settles the ticket when the provider confirms it; the placeholder is replaced
+    const d2 = await saveDraft(s.actor, { shopId: s.shop.id, draft: draft([svc(s.cut)]) });
+    await startProviderPayment(s.actor, d2.id, 'STRIPE');
+    const pi = `pi_ok_${Date.now().toString(36)}`;
+    const ok = await send(stripeEvent(eid('cs'), 'checkout.session.completed', { id: 'cs_x', payment_intent: pi, payment_status: 'paid', amount_total: 5500, metadata: { transaction_id: d2.id, org_id: s.org.id } }));
+    expect(ok.body).toMatchObject({ processed: true });
+    const t2 = await prisma.transaction.findUniqueOrThrow({ where: { id: d2.id }, include: { payments: true } });
+    expect(t2.status).toBe('PAID');
+    expect(t2.payments.map((p) => [p.method, p.status, p.externalRef])).toEqual([['STRIPE', 'SUCCEEDED', pi]]);
+    // the twin payment_intent.succeeded event is a no-op
+    expect((await send(stripeEvent(eid('pi'), 'payment_intent.succeeded', { id: pi, amount_received: 5500, metadata: { transaction_id: d2.id } }))).body).toMatchObject({ note: 'payment already recorded' });
+
+    // voiding a draft releases its pending link
+    const d3 = await saveDraft(s.actor, { shopId: s.shop.id, draft: draft([svc(s.cut)]) });
+    await startProviderPayment(s.actor, d3.id, 'SQUARE');
+    await voidTransaction(s.actor, d3.id);
+    expect((await prisma.payment.findFirstOrThrow({ where: { transactionId: d3.id } })).status).toBe('FAILED');
+  });
+
+  it('M2: a succeeded payment that cannot be applied is flagged for staff, not dropped', async () => {
+    const s = await setup();
+    const d = await saveDraft(s.actor, { shopId: s.shop.id, draft: draft([svc(s.cut)]) });
+    await checkout(s.actor, d.id, { tenders: [{ method: 'CARD', amount: 5500 }] }); // paid another way
+    const late = eid('late');
+    const r = await send(stripeEvent(late, 'payment_intent.succeeded', { id: `pi_late_${evt}`, amount_received: 5500, metadata: { transaction_id: d.id, org_id: s.org.id } }));
+    expect(r.status).toBe(200);
+    expect(r.body).toMatchObject({ unapplied: true });
+    const row = await prisma.webhookEvent.findUniqueOrThrow({ where: { provider_eventId: { provider: 'STRIPE', eventId: late } } });
+    expect(row.status).toBe('FAILED');
+    expect(row.error).toContain('要対応: 適用できない入金');
+    const logs = await prisma.auditLog.findMany({ where: { organizationId: s.org.id, action: 'payment.unapplied' } });
+    expect(logs).toHaveLength(1);
+    expect(logs[0]).toMatchObject({ resourceType: 'Transaction', resourceId: d.id });
+    expect((await prisma.transaction.findUniqueOrThrow({ where: { id: d.id }, include: { payments: true } })).payments).toHaveLength(1);
+
+    // amount differs from the (changed) ticket → flagged, ticket stays DRAFT
+    const d2 = await saveDraft(s.actor, { shopId: s.shop.id, draft: draft([svc(s.color)]) });
+    const mism = eid('mism');
+    const r2 = await send(stripeEvent(mism, 'payment_intent.succeeded', { id: `pi_mism_${evt}`, amount_received: 5500, metadata: { transaction_id: d2.id } }));
+    expect(r2.body).toMatchObject({ unapplied: true });
+    expect((await prisma.transaction.findUniqueOrThrow({ where: { id: d2.id } })).status).toBe('DRAFT');
+    expect((await prisma.webhookEvent.findUniqueOrThrow({ where: { provider_eventId: { provider: 'STRIPE', eventId: mism } } })).status).toBe('FAILED');
+    expect(await prisma.auditLog.count({ where: { organizationId: s.org.id, action: 'payment.unapplied' } })).toBe(2);
+  });
+
+  it('L1: a provider reference must belong to this ticket and organization', async () => {
+    const s = await setup();
+    const d = await saveDraft(s.actor, { shopId: s.shop.id, draft: draft([svc(s.cut)]) });
+    const intents: Record<string, Record<string, string>> = {
+      pi_other_ticket: { transaction_id: 'someone-elses-ticket' },
+      pi_other_org: { transaction_id: d.id, org_id: 'another-org' },
+      pi_good: { transaction_id: d.id, org_id: s.org.id },
+    };
+    await liveStripe(s, { '/v1/payment_intents/': () => ({}) });
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      const id = new URL(url).pathname.split('/').pop()!;
+      return new Response(JSON.stringify({ id, status: 'succeeded', amount_received: 5500, currency: 'jpy', metadata: intents[id] ?? {} }), { status: 200 });
+    }));
+    await expect(checkout(s.actor, d.id, { tenders: [{ method: 'STRIPE', amount: 5500, reference: 'pi_other_ticket' }] })).rejects.toThrow(/この会計のものではありません/);
+    await expect(checkout(s.actor, d.id, { tenders: [{ method: 'STRIPE', amount: 5500, reference: 'pi_other_org' }] })).rejects.toThrow(/この会計のものではありません/);
+    await checkout(s.actor, d.id, { tenders: [{ method: 'STRIPE', amount: 5500, reference: 'pi_good' }] });
+    const t = await prisma.transaction.findUniqueOrThrow({ where: { id: d.id }, include: { payments: true } });
+    expect(t.status).toBe('PAID');
+    expect(t.payments[0]).toMatchObject({ method: 'STRIPE', externalRef: 'pi_good' });
   });
 });

@@ -314,11 +314,11 @@ async function resolveTarget(orgId: string, integration: { provider: string; sho
   const staffId = opts.dropStaff ? null : await resolveStaff(orgId, config, b);
   const ph = phoneHash(b.customer.phone);
   const externalId = b.customer.externalCustomerId ?? (ph ? `tel:${ph}` : null);
-  const { customerId } = await resolveCustomer(prisma, {
+  const { customerId } = await prisma.$transaction((tx) => resolveCustomer(tx, {
     orgId, shopId, name: b.customer.name, kana: b.customer.kana ?? null,
     phone: normalizePhone(b.customer.phone) ?? b.customer.phone ?? null, email: b.customer.email ?? null,
     identity: externalId ? { provider: integration.provider, externalId, displayName: b.customer.name } : null,
-  });
+  }));
   return { shopId, staffId, customerId, menus: await resolveMenus(shopId, b) };
 }
 

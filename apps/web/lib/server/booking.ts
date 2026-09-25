@@ -220,6 +220,8 @@ export async function createAppointment(input: CreateAppointmentInput): Promise<
           guestName: input.guestName ?? null, guestPhone: input.guestPhone ?? null,
           externalProvider: input.externalProvider ?? null, externalRef: input.externalRef ?? null,
           idempotencyKey: input.idempotencyKey ?? null, createdById: input.createdById ?? null,
+          // Bearer secret for the public manage/review URLs: cryptographically random, never cuid.
+          manageToken: randomToken(24),
           menus: { create: menus.map((m) => ({ menuId: m.menuId ?? null, name: m.name, price: m.price, durationMin: m.durationMin })) },
         },
       });

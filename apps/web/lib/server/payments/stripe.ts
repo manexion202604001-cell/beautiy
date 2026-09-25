@@ -13,9 +13,11 @@ export interface StripeConfig { secretKey: string; webhookSecret: string; live: 
 
 export async function stripeConfig(orgId: string, shopId?: string | null): Promise<StripeConfig> {
   const it = await getIntegration(orgId, 'STRIPE', shopId).catch(() => null);
-  const active = it && it.integration.status !== 'PAUSED';
-  const secretKey: string = (active && it?.config.secretKey) || env.stripe.secretKey || '';
-  const webhookSecret: string = (active && it?.config.webhookSecret) || env.stripe.webhookSecret || '';
+  // A PAUSED integration means "no Stripe for this salon": never fall back to the platform's
+  // env key (that would charge/refund on a different account). Sandbox mode instead.
+  if (it && it.integration.status === 'PAUSED') return { secretKey: '', webhookSecret: '', live: false, integrationId: it.integration.id };
+  const secretKey: string = it?.config.secretKey || env.stripe.secretKey || '';
+  const webhookSecret: string = it?.config.webhookSecret || env.stripe.webhookSecret || '';
   return { secretKey, webhookSecret, live: !!secretKey, integrationId: it?.integration.id ?? null };
 }
 
@@ -68,7 +70,8 @@ export async function createPaymentIntent(orgId: string, input: { amount: number
   const cfg = await stripeConfig(orgId, input.shopId);
   if (!cfg.live) return { id: sandboxId('pi'), clientSecret: null, status: 'succeeded', sandbox: true };
   const pi = await stripeRequest(cfg.secretKey, 'POST', '/payment_intents', {
-    amount: input.amount, currency: 'jpy', description: input.description, metadata: input.metadata,
+    // org_id lets manual POS references and webhooks verify which salon the payment belongs to.
+    amount: input.amount, currency: 'jpy', description: input.description, metadata: { ...input.metadata, org_id: orgId },
     automatic_payment_methods: { enabled: true },
   }, input.idempotencyKey);
   return { id: pi.id, clientSecret: pi.client_secret ?? null, status: pi.status, sandbox: false };
@@ -94,16 +97,25 @@ export async function createCheckoutSession(orgId: string, input: {
 }): Promise<CheckoutResult> {
   const cfg = await stripeConfig(orgId, input.shopId);
   if (!cfg.live) return { id: sandboxId('cs'), url: null, sandbox: true };
+  const metadata = { ...input.metadata, org_id: orgId };
   const s = await stripeRequest(cfg.secretKey, 'POST', '/checkout/sessions', {
     mode: 'payment',
     success_url: input.successUrl,
     cancel_url: input.cancelUrl,
     customer_email: input.customerEmail || undefined,
-    metadata: input.metadata,
-    payment_intent_data: { metadata: input.metadata },
+    metadata,
+    payment_intent_data: { metadata },
     line_items: input.lines.map((l) => ({ quantity: l.quantity, price_data: { currency: 'jpy', unit_amount: l.amount, product_data: { name: l.name.slice(0, 250) } } })),
   }, input.idempotencyKey);
   return { id: s.id, url: s.url ?? null, sandbox: false };
+}
+
+/** Expire an open Checkout Session so it can no longer be paid (no-op in sandbox). */
+export async function expireCheckoutSession(orgId: string, sessionId: string, shopId?: string | null): Promise<{ sandbox: boolean }> {
+  const cfg = await stripeConfig(orgId, shopId);
+  if (!cfg.live || sessionId.startsWith('sandbox_')) return { sandbox: true };
+  await stripeRequest(cfg.secretKey, 'POST', `/checkout/sessions/${encodeURIComponent(sessionId)}/expire`);
+  return { sandbox: false };
 }
 
 export interface RefundResult { id: string; status: string; sandbox: boolean }

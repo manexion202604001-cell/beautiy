@@ -1,19 +1,20 @@
 'use server';
 import { z } from 'zod';
-import { outranks, ROLES, ROLE_LABEL, type RoleName } from '@salonos/core';
+import { ROLES, ROLE_LABEL, type RoleName } from '@salonos/core';
 import { randomToken, sha256 } from '@salonos/core/crypto';
 import { prisma } from '@/lib/server/db';
 import { env } from '@/lib/server/env';
 import { requireStaff, type StaffContext } from '@/lib/server/session';
 import { audit } from '@/lib/server/audit';
+import { canManageRole, manageableMember, staffActorOf } from '@/lib/server/staff-access';
 import { AppError, ForbiddenError, runAction, type ActionResult } from '@/lib/server/errors';
 import { bool } from '../_components/guard';
 import type { Reveal } from '../_components/client';
 
 const INVITE_DAYS = 7;
 
-function canManage(actor: RoleName, target: RoleName) { return actor === 'OWNER' || outranks(actor, target); }
-function canAssign(actor: RoleName, role: RoleName) { return actor === 'OWNER' || outranks(actor, role); }
+// Same rank rule as managing a member: OWNER any role, otherwise only strictly lower roles.
+const canAssign = canManageRole;
 
 async function assertNotLastOwner(orgId: string, membershipId: string) {
   const others = await prisma.membership.count({ where: { organizationId: orgId, role: 'OWNER', active: true, id: { not: membershipId }, user: { isActive: true } } });
@@ -94,10 +95,9 @@ export async function updateMemberAction(_: ActionResult | null, fd: FormData): 
   return runAction(async () => {
     const ctx = await requireStaff('settings.staff');
     const input = updateSchema.parse(Object.fromEntries(fd));
-    const m = await prisma.membership.findFirst({ where: { id: input.id, organizationId: ctx.org.id }, include: { shops: true } });
-    if (!m) throw new AppError('スタッフが見つかりません');
+    // Rank + shop scope (non-OWNER/DIRECTOR: target must share a shop with the actor); self allowed.
+    const m = await manageableMember(staffActorOf(ctx), input.id, { allowSelf: true });
     const self = m.id === ctx.membership.id;
-    if (!self && !canManage(ctx.role, m.role as RoleName)) throw new ForbiddenError('このスタッフを編集する権限がありません');
     const roleChanged = input.role !== m.role;
     if (roleChanged) {
       if (self) throw new AppError('自分自身の役割は変更できません');
@@ -126,10 +126,8 @@ export async function setMemberActiveAction(fd: FormData): Promise<ActionResult>
     const ctx = await requireStaff('settings.staff');
     const id = String(fd.get('id') ?? '');
     const active = fd.get('active') === '1';
-    const m = await prisma.membership.findFirst({ where: { id, organizationId: ctx.org.id } });
-    if (!m) throw new AppError('スタッフが見つかりません');
-    if (m.id === ctx.membership.id) throw new AppError('自分自身は無効化できません');
-    if (!canManage(ctx.role, m.role as RoleName)) throw new ForbiddenError('このスタッフを変更する権限がありません');
+    if (id === ctx.membership.id) throw new AppError('自分自身は無効化できません');
+    const m = await manageableMember(staffActorOf(ctx), id, { message: 'このスタッフを変更する権限がありません' });
     if (!active && m.role === 'OWNER') await assertNotLastOwner(ctx.org.id, m.id);
     await prisma.$transaction(async (tx) => {
       await tx.membership.update({ where: { id }, data: { active } });

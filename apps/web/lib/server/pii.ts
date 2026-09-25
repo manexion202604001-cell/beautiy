@@ -87,10 +87,22 @@ export async function requestPiiUnlockOtp(ctx: StaffContext): Promise<{ devCode?
   await prisma.otpChallenge.create({
     data: { userId: ctx.user.id, purpose: 'pii-unlock', codeHash: sha256(`${ctx.user.id}:${code}`), expiresAt: new Date(Date.now() + 10 * 60000) },
   });
-  await audit(ctx, 'customer.pii.otp_requested', 'User', ctx.user.id);
-  // Delivery: email adapter would send `code` to ctx.user.email. In demo mode we return it for display.
-  console.info(`[otp] PII unlock code for ${ctx.user.email}: ${code}`);
-  return env.demoMode ? { devCode: code } : {};
+  // Deliver to the signed-in user's own address (Resend; sandbox without RESEND_API_KEY).
+  // Loaded lazily: notify.ts imports this module.
+  const { sendEmail } = await import('./notify');
+  const sent = await sendEmail(
+    ctx.user.email, '【MANEXION Salon】個人情報の閲覧確認コード',
+    `個人情報の一時閲覧のための確認コードです。\n\n確認コード：${code}\n有効期限：10分\n\nお心当たりがない場合は、このメールを破棄し管理者へご連絡ください。`,
+  );
+  await audit(ctx, 'customer.pii.otp_requested', 'User', ctx.user.id, { delivered: sent.ok, sandbox: !!sent.sandbox });
+  if (env.demoMode) {
+    // Demo only: the code is shown on screen / in the server log. Never logged in production.
+    console.info(`[otp] PII unlock code for ${ctx.user.email}: ${code}`);
+    return { devCode: code };
+  }
+  if (!sent.ok) throw new AppError('確認コードのメール送信に失敗しました。時間をおいて再度お試しください。');
+  if (sent.sandbox) throw new AppError('メール送信が設定されていないため確認コードを送信できません。管理者にお問い合わせください。');
+  return {};
 }
 
 export async function verifyPiiUnlockOtp(ctx: StaffContext, code: string, reason: string) {

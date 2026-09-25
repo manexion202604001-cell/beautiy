@@ -13,9 +13,11 @@ Object storage is optional (S3-compatible; otherwise files are stored in Postgre
 | `PII_ENCRYPTION_KEY` | AES-256-GCM key material for customer PII (random ≥32 chars). **Never rotate without re-encryption.** |
 | `PII_HASH_KEY` | Blind-index key for phone/email search (random ≥32 chars). **Never rotate without re-indexing.** |
 | `CRON_SECRET` | Bearer secret for `/api/cron` (Vercel Cron sends it automatically) |
-| `DEMO_MODE` | `1` shows OTP codes on screen and demo login hints. **Unset for real operation.** |
+| `DEMO_MODE` | `1` shows OTP codes on screen and demo login hints. It never relaxes secrets: in production the three secrets above are always required (the built-in dev values are rejected). **Unset for real operation.** |
 
 Optional: `S3_*`, `RESEND_API_KEY`/`EMAIL_FROM`, `LINE_*`, `STRIPE_*`, `SQUARE_*` (see `.env.example`).
+`RESEND_API_KEY` is required in production for the PII-unlock OTP e-mail (without it the unlock is refused).
+`LINE_CHANNEL_SECRET` / `LINE_MESSAGING_CHANNEL_ACCESS_TOKEN` are only used by a LINE integration row that has no credentials of its own (single-channel deployments).
 Per-organization LINE / Stripe / Square / booking-site credentials are configured in the app under 設定 > 外部連携.
 
 Generate secrets: `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"`

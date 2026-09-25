@@ -1,19 +1,23 @@
 import { keysFrom, type CryptoKeys } from '@salonos/core/crypto';
 
-const isProd = process.env.NODE_ENV === 'production';
-
-function secret(name: string, devFallback: string): string {
+/**
+ * Secrets never fall back to the built-in development constants in production — not even
+ * with DEMO_MODE=1 (the constants are public, so PII encryption / blind indexes / cron auth
+ * would be forgeable). DEMO_MODE only controls demo UX (OTP shown on screen, demo hints).
+ */
+export function secret(name: string, devFallback: string, prod = process.env.NODE_ENV === 'production'): string {
   const v = process.env[name];
+  if (v && prod && v === devFallback) throw new Error(`${name} is set to the public development default; use a random secret in production`);
   if (v) return v;
-  if (isProd && process.env.DEMO_MODE !== '1') throw new Error(`${name} is required in production`);
+  if (prod) throw new Error(`${name} is required in production (set it in the environment; DEMO_MODE does not provide a default)`);
   return devFallback;
 }
 
 export const env = {
   get appUrl() { return (process.env.APP_URL ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')).replace(/\/$/, ''); },
   get cronSecret() { return secret('CRON_SECRET', 'dev-cron-secret'); },
-  /** Demo/sandbox mode: OTP codes are shown on screen, external sends are simulated. */
-  get demoMode() { return !isProd || process.env.DEMO_MODE === '1'; },
+  /** Demo UX only: OTP codes are shown on screen and demo hints rendered. Never relaxes secrets. */
+  get demoMode() { return process.env.NODE_ENV !== 'production' || process.env.DEMO_MODE === '1'; },
   get s3() {
     const endpoint = process.env.S3_ENDPOINT, bucket = process.env.S3_BUCKET;
     if (!bucket || !process.env.S3_ACCESS_KEY || !process.env.S3_SECRET_KEY) return null;

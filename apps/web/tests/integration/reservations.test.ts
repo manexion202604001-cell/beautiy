@@ -2,9 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { localToUtc } from '@salonos/core';
 import { prisma } from '@salonos/db';
 import { BookingError, createAppointment } from '@/lib/server/booking';
+import { piiColumns } from '@/lib/server/pii';
+import { reviewableAppointment } from '@/lib/server/reviews';
+import { createStoreOrder } from '@/lib/server/commerce';
 import { signLineLink } from '@/lib/server/line-link';
 import {
-  availableSlots, checkFormToken, couponDiscount, customerCanModify, publicBook, publicCancel, publicHold, publicReschedule, resolveSource, signFormToken,
+  availableSlots, checkFormToken, couponDiscount, customerCanModify, loadManagedAppointment, publicBook, publicCancel, publicHold, publicReschedule, resolveSource, signFormToken,
   type PublicBookingInput,
 } from '@/lib/server/reservations';
 import { futureDate, makeOrg } from './helpers';
@@ -195,5 +198,76 @@ describe('public booking service', () => {
     cur = await prisma.appointment.findUniqueOrThrow({ where: { id: a.id } });
     expect(cur.startAt.toISOString()).toBe(at(date, '17:00').toISOString());
     expect(await prisma.message.count({ where: { appointmentId: a.id } })).toBe(3); // booked + 2 changes
+  });
+
+  it('H1: a known phone with a different name never reveals or attaches to the stored customer', async () => {
+    const o = await setup({ seats: 3 });
+    const date = futureDate();
+    const victim = await prisma.customer.create({ data: {
+      organizationId: o.org.id, lastName: '山田', firstName: '花子', lastNameKana: 'ヤマダ', firstNameKana: 'ハナコ', lineOptIn: true,
+      ...piiColumns({ phone: '090-5555-0001', email: 'hanako.victim@example.com' }),
+      identities: { create: { organizationId: o.org.id, provider: 'LINE', externalId: 'U-victim' } },
+    } });
+
+    // stranger types the victim's phone number with another name
+    const r = await publicBook(form(o, date, { name: '攻撃 太郎', kana: 'コウゲキ タロウ', phone: '090-5555-0001', email: 'attacker@example.com' }));
+    const a = await prisma.appointment.findUniqueOrThrow({ where: { id: r.appointmentId } });
+    expect(a.customerId).not.toBe(victim.id);
+    expect(a.guestName).toBe('攻撃 太郎');
+    expect(a.guestPhone).toBe('09055550001');
+    const fresh = await prisma.customer.findUniqueOrThrow({ where: { id: a.customerId! }, include: { identities: true } });
+    expect(fresh).toMatchObject({ lastName: '攻撃', firstName: '太郎', phoneHash: victim.phoneHash });
+    expect(fresh.identities).toHaveLength(0);
+    // what the public manage page loads contains only the submitted name
+    const managed = await loadManagedAppointment(a.manageToken);
+    const json = JSON.stringify(managed);
+    for (const secret of ['山田', '花子', 'ハナコ', 'hanako.victim']) expect(json).not.toContain(secret);
+    expect(json).toContain('攻撃 太郎');
+    expect((managed as any).customer).toBeUndefined();
+    // the confirmation went to the new record's own (submitted) address, never to the victim's LINE/email
+    const msgs = await prisma.message.findMany({ where: { appointmentId: a.id } });
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0]).toMatchObject({ customerId: fresh.id, channel: 'EMAIL', status: 'SENT' });
+    expect(await prisma.message.count({ where: { customerId: victim.id } })).toBe(0);
+    // the review page projection never includes the stored customer either
+    await prisma.appointment.update({ where: { id: a.id }, data: { status: 'COMPLETED' } });
+    const rv = await reviewableAppointment(a.manageToken);
+    expect(JSON.stringify(rv)).not.toContain('花子');
+
+    // the real customer (same phone, same name written in kana/without space) is matched
+    const own = await publicBook(form(o, date, { name: 'やまだ はなこ', kana: 'ヤマダ ハナコ', phone: '09055550001', startAt: at(date, '15:00').toISOString() }));
+    const ownAppt = await prisma.appointment.findUniqueOrThrow({ where: { id: own.appointmentId } });
+    expect(ownAppt.customerId).toBe(victim.id);
+    expect(ownAppt.guestName).toBe('やまだ はなこ');
+    // a second booking by the same stranger reuses the stranger's own record, not the victim's
+    const again = await publicBook(form(o, date, { name: '攻撃 太郎', kana: 'コウゲキ タロウ', phone: '090-5555-0001', startAt: at(date, '16:00').toISOString() }));
+    expect((await prisma.appointment.findUniqueOrThrow({ where: { id: again.appointmentId } })).customerId).toBe(fresh.id);
+
+    // storefront orders follow the same rule
+    const product = await prisma.product.create({ data: { organizationId: o.org.id, name: 'オイル', price: 2000, stock: 5 } });
+    const so = await createStoreOrder({ shopSlug: o.shop.slug, items: [{ productId: product.id, quantity: 1 }], name: '別人 次郎', email: 'hanako.victim@example.com', phone: '09055550001', address: '東京都1-1' });
+    const order = await prisma.order.findUniqueOrThrow({ where: { id: so.orderId } });
+    expect(order.customerId).not.toBe(victim.id);
+    expect(order.contactName).toBe('別人 次郎');
+    const so2 = await createStoreOrder({ shopSlug: o.shop.slug, items: [{ productId: product.id, quantity: 1 }], name: '山田 花子', email: 'x@example.com', phone: '09055550001', address: '東京都1-1' });
+    expect((await prisma.order.findUniqueOrThrow({ where: { id: so2.orderId } })).customerId).toBe(victim.id);
+  });
+
+  it('M5: only offered slots are bookable (grid, horizon, chosen stylist)', async () => {
+    const o = await setup({ seats: 3 });
+    const date = futureDate();
+    // off the 30-minute slot grid
+    await expect(publicBook(form(o, date, { startAt: at(date, '11:10').toISOString() }))).rejects.toMatchObject({ reason: 'STAFF_CONFLICT' });
+    // beyond bookingHorizonDays
+    await prisma.shop.update({ where: { id: o.shop.id }, data: { bookingHorizonDays: 5 } });
+    const far = futureDate(10);
+    await expect(publicBook(form(o, far))).rejects.toBeInstanceOf(BookingError);
+    // chosen stylist is busy even though the shop still has capacity
+    await createAppointment({ orgId: o.org.id, shopId: o.shop.id, staffId: o.staff[1].userId, startAt: at(date, '13:00'), menus: [{ name: 'x', price: 1, durationMin: 60 }] });
+    await expect(publicBook(form(o, date, { staffId: o.staff[1].userId, startAt: at(date, '13:00').toISOString() }))).rejects.toBeInstanceOf(BookingError);
+    expect(await prisma.appointment.count({ where: { organizationId: o.org.id, source: { not: 'STAFF' } } })).toBe(0);
+    // on-grid, within horizon → fine
+    const ok = await publicBook(form(o, date, { startAt: at(date, '11:30').toISOString() }));
+    expect(ok.status).toBe('CONFIRMED');
   });
 });

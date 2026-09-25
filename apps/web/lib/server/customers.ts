@@ -1,6 +1,6 @@
 // Customer identity resolution, stats and merge.
 import type { Prisma } from '@salonos/db';
-import { visitStats } from '@salonos/core';
+import { publicNameMatches, visitStats } from '@salonos/core';
 import { prisma, type Tx } from './db';
 import { emailHash, phoneHash, piiColumns } from './pii';
 import { AppError, NotFoundError } from './errors';
@@ -23,6 +23,16 @@ export interface ResolveInput {
   phone?: string | null;
   email?: string | null;
   identity?: { provider: string; externalId: string; displayName?: string | null } | null;
+  /**
+   * Unverified public input (web booking, store order): a phone/email blind-index match only
+   * counts when the submitted name also matches the stored record (see `publicNameMatches`).
+   * Otherwise a NEW customer is created (it surfaces in /customers/duplicates for staff to
+   * merge), so a stranger who knows someone's phone number can neither see that customer's
+   * stored name nor attach bookings/messages to them. An identity match (e.g. a verified LINE
+   * link token) is still authoritative. Staff-entered data and booking-provider sync leave
+   * this off and keep the plain phone → email match.
+   */
+  requireNameMatch?: boolean;
 }
 
 export type MatchedBy = 'identity' | 'phone' | 'email' | 'created';
@@ -34,6 +44,15 @@ export type MatchedBy = 'identity' | 'phone' | 'email' | 'created';
  */
 export async function resolveCustomer(tx: Tx, input: ResolveInput): Promise<{ customerId: string; matchedBy: MatchedBy }> {
   const live = { organizationId: input.orgId, mergedIntoId: null, deletedAt: null };
+  // Serialize concurrent resolutions of the same identity / phone / email (e.g. parallel sync
+  // workers or double-submitted forms) so they can't both create a customer and race on the
+  // identity upsert. Transaction-scoped: callers should pass a transaction client.
+  const lockKeysFor = [
+    input.identity ? `cust-ident:${input.orgId}:${input.identity.provider}:${input.identity.externalId}` : null,
+    phoneHash(input.phone) ? `cust-phone:${input.orgId}:${phoneHash(input.phone)}` : null,
+    emailHash(input.email) ? `cust-email:${input.orgId}:${emailHash(input.email)}` : null,
+  ].filter((k): k is string => !!k).sort();
+  for (const k of lockKeysFor) await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${k}))`;
   if (input.identity) {
     const ident = await tx.customerIdentity.findUnique({
       where: { organizationId_provider_externalId: { organizationId: input.orgId, provider: input.identity.provider, externalId: input.identity.externalId } },
@@ -48,14 +67,22 @@ export async function resolveCustomer(tx: Tx, input: ResolveInput): Promise<{ cu
   }
   let customerId: string | null = null;
   let matchedBy: MatchedBy = 'created';
+  const pick = async (where: Prisma.CustomerWhereInput) => {
+    const rows = await tx.customer.findMany({
+      where: { ...live, ...where }, orderBy: { createdAt: 'asc' }, take: 25,
+      select: { id: true, lastName: true, firstName: true, lastNameKana: true, firstNameKana: true },
+    });
+    if (!input.requireNameMatch) return rows[0] ?? null;
+    return rows.find((r) => publicNameMatches({ name: input.name, kana: input.kana }, r)) ?? null;
+  };
   const ph = phoneHash(input.phone);
   if (ph) {
-    const c = await tx.customer.findFirst({ where: { ...live, phoneHash: ph }, orderBy: { createdAt: 'asc' } });
+    const c = await pick({ phoneHash: ph });
     if (c) { customerId = c.id; matchedBy = 'phone'; }
   }
   const em = emailHash(input.email);
   if (!customerId && em) {
-    const c = await tx.customer.findFirst({ where: { ...live, emailHash: em }, orderBy: { createdAt: 'asc' } });
+    const c = await pick({ emailHash: em });
     if (c) { customerId = c.id; matchedBy = 'email'; }
   }
   if (!customerId) {

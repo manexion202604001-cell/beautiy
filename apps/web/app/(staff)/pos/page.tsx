@@ -22,7 +22,7 @@ export default async function PosHome({ searchParams }: { searchParams: Promise<
   const today = todayIn(shop.timezone);
   const from = localToUtc(today, 0, shop.timezone), to = localToUtc(addDays(today, 1), 0, shop.timezone);
 
-  const [register, appts, drafts, paid, found] = await Promise.all([
+  const [register, appts, drafts, paid, found, unapplied] = await Promise.all([
     currentRegister(shop.id),
     prisma.appointment.findMany({
       where: { shopId: shop.id, startAt: { gte: from, lt: to }, status: { notIn: ['CANCELLED', 'NO_SHOW'] }, kind: { not: 'PRIVATE' } },
@@ -40,6 +40,8 @@ export default async function PosHome({ searchParams }: { searchParams: Promise<
       orderBy: { paidAt: 'desc' },
     }),
     q && ctx.can('customer.read') ? searchPosCustomers(ctx.org.id, q) : Promise.resolve(null),
+    // Provider payments that arrived but could not be booked (see payments/webhooks.ts).
+    prisma.auditLog.count({ where: { organizationId: ctx.org.id, action: 'payment.unapplied', createdAt: { gte: new Date(Date.now() - 30 * 86400000) } } }),
   ]);
 
   const staffIds = [...new Set(appts.map((a) => a.staffId).filter(Boolean) as string[])];
@@ -59,6 +61,12 @@ export default async function PosHome({ searchParams }: { searchParams: Promise<
         actions={<Link href="/pos/checkout" className="btn"><Plus size={16} />新規会計（飛び込み）</Link>}
       />
       <PosTabs active="home" canRegister={ctx.can('pos.register')} />
+      {unapplied > 0 && (
+        <div className="alert error" role="alert">
+          要対応：会計に反映できなかったオンライン入金が過去30日で{unapplied}件あります（会計の変更後・取消後に支払われた等）。返金または手動での会計をご確認ください。
+          {ctx.can('audit.read') && <> <Link className="link" href="/settings/audit?action=payment.unapplied">詳細を見る</Link></>}
+        </div>
+      )}
 
       <div className="grid-4">
         <Stat label="本日の売上（返金控除後）" value={yen(sales)} sub={`${paid.length}件の会計`} />

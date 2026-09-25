@@ -313,6 +313,27 @@ export async function releaseHold(token: string | null | undefined) {
   await prisma.slotHold.deleteMany({ where: { token } });
 }
 
+/**
+ * Public bookings must start on a slot the booking page offers: on the shop's slot grid,
+ * within bookingHorizonDays, after the minimum notice, with capacity, and (when a stylist
+ * was chosen) with that stylist free. The customer's own hold is ignored so a held slot
+ * still counts as free.
+ */
+async function assertOfferedSlot(
+  shop: { id: string; organizationId: string; timezone: string; seatCount: number; slotIntervalMin: number; minNoticeMin: number; bookingHorizonDays: number },
+  startAt: Date, endAt: Date, staffId: string | null, holdToken: string | null, now: Date,
+) {
+  const date = toLocalParts(startAt, shop.timezone).date;
+  const durationMin = Math.round((endAt.getTime() - startAt.getTime()) / 60000);
+  const slots = await getAvailability({ shopId: shop.id, date, durationMin, staffId, excludeHoldToken: holdToken ?? undefined, now });
+  const slot = slots.find((s) => s.start === startAt.getTime());
+  if (slot && (!staffId || slot.staffIds.includes(staffId))) return;
+  // Friendlier reason when the time is simply outside the day's opening hours.
+  const day = await dayWindow(prisma, shop, date);
+  if (day.openWindow && !day.holiday && (startAt.getTime() < day.openWindow.start || endAt.getTime() > day.openWindow.end)) throw new BookingError('OUTSIDE_HOURS');
+  throw new BookingError('STAFF_CONFLICT');
+}
+
 const kanaRe = /^[\p{Script=Katakana}\p{Script=Hiragana}ー\s・ｰ　]+$/u;
 
 export const publicBookingSchema = z.object({
@@ -376,11 +397,23 @@ export async function publicBook(raw: PublicBookingInput, opts: { now?: Date } =
     if (hold && hold.shopId === shop.id && hold.startAt.getTime() === startAt.getTime() && hold.expiresAt > now) holdToken = hold.token;
   }
 
-  const { source, lineUserId } = resolveSource(orgId, input.lk, input.src, now.getTime());
   const phone = normalizePhone(input.phone)!;
+  // Namespaced + bound to the phone so a replayed key can't reveal someone else's booking.
+  const idempotencyKey = `pub:${sha256(`${input.idempotencyKey}:${phone}`).slice(0, 48)}`;
+  const replayOf = await prisma.appointment.findUnique({ where: { organizationId_idempotencyKey: { organizationId: orgId, idempotencyKey } }, select: { id: true } });
+  // Only times the booking page actually offers are accepted (slot grid, horizon, notice,
+  // capacity and the chosen stylist); anything else is reported as a taken slot. A replay of
+  // an already-created booking skips this (its own appointment now occupies the slot).
+  if (!replayOf) await assertOfferedSlot(shop, startAt, endAt, staff?.userId ?? null, holdToken, now);
+
+  const { source, lineUserId } = resolveSource(orgId, input.lk, input.src, now.getTime());
+  // Phone/email typed into a public form are unverified: they only attach the booking to an
+  // existing customer when the submitted name matches too (see resolveCustomer). A verified
+  // LINE identity that is already linked remains authoritative.
   const { customerId } = await prisma.$transaction((tx) => resolveCustomer(tx, {
     orgId, shopId: shop.id, name: input.name, kana: input.kana, phone, email: input.email || null,
     identity: lineUserId ? { provider: 'LINE', externalId: lineUserId } : null,
+    requireNameMatch: true,
   }));
 
   if (coupon?.newCustomerOnly) {
@@ -394,8 +427,9 @@ export async function publicBook(raw: PublicBookingInput, opts: { now?: Date } =
     orgId, shopId: shop.id, customerId, staffId: staff?.userId ?? null, autoAssignStaff: !staff, nominated: !!staff,
     startAt, endAt, menus: lines, kind: (menus.consultation ? 'CONSULTATION' : 'NORMAL') as AppointmentKind,
     source, status, customerNote: input.note || null, couponId: coupon?.id ?? null, discount,
-    // Namespaced + bound to the phone so a replayed key can't reveal someone else's booking.
-    idempotencyKey: `pub:${sha256(`${input.idempotencyKey}:${phone}`).slice(0, 48)}`,
+    // What the customer typed. Public pages render only this, never the matched record's name.
+    guestName: input.name, guestPhone: phone,
+    idempotencyKey,
     enforceHours: true, now,
   };
   let result;
@@ -418,7 +452,9 @@ export async function loadManagedAppointment(token: string) {
   if (!token || token.length > 80) return null;
   const a = await prisma.appointment.findUnique({
     where: { manageToken: token },
-    include: { shop: true, menus: true, customer: { select: { lastName: true, firstName: true } } },
+    // Public page: the matched customer record (name, contact) is never loaded — only what
+    // the booker typed (guestName) is shown.
+    include: { shop: true, menus: true },
   });
   if (!a) return null;
   const staff = a.staffId ? await prisma.membership.findFirst({ where: { organizationId: a.organizationId, userId: a.staffId }, select: { displayName: true } }) : null;

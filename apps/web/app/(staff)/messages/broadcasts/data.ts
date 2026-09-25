@@ -9,7 +9,7 @@ export async function builderOptions(ctx: StaffContext) {
     prisma.membership.findMany({ where: { organizationId: ctx.org.id, active: true }, orderBy: [{ sortOrder: 'asc' }, { displayName: 'asc' }], select: { userId: true, displayName: true } }),
     prisma.messageTemplate.findMany({ where: { organizationId: ctx.org.id }, orderBy: [{ category: 'asc' }, { name: 'asc' }], select: { id: true, name: true, category: true, body: true } }),
   ]);
-  return { tags, staff, templates, shops: ctx.shops.map((s) => ({ id: s.id, name: s.name })), shopName: ctx.shop.name, minLocal: toLocalInput(new Date(), ctx.shop.timezone) };
+  return { tags, staff, templates, shops: ctx.shops.map((s) => ({ id: s.id, name: s.name })), shopName: ctx.shop.name, defaultShopId: ctx.shop.id, orgWide: ctx.role === 'OWNER' || ctx.role === 'DIRECTOR', minLocal: toLocalInput(new Date(), ctx.shop.timezone) };
 }
 
 export function toLocalInput(d: Date, tz: string) {

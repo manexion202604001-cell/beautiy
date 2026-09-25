@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { CheckCircle2, Clock } from 'lucide-react';
 import { reviewableAppointment } from '@/lib/server/reviews';
+import { splitName } from '@/lib/server/customers';
 import { Empty, Stars } from '@/components/ui';
 import { fmtDateW } from '@/lib/format';
 import { ReviewForm } from './ReviewForm';
@@ -39,7 +40,7 @@ export default async function ReviewPage({ params }: { params: Promise<{ token: 
       ) : r.expired ? (
         <div className="card"><Empty title="投稿期限を過ぎています" icon={<Clock size={20} />}>口コミはご来店から90日以内にご投稿ください。</Empty></div>
       ) : (
-        <ReviewForm token={token} defaultName={a.customer ? `${a.customer.lastName}` : (a.guestName ?? '')} shopSlug={a.shop.slug} />
+        <ReviewForm token={token} defaultName={a.guestName ? splitName(a.guestName).lastName : ''} shopSlug={a.shop.slug} />
       )}
     </main>
   );

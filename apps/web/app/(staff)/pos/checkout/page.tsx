@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { requirePage } from '@/lib/server/session';
 import { prisma } from '@/lib/server/db';
-import { actorOf, appointmentLines, currentRegister, deriveManualDiscount, couponRule, providerModes } from '@/lib/server/pos';
+import { actorOf, appointmentLines, currentRegister, deriveManualDiscount, couponRule, pendingProviderPayment, providerModes } from '@/lib/server/pos';
 import { pointsBalance } from '@/lib/server/customers';
 import { Card, Empty, PageHeader } from '@/components/ui';
 import { fmtDateTime, fmtRange } from '@/lib/format';
@@ -52,6 +52,8 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
       manualDiscount: deriveManualDiscount(t, couponRule(coupon)), pointsToUse: t.pointsUsed, note: t.note ?? '',
       lines: t.items.map((i): DraftLine => ({ kind: i.kind as DraftLine['kind'], menuId: i.menuId, productId: i.productId, name: i.name, unitPrice: i.unitPrice, quantity: i.quantity, discount: i.discount, staffId: i.staffId, nominated: i.nominated })),
     };
+    const pend = await pendingProviderPayment(t.id);
+    if (pend) initial.pendingPayment = { method: pend.method, amount: pend.amount, reference: pend.externalRef };
   } else if (sp.appointmentId) {
     const appt = await prisma.appointment.findFirst({ where: { id: sp.appointmentId, organizationId: ctx.org.id }, include: { menus: true } });
     if (!appt || !ctx.shops.some((s) => s.id === appt.shopId)) return <NotFoundCard message="予約が見つからないか、アクセス権がありません。" />;

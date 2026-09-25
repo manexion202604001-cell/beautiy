@@ -102,7 +102,8 @@ export async function createStoreOrder(input: StoreOrderInput): Promise<StoreOrd
   const address = [input.postalCode ? `〒${input.postalCode}` : null, input.address].filter(Boolean).join(' ');
 
   const order = await prisma.$transaction(async (tx) => {
-    const { customerId } = await resolveCustomer(tx, { orgId: shop.organizationId, shopId: shop.id, name: input.name, phone: input.phone, email: input.email });
+    // Unverified storefront input: phone/email only attach to an existing customer when the name matches too.
+    const { customerId } = await resolveCustomer(tx, { orgId: shop.organizationId, shopId: shop.id, name: input.name, phone: input.phone, email: input.email, requireNameMatch: true });
     return tx.order.create({
       data: {
         organizationId: shop.organizationId, shopId: shop.id, customerId: rec?.customerId ?? customerId, status: 'PENDING',

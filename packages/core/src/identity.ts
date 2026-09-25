@@ -30,6 +30,44 @@ export function normalizeName(raw: string | null | undefined): string {
   return (raw ?? '').normalize('NFKC').replace(/\s/g, '').toLowerCase();
 }
 
+/** Comparison key for names: NFKC, no whitespace, lower-case, hiragana folded to katakana. */
+function nameKey(raw: string | null | undefined): string {
+  return normalizeKana(raw).toLowerCase();
+}
+
+function splitFull(raw: string | null | undefined): [string, string] {
+  const s = (raw ?? '').normalize('NFKC').trim().replace(/\s+/g, ' ');
+  const i = s.indexOf(' ');
+  return i < 0 ? [s, ''] : [s.slice(0, i), s.slice(i + 1)];
+}
+
+export interface StoredName { lastName: string; firstName: string; lastNameKana?: string | null; firstNameKana?: string | null }
+
+/**
+ * Whether a name typed into an unverified public form (web booking, store order) plausibly
+ * belongs to a stored customer. Used before a phone/email blind-index match may attach the
+ * submission to that customer. Comparisons ignore whitespace, width and hiragana/katakana.
+ * Accepted when any of:
+ *  1. full name (姓+名) equals the stored full name or the stored full kana;
+ *  2. full kana equals the stored full kana (or stored full name written in kana);
+ *  3. surname (or surname kana) equals the stored surname, and one side has no given name
+ *     recorded at all (e.g. records created from phone bookings as just "山田").
+ * Anything else (different given name, different surname) is treated as a different person.
+ */
+export function publicNameMatches(submitted: { name: string; kana?: string | null }, stored: StoredName): boolean {
+  const [sl, sf] = splitFull(submitted.name);
+  const [kl, kf] = splitFull(submitted.kana);
+  const subFull = [nameKey(sl + sf), nameKey(kl + kf)].filter(Boolean);
+  const stFull = [nameKey(stored.lastName + stored.firstName), nameKey((stored.lastNameKana ?? '') + (stored.firstNameKana ?? ''))].filter(Boolean);
+  if (subFull.some((x) => stFull.includes(x))) return true;
+  const subSurnameOnly = !nameKey(sf) && !nameKey(kf);
+  const storedSurnameOnly = !nameKey(stored.firstName) && !nameKey(stored.firstNameKana);
+  if (!subSurnameOnly && !storedSurnameOnly) return false;
+  const subLast = [nameKey(sl), nameKey(kl)].filter(Boolean);
+  const stLast = [nameKey(stored.lastName), nameKey(stored.lastNameKana)].filter(Boolean);
+  return subLast.some((x) => stLast.includes(x));
+}
+
 export function maskPhone(p: string | null): string {
   if (!p) return '';
   return p.length <= 4 ? '****' : `${'*'.repeat(p.length - 4)}${p.slice(-4)}`;

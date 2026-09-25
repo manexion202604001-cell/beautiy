@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '@/lib/server/db';
 import { assertShop, requireStaff, type StaffContext } from '@/lib/server/session';
 import { audit } from '@/lib/server/audit';
+import { manageableMember, staffActorOf } from '@/lib/server/staff-access';
 import { AppError, NotFoundError, runAction, type ActionResult } from '@/lib/server/errors';
 import { deleteObject, fileUrl, objectKey, putObject, readUpload } from '@/lib/server/storage';
 import { syncGoogleReviews } from '@/lib/server/reviews';
@@ -126,8 +127,8 @@ export async function saveStaffProfileAction(_: ActionResult | null, fd: FormDat
     const input = staffProfileSchema.parse(Object.fromEntries(fd));
     const targetId = input.membershipId || ctx.membership.id;
     if (targetId !== ctx.membership.id && !ctx.can('settings.staff')) throw new AppError('他のスタッフのプロフィールを編集する権限がありません');
-    const m = await prisma.membership.findFirst({ where: { id: targetId, organizationId: ctx.org.id } });
-    if (!m) throw new NotFoundError('スタッフが見つかりません');
+    // Own profile always; others only with the same rank + shop rule as staff settings.
+    const m = await manageableMember(staffActorOf(ctx), targetId, { allowSelf: true, message: '他のスタッフのプロフィールを編集する権限がありません' });
     const instagramUrl = input.instagramUrl ? normalizeInstagramUrl(input.instagramUrl) : null;
     if (input.instagramUrl && !instagramUrl) return { ok: false, error: 'InstagramのURLまたはユーザー名が正しくありません', fieldErrors: { instagramUrl: '例）@stylist_name' } };
     const newImage = await uploadPublicImage(ctx.org.id, fd.get('image'));

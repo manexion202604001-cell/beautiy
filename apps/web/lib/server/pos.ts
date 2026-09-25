@@ -13,9 +13,9 @@ import { audit } from './audit';
 import { pointsBalance, recomputeCustomerStats } from './customers';
 import { lockKeys } from './booking';
 import type { StaffContext } from './session';
-import { createCheckoutSession, createStripeRefund, retrievePaymentIntent, stripeConfig } from './payments/stripe';
+import { createCheckoutSession, createStripeRefund, expireCheckoutSession, retrievePaymentIntent, stripeConfig } from './payments/stripe';
 import { env } from './env';
-import { createSquareRefund, createTerminalCheckout, retrieveSquarePayment, squareConfig, squareRef } from './payments/square';
+import { cancelTerminalCheckout, createSquareRefund, createTerminalCheckout, retrieveSquarePayment, squareConfig, squareRef } from './payments/square';
 import {
   CASH_TENDER_PREFIX, POINT_REASON, draftSchema, tenderSchema,
   type DraftInput, type DraftLine, type TenderInput,
@@ -202,6 +202,8 @@ function totalsColumns(t: TicketTotals, hasCustomer: boolean) {
   };
 }
 
+const pendingError = () => new AppError('オンライン決済（決済リンク／端末）の完了待ちです。完了を待つか、「決済待ちを取り消す」を行ってから変更・別の方法での会計をしてください', 'PAYMENT_PENDING', 409);
+
 async function lockTransaction(db: Tx, id: string) {
   await db.$queryRaw`SELECT id FROM "Transaction" WHERE id = ${id} FOR UPDATE`;
 }
@@ -231,6 +233,11 @@ export async function updateDraft(actor: PosActor, id: string, raw: DraftInput):
       lines: ticketLines(input.lines), coupon: couponRule(coupon), manualDiscount: input.manualDiscount,
       pointsToUse: input.pointsToUse, pointsBalance: balance, taxRatePct: shop.taxRatePct, pointRatePct: shop.pointRatePct,
     });
+    // A payment link / terminal checkout is out for a fixed amount: the ticket total must not
+    // change underneath it (the payment could then no longer be applied). Re-saving the same
+    // amount (e.g. from the checkout screen) is harmless.
+    const pending = await db.payment.findFirst({ where: { transactionId: id, status: 'PENDING' } });
+    if (pending && pending.amount !== totals.total) throw pendingError();
     await db.transactionItem.deleteMany({ where: { transactionId: id } });
     if (input.lines.length) await db.transactionItem.createMany({ data: input.lines.map((l) => ({ ...itemData(l), transactionId: id })) });
     const staffId = input.staffId ?? t.staffId ?? input.lines.find((l) => l.staffId)?.staffId ?? null;
@@ -259,10 +266,24 @@ export interface CheckoutInput {
 
 export interface CheckoutResult { id: string; number: number; total: number; change: number; pointsEarned: number; pointsUsed: number }
 
-interface PreparedTender { method: PaymentMethod; amount: number; label: string | null; provider: string | null; externalRef: string | null; status: 'SUCCEEDED' }
+interface PreparedTender { method: PaymentMethod; amount: number; label: string | null; provider: string | null; externalRef: string | null; status: 'SUCCEEDED'; verifiedRef: boolean }
+
+/**
+ * A provider payment entered by reference must have been made for THIS ticket of THIS
+ * organization: Stripe PaymentIntent metadata.transaction_id (and org_id when present),
+ * Square reference_id `txn:<id>`. Otherwise one customer's payment could settle another
+ * ticket (or another salon's). Sandbox references are simulated and skip the check.
+ */
+export function assertProviderReferenceBinding(method: 'STRIPE' | 'SQUARE', r: { sandbox: boolean; metadata?: Record<string, string>; referenceId?: string | null }, ticketId: string, orgId: string) {
+  if (r.sandbox) return;
+  const ok = method === 'STRIPE'
+    ? r.metadata?.transaction_id === ticketId && (!r.metadata?.org_id || r.metadata.org_id === orgId)
+    : r.referenceId === squareRef('transaction', ticketId);
+  if (!ok) throw new AppError(`この${method === 'STRIPE' ? 'Stripe' : 'Square'}決済はこの会計のものではありません。決済IDを確認してください`);
+}
 
 /** Card-present / provider tenders: verify provider references before touching the ledger. */
-async function prepareTenders(actor: PosActor, shopId: string, tenders: TenderInput[], providerVerified: boolean): Promise<PreparedTender[]> {
+async function prepareTenders(actor: PosActor, ticketId: string, shopId: string, tenders: TenderInput[], providerVerified: boolean): Promise<PreparedTender[]> {
   const out: PreparedTender[] = [];
   for (const raw of tenders) {
     const t = { ...tenderSchema.parse(raw), externalRef: raw.externalRef ?? null };
@@ -271,6 +292,7 @@ async function prepareTenders(actor: PosActor, shopId: string, tenders: TenderIn
     let label = t.label || null;
     let externalRef = t.externalRef;
     let provider: string | null = null;
+    let verifiedRef = false;
     if (t.method === 'CARD' || t.method === 'EMONEY' || t.method === 'QR') {
       // External terminal: recorded manually with an optional approval/reference number.
       if (t.reference) label = [label, `承認番号 ${t.reference}`].filter(Boolean).join(' ');
@@ -283,6 +305,8 @@ async function prepareTenders(actor: PosActor, shopId: string, tenders: TenderIn
           const ok = t.method === 'STRIPE' ? r.status === 'succeeded' : r.status === 'COMPLETED';
           if (!ok) throw new AppError(`${t.method === 'STRIPE' ? 'Stripe' : 'Square'}の決済が完了していません（${r.status}）`);
           if (!r.sandbox && r.amount !== t.amount) throw new AppError(`決済額（¥${r.amount.toLocaleString()}）と支払額が一致しません`);
+          assertProviderReferenceBinding(t.method, r, ticketId, actor.orgId);
+          verifiedRef = true;
           externalRef = r.sandbox ? `sandbox_${t.method.toLowerCase()}_${randomToken(12)}` : r.id;
           if (r.sandbox) label = [label, `参照 ${t.reference}`, 'サンドボックス'].filter(Boolean).join(' ');
         } else {
@@ -293,7 +317,7 @@ async function prepareTenders(actor: PosActor, shopId: string, tenders: TenderIn
         }
       }
     }
-    out.push({ method: t.method as PaymentMethod, amount: t.amount, label, provider, externalRef, status: 'SUCCEEDED' });
+    out.push({ method: t.method as PaymentMethod, amount: t.amount, label, provider, externalRef, status: 'SUCCEEDED', verifiedRef: verifiedRef || (providerVerified && !!provider) });
   }
   return out;
 }
@@ -308,7 +332,13 @@ export async function checkout(actor: PosActor, id: string, input: CheckoutInput
   if (!pre) throw new NotFoundError('会計が見つかりません');
   assertShopAccess(actor, pre.shopId);
   if (pre.status !== 'DRAFT') throw new AppError('この会計は既に確定済みです', 'ALREADY_PAID', 409);
-  const tenders = await prepareTenders(actor, pre.shopId, input.tenders, !!opts.providerVerified);
+  const tenders = await prepareTenders(actor, id, pre.shopId, input.tenders, !!opts.providerVerified);
+  // While a payment link / terminal checkout is pending, only that provider's confirmed
+  // payment may settle the ticket (webhook, or the cashier entering its verified reference).
+  const pendingBefore = await prisma.payment.findMany({ where: { transactionId: id, status: 'PENDING' }, select: { method: true } });
+  const settlesPending = (methods: PaymentMethod[]) =>
+    tenders.length > 0 && tenders.every((x) => x.verifiedRef && methods.includes(x.method));
+  if (pendingBefore.length && !settlesPending(pendingBefore.map((p) => p.method))) throw pendingError();
 
   const result = await prisma.$transaction(async (db) => {
     await lockTransaction(db, id);
@@ -342,6 +372,9 @@ export async function checkout(actor: PosActor, id: string, input: CheckoutInput
     const register = await db.registerSession.findFirst({ where: { shopId: t.shopId, closedAt: null }, orderBy: { openedAt: 'desc' } });
     if (hasCash && !register) throw new AppError('レジが開いていません。レジ開けを行ってから現金会計してください', 'REGISTER_CLOSED');
 
+    const pendingNow = await db.payment.findMany({ where: { transactionId: id, status: 'PENDING' }, select: { method: true } });
+    if (pendingNow.length && !settlesPending(pendingNow.map((p) => p.method))) throw pendingError();
+
     const claimed = await db.transaction.updateMany({
       where: { id, status: 'DRAFT' },
       data: {
@@ -351,6 +384,9 @@ export async function checkout(actor: PosActor, id: string, input: CheckoutInput
       },
     });
     if (claimed.count !== 1) throw new AppError('この会計は既に確定済みです', 'ALREADY_PAID', 409);
+    // Placeholders of payment links / terminal checkouts (pending or cancelled) are replaced by
+    // the real payment rows below; their history stays in the audit log.
+    await db.payment.deleteMany({ where: { transactionId: id, status: { in: ['PENDING', 'FAILED'] } } });
 
     const cashTendered = tenders.filter((x) => x.method === 'CASH').reduce((a, x) => a + x.amount, 0);
     const rows: Prisma.PaymentCreateManyInput[] = tenders.filter((x) => x.method !== 'CASH').map((x) => ({
@@ -434,6 +470,13 @@ export async function refundTransaction(actor: PosActor, id: string, input: Refu
     await lockTransaction(db, id);
     const t = await db.transaction.findFirst({ where: { id, organizationId: actor.orgId }, include: { items: true } });
     if (!t) throw new NotFoundError('会計が見つかりません');
+    // The same provider refund (re_…) may arrive twice: from the API response of a cashier
+    // refund and from refund.* / charge.refunded webhooks. Refund.externalRef is unique; checking
+    // under the ticket lock makes whichever comes second a no-op instead of an error.
+    if (externalRef) {
+      const dup = await db.refund.findUnique({ where: { externalRef } });
+      if (dup) return { refundId: dup.id, status: t.status, refundedTotal: t.refundedTotal, pointsReversed: 0, customerId: null as string | null, duplicate: true };
+    }
     if (t.status !== 'PAID' && t.status !== 'PARTIALLY_REFUNDED') throw new AppError('この会計は返金できません');
     const e = validateRefund(t.total, t.refundedTotal, amount);
     if (e) throw new AppError(e);
@@ -480,7 +523,7 @@ export async function refundTransaction(actor: PosActor, id: string, input: Refu
     await audit(auditActor(actor), 'pos.refund', 'Transaction', id, {
       number: t.number, amount, method: input.method, reason: input.reason ?? null, refundId: refund.id, externalRef, restock, pointsReversed, status,
     }, db);
-    return { refundId: refund.id, status, refundedTotal, pointsReversed, customerId: t.customerId };
+    return { refundId: refund.id, status, refundedTotal, pointsReversed, customerId: t.customerId as string | null, duplicate: false };
   }, TX_OPTS).catch(async (e: any) => {
     // concurrent webhook for the same provider refund already recorded it
     if (e?.code === 'P2002' && externalRef) {
@@ -490,8 +533,8 @@ export async function refundTransaction(actor: PosActor, id: string, input: Refu
     throw e;
   });
   if (res.customerId) await recomputeCustomerStats(res.customerId);
-  const { customerId: _c, ...out } = res;
-  return out;
+  const { customerId: _c, duplicate, ...out } = res;
+  return duplicate ? { ...out, duplicate: true } : out;
 }
 
 /** Local calendar date (shop timezone) of an instant. */
@@ -519,11 +562,17 @@ export async function voidTransaction(actor: PosActor, id: string, reason?: stri
       if (p.method === 'SQUARE') await createSquareRefund(actor.orgId, { paymentId: p.externalRef, amount: p.amount, reason: '取消', shopId: pre.shopId, idempotencyKey: key });
     }
   }
+  if (pre.status === 'DRAFT') {
+    // Best effort: stop outstanding payment links / terminal checkouts. A payment that still
+    // arrives later is flagged by the webhook as unapplied (payment.unapplied) for staff.
+    for (const p of pre.payments) if (p.status === 'PENDING') await cancelProviderCheckout(actor.orgId, pre.shopId, p).catch((e) => console.error('[pos.void] cancel pending', e));
+  }
   const customerId = await prisma.$transaction(async (db) => {
     await lockTransaction(db, id);
     const t = await db.transaction.findFirst({ where: { id, organizationId: actor.orgId }, include: { items: true } });
     if (!t) throw new NotFoundError('会計が見つかりません');
     if (t.status !== pre.status) throw new AppError('会計の状態が変更されました。画面を更新してください', 'STALE', 409);
+    if (t.status === 'DRAFT') await db.payment.updateMany({ where: { transactionId: id, status: 'PENDING' }, data: { status: 'FAILED' } });
     await db.transaction.update({
       where: { id },
       data: { status: 'VOID', voidedAt: now, appointmentId: null, note: [t.note, reason ? `取消理由: ${reason}` : null].filter(Boolean).join('\n') || null },
@@ -723,26 +772,82 @@ export async function searchPosCustomers(orgId: string, q: string, take = 12) {
 /**
  * Start a provider payment for a DRAFT: Stripe hosted payment link or Square Terminal
  * checkout. The ticket is finalized only when the provider webhook confirms payment.
+ * A PENDING Payment row (externalRef = Checkout Session / terminal checkout id, amount) is
+ * stored so the ticket can't be changed or settled otherwise while the customer pays; staff
+ * can release it with cancelPendingPayment.
  */
 export async function startProviderPayment(actor: PosActor, id: string, provider: 'STRIPE' | 'SQUARE'): Promise<{ url: string | null; reference: string; sandbox: boolean }> {
-  const t = await prisma.transaction.findFirst({ where: { id, organizationId: actor.orgId }, include: { shop: { select: { slug: true, name: true } } } });
+  const t = await prisma.transaction.findFirst({ where: { id, organizationId: actor.orgId }, include: { shop: { select: { slug: true, name: true } }, payments: { where: { status: 'PENDING' } } } });
   if (!t) throw new NotFoundError('会計が見つかりません');
   assertShopAccess(actor, t.shopId);
   if (t.status !== 'DRAFT') throw new AppError('この会計は既に確定済みです', 'ALREADY_PAID', 409);
   if (t.total <= 0) throw new AppError('請求額が0円のため、オンライン決済は不要です');
+  const existing = t.payments[0];
+  if (existing && (existing.method !== provider || existing.amount !== t.total)) throw pendingError();
+
+  let r: { id: string; url: string | null; sandbox: boolean };
   if (provider === 'STRIPE') {
-    const s = await createCheckoutSession(actor.orgId, {
+    r = await createCheckoutSession(actor.orgId, {
       lines: [{ name: `${t.shop.name} お会計 No.${t.number}`, amount: t.total, quantity: 1 }],
       metadata: { transaction_id: t.id, org_id: actor.orgId }, shopId: t.shopId,
       successUrl: `${env.appUrl}/store/${t.shop.slug}/paid`, cancelUrl: `${env.appUrl}/store/${t.shop.slug}/paid?cancelled=1`,
       idempotencyKey: `pos-link:${t.id}:${t.total}`,
     });
-    await audit(auditActor(actor), 'pos.payment_link', 'Transaction', t.id, { provider, amount: t.total, reference: s.id });
-    return { url: s.url, reference: s.id, sandbox: s.sandbox };
+  } else {
+    const c = await createTerminalCheckout(actor.orgId, { amount: t.total, referenceId: squareRef('transaction', t.id), note: `No.${t.number}`, shopId: t.shopId, idempotencyKey: `pos-term:${t.id}:${t.total}` });
+    r = { id: c.id, url: null, sandbox: c.sandbox };
   }
-  const r = await createTerminalCheckout(actor.orgId, { amount: t.total, referenceId: squareRef('transaction', t.id), note: `No.${t.number}`, shopId: t.shopId, idempotencyKey: `pos-term:${t.id}:${t.total}` });
+  // Re-issuing is idempotent at the provider (same key → same session): show it again.
+  if (existing) {
+    if (existing.externalRef === r.id) return { url: r.url, reference: r.id, sandbox: r.sandbox };
+    throw pendingError();
+  }
+  await prisma.$transaction(async (db) => {
+    await lockTransaction(db, t.id);
+    const cur = await db.transaction.findUnique({ where: { id: t.id }, select: { status: true, total: true } });
+    if (!cur || cur.status !== 'DRAFT' || cur.total !== t.total) throw new AppError('会計内容が変更されました。画面を更新してから再度お試しください', 'STALE', 409);
+    if (await db.payment.count({ where: { transactionId: t.id, status: 'PENDING' } })) throw pendingError();
+    await db.payment.create({
+      data: {
+        transactionId: t.id, method: provider, provider, externalRef: r.id, amount: t.total, status: 'PENDING',
+        label: provider === 'STRIPE' ? '決済リンク（お支払い待ち）' : '端末決済（お支払い待ち）',
+      },
+    });
+  }, TX_OPTS);
   await audit(auditActor(actor), 'pos.payment_link', 'Transaction', t.id, { provider, amount: t.total, reference: r.id });
-  return { url: null, reference: r.id, sandbox: r.sandbox };
+  return { url: r.url, reference: r.id, sandbox: r.sandbox };
+}
+
+async function cancelProviderCheckout(orgId: string, shopId: string, p: { method: PaymentMethod; externalRef: string | null }) {
+  if (!p.externalRef || p.externalRef.startsWith('sandbox_')) return;
+  if (p.method === 'STRIPE' && p.externalRef.startsWith('cs_')) await expireCheckoutSession(orgId, p.externalRef, shopId);
+  if (p.method === 'SQUARE') await cancelTerminalCheckout(orgId, p.externalRef, shopId);
+}
+
+/**
+ * Staff releases a pending payment link / terminal checkout (customer will pay another way).
+ * The provider side is expired/cancelled first (Stripe: POST /v1/checkout/sessions/{id}/expire,
+ * Square: terminal checkout cancel; sandbox no-op) — if that fails (e.g. already paid) the
+ * row stays PENDING and the error is shown. Then the row is marked FAILED.
+ */
+export async function cancelPendingPayment(actor: PosActor, id: string): Promise<{ cancelled: number }> {
+  const t = await prisma.transaction.findFirst({ where: { id, organizationId: actor.orgId }, include: { payments: { where: { status: 'PENDING' } } } });
+  if (!t) throw new NotFoundError('会計が見つかりません');
+  assertShopAccess(actor, t.shopId);
+  if (!t.payments.length) throw new AppError('取り消す決済待ちはありません');
+  let cancelled = 0;
+  for (const p of t.payments) {
+    await cancelProviderCheckout(actor.orgId, t.shopId, p);
+    const r = await prisma.payment.updateMany({ where: { id: p.id, status: 'PENDING' }, data: { status: 'FAILED', label: `${p.label ?? ''}（取消）` } });
+    cancelled += r.count;
+  }
+  await audit(auditActor(actor), 'pos.payment_pending_cancelled', 'Transaction', t.id, { payments: t.payments.map((p) => ({ method: p.method, reference: p.externalRef, amount: p.amount })) });
+  return { cancelled };
+}
+
+/** Pending payment link / terminal checkout on a ticket (checkout screen banner). */
+export async function pendingProviderPayment(transactionId: string) {
+  return prisma.payment.findFirst({ where: { transactionId, status: 'PENDING' }, select: { id: true, method: true, amount: true, externalRef: true, createdAt: true } });
 }
 
 export async function providerModes(orgId: string, shopId: string) {

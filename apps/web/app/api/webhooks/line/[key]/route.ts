@@ -9,8 +9,9 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ key: string }> }) {
   const { key } = await params;
+  // Unknown or PAUSED integration → 404 (a paused salon receives nothing).
   const integration = await findLineIntegrationByKey(key);
-  if (!integration) return NextResponse.json({ error: 'not found' }, { status: 404 });
+  if (!integration || integration.status === 'PAUSED') return NextResponse.json({ error: 'not found' }, { status: 404 });
 
   const raw = await req.text();
   const secret = lineChannelSecret(integration);

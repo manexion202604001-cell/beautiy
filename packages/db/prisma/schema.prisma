@@ -522,7 +522,10 @@ model Appointment {
   externalProvider String?
   externalRef      String?
   idempotencyKey   String?
-  manageToken      String            @unique @default(cuid())
+  // Bearer secret for the customer's change/cancel/review links. The app always sets it to
+  // randomToken(24) (192-bit CSPRNG); the DB default (2 × gen_random_uuid, also CSPRNG) only
+  // covers raw inserts. Never cuid(): cuids are time/counter based and guessable.
+  manageToken      String            @unique @default(dbgenerated("replace(((gen_random_uuid())::text || (gen_random_uuid())::text), '-'::text, ''::text)"))
   cancelledAt      DateTime?
   cancelReason     String?
   createdById      String?

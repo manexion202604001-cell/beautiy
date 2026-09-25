@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { lifecycle, visitStats, repeatRate } from '../src/analytics';
-import { duplicateScore, findDuplicates, normalizeEmail, normalizeKana, normalizePhone, maskPhone } from '../src/identity';
+import { duplicateScore, findDuplicates, normalizeEmail, normalizeKana, normalizePhone, maskPhone, publicNameMatches } from '../src/identity';
 import { blindIndex, decrypt, encrypt, hashPassword, keysFrom, verifyPassword } from '../src/crypto';
 import { can } from '../src/rbac';
 import { matchesSegment, renderTemplate, backoffMs } from '../src/messaging';
@@ -147,5 +147,25 @@ describe('integrations', () => {
   it('verifies LINE signatures', () => {
     expect(verifyLineSignature(hmacBase64('secret', '{}'), '{}', 'secret')).toBe(true);
     expect(verifyLineSignature('bad', '{}', 'secret')).toBe(false);
+  });
+});
+
+describe('publicNameMatches (unverified public input vs stored customer)', () => {
+  const stored = { lastName: '山田', firstName: '花子', lastNameKana: 'ヤマダ', firstNameKana: 'ハナコ' };
+  it('accepts the same person written differently', () => {
+    expect(publicNameMatches({ name: '山田 花子' }, stored)).toBe(true);
+    expect(publicNameMatches({ name: '山田花子' }, stored)).toBe(true);
+    expect(publicNameMatches({ name: '山田　花子', kana: 'やまだ はなこ' }, stored)).toBe(true);
+    expect(publicNameMatches({ name: 'Yamada Hanako', kana: 'ヤマダ ハナコ' }, stored)).toBe(true); // kana equal
+    expect(publicNameMatches({ name: 'やまだ はなこ' }, stored)).toBe(true); // name typed in kana
+    // surname-only on either side
+    expect(publicNameMatches({ name: '山田' }, stored)).toBe(true);
+    expect(publicNameMatches({ name: '山田 花子' }, { lastName: '山田', firstName: '' })).toBe(true);
+  });
+  it('rejects a different person sharing the phone/email', () => {
+    expect(publicNameMatches({ name: '山田 太郎', kana: 'ヤマダ タロウ' }, stored)).toBe(false);
+    expect(publicNameMatches({ name: '佐藤 花子', kana: 'サトウ ハナコ' }, stored)).toBe(false);
+    expect(publicNameMatches({ name: '攻撃 者' }, stored)).toBe(false);
+    expect(publicNameMatches({ name: '佐藤' }, { lastName: '山田', firstName: '' })).toBe(false);
   });
 });

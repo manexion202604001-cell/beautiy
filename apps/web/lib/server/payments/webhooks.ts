@@ -76,6 +76,11 @@ export async function handlePaymentWebhook(provider: Provider, rawBody: string, 
 
   try {
     const outcome = provider === 'STRIPE' ? await applyStripe(ev, raw, orgScope) : await applySquare(ev, raw, orgScope);
+    if (outcome.unapplied) {
+      // Money was taken but could not be booked: keep it visible (FAILED + audit) for staff.
+      await prisma.webhookEvent.update({ where: { id: eventRowId }, data: { status: 'FAILED', error: `${UNAPPLIED_ERROR}（${outcome.note ?? ''}）`.slice(0, 500), processedAt: new Date() } });
+      return { status: 200, body: { ok: true, processed: false, unapplied: true, note: outcome.note } };
+    }
     await prisma.webhookEvent.update({ where: { id: eventRowId }, data: { status: outcome.processed ? 'PROCESSED' : 'IGNORED', error: outcome.note ?? null, processedAt: new Date() } });
     return { status: 200, body: { ok: true, ...outcome } };
   } catch (e: any) {
@@ -90,7 +95,9 @@ export async function handlePaymentWebhook(provider: Provider, rawBody: string, 
   }
 }
 
-interface Outcome { processed: boolean; note?: string }
+interface Outcome { processed: boolean; note?: string; unapplied?: boolean }
+
+export const UNAPPLIED_ERROR = '要対応: 適用できない入金';
 
 const systemActor = (orgId: string, shopId: string): PosActor => ({ orgId, userId: null, shopIds: [shopId] });
 
@@ -99,20 +106,41 @@ function inScope(orgScope: string | null, orgId: string) {
   return orgScope === null || orgScope === orgId;
 }
 
-/** Provider payment for a POS ticket (pay-by-link / terminal). */
-async function applyTransactionPayment(orgScope: string | null, provider: Provider, txId: string, externalRef: string | undefined, amount: number | undefined): Promise<Outcome> {
-  if (externalRef) {
-    const existing = await prisma.payment.findUnique({ where: { externalRef } });
-    if (existing) {
-      if (existing.status === 'PENDING') await prisma.payment.update({ where: { id: existing.id }, data: { status: 'SUCCEEDED' } });
-      return { processed: true, note: 'payment already recorded' };
-    }
+/**
+ * A provider reports a SUCCEEDED payment for a POS ticket that we cannot book (ticket no
+ * longer DRAFT, amount differs, unknown ticket, checkout rule failed). The customer has paid,
+ * so it must not vanish: audit `payment.unapplied` for the org (shown on /pos) and let the
+ * caller mark the webhook event FAILED with a 要対応 note. Staff refund or settle manually.
+ */
+async function unappliedPayment(orgId: string | null, info: { provider: Provider; transactionId: string; externalRef?: string; amount?: number; reason: string }): Promise<Outcome> {
+  if (orgId && (await prisma.organization.findUnique({ where: { id: orgId }, select: { id: true } }))) {
+    await audit({ orgId, userId: null }, 'payment.unapplied', 'Transaction', info.transactionId, { provider: info.provider, externalRef: info.externalRef ?? null, amount: info.amount ?? null, reason: info.reason });
   }
+  return { processed: false, unapplied: true, note: info.reason };
+}
+
+/** Provider payment for a POS ticket (pay-by-link / terminal). */
+async function applyTransactionPayment(orgScope: string | null, provider: Provider, txId: string, externalRef: string | undefined, amount: number | undefined, metaOrgId?: string | null): Promise<Outcome> {
+  const recorded = async () => {
+    if (!externalRef) return false;
+    const p = await prisma.payment.findUnique({ where: { externalRef } });
+    return !!p && p.status !== 'PENDING' && p.status !== 'FAILED';
+  };
+  if (await recorded()) return { processed: true, note: 'payment already recorded' };
   const t = await prisma.transaction.findUnique({ where: { id: txId }, select: { id: true, organizationId: true, shopId: true, status: true, total: true } });
-  if (!t || !inScope(orgScope, t.organizationId)) return { processed: false, note: 'transaction not found' };
-  if (t.status !== 'DRAFT') return { processed: false, note: `transaction is ${t.status}` };
-  if (amount == null) return { processed: false, note: 'missing amount' };
-  await checkout(systemActor(t.organizationId, t.shopId), t.id, { tenders: [{ method: provider, amount, externalRef: externalRef ?? null, label: 'オンライン決済' }] }, { providerVerified: true });
+  const base = { provider, transactionId: txId, externalRef, amount };
+  if (!t || !inScope(orgScope, t.organizationId)) return unappliedPayment(orgScope ?? metaOrgId ?? null, { ...base, reason: 'transaction not found' });
+  if (t.status !== 'DRAFT') return unappliedPayment(t.organizationId, { ...base, reason: `transaction is ${t.status}` });
+  if (amount == null) return unappliedPayment(t.organizationId, { ...base, reason: 'missing amount' });
+  if (amount !== t.total) return unappliedPayment(t.organizationId, { ...base, reason: `amount mismatch ${amount} != ${t.total}` });
+  try {
+    await checkout(systemActor(t.organizationId, t.shopId), t.id, { tenders: [{ method: provider, amount, externalRef: externalRef ?? null, label: 'オンライン決済' }] }, { providerVerified: true });
+  } catch (e) {
+    if (!(e instanceof AppError)) throw e;
+    // a concurrent event for the same payment may have settled it first
+    if (await recorded()) return { processed: true, note: 'payment already recorded' };
+    return unappliedPayment(t.organizationId, { ...base, reason: e.message });
+  }
   return { processed: true };
 }
 
@@ -160,7 +188,7 @@ async function applyStripe(ev: NormalizedPaymentEvent, raw: any, orgScope: strin
     if (type === 'checkout.session.completed' && obj.payment_status && obj.payment_status !== 'paid') return { processed: false, note: `payment_status ${obj.payment_status}` };
     if (!ev.referenceId) return { processed: false, note: 'no reference metadata' };
     if (ev.referenceKind === 'order') return applyOrderPaid(orgScope, 'STRIPE', ev.referenceId, ev.externalRef, ev.amount);
-    return applyTransactionPayment(orgScope, 'STRIPE', ev.referenceId, ev.externalRef, ev.amount);
+    return applyTransactionPayment(orgScope, 'STRIPE', ev.referenceId, ev.externalRef, ev.amount, obj.metadata?.org_id ?? null);
   }
   if (ev.type === 'refund.succeeded' || ((type === 'refund.created' || type === 'refund.updated') && obj.status === 'succeeded')) {
     const pi: string | undefined = obj.payment_intent ?? undefined;
@@ -168,19 +196,18 @@ async function applyStripe(ev: NormalizedPaymentEvent, raw: any, orgScope: strin
     const order = await prisma.order.findUnique({ where: { paymentRef: pi }, select: { id: true } });
     if (type === 'charge.refunded') {
       if (order) return applyOrderRefund(orgScope, order.id, obj.amount_refunded ?? 0);
-      let list: { id: string; amount: number }[] = (obj.refunds?.data ?? []).filter((r: any) => r.status === 'succeeded').map((r: any) => ({ id: r.id, amount: r.amount }));
-      if (!list.length) {
-        // refunds not expanded: record the not-yet-known remainder once, keyed by event id
-        const pay = await prisma.payment.findUnique({ where: { externalRef: pi }, select: { transactionId: true } });
-        if (!pay) return { processed: false, note: 'payment not found' };
-        const known = await prisma.refund.aggregate({ where: { transactionId: pay.transactionId, method: 'STRIPE' }, _sum: { amount: true } });
-        const delta = (obj.amount_refunded ?? 0) - (known._sum.amount ?? 0);
-        list = delta > 0 ? [{ id: `stripe_evt_${ev.eventId}`, amount: delta }] : [];
-      }
+      // Only explicit refund objects (re_…) are recorded. Never synthesize a refund from
+      // amount_refunded: the same refund also arrives as refund.* events and via the API
+      // response of a cashier refund, and would be counted twice.
+      const list: { id: string; amount: number }[] = (obj.refunds?.data ?? [])
+        .filter((r: any) => r?.status === 'succeeded' && typeof r.id === 'string' && r.id.startsWith('re_'))
+        .map((r: any) => ({ id: r.id, amount: r.amount }));
+      if (!list.length) return { processed: false, note: 'refunds not expanded; recorded from refund.* events' };
       return applyTransactionRefunds(orgScope, 'STRIPE', pi, list);
     }
     // refund.* object
     if (order) return { processed: false, note: 'order refunds are reconciled via charge.refunded' };
+    if (typeof obj.id !== 'string' || !obj.id.startsWith('re_')) return { processed: false, note: 'not a refund object' };
     return applyTransactionRefunds(orgScope, 'STRIPE', pi, [{ id: obj.id, amount: obj.amount }]);
   }
   return { processed: false, note: `unhandled ${type}` };

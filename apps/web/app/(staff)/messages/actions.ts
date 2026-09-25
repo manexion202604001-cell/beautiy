@@ -139,7 +139,7 @@ export async function countRecipientsAction(raw: unknown, channel: string): Prom
     const ctx = await requireStaff('message.broadcast');
     const ch = z.enum(['LINE', 'EMAIL']).parse(channel);
     const seg = normalizeSegment(raw);
-    await assertSegmentScope(ctx.org.id, seg);
+    await assertSegmentScope(ctx.org.id, seg, { role: ctx.role, shopIds: ctx.shops.map((x) => x.id) });
     const r = await segmentRecipients(ctx.org.id, seg, ch);
     return { ok: true, recipients: r.ids.length, matched: r.matched, optedOut: r.optedOut, noContact: r.noContact };
   } catch (e: any) {
@@ -168,7 +168,7 @@ export async function saveBroadcastAction(_: ActionResult<{ id: string }> | null
     const ctx = await requireStaff('message.broadcast');
     const input = broadcastSchema.parse(Object.fromEntries(fd));
     const segment = segmentFromForm(fd);
-    await assertSegmentScope(ctx.org.id, segment);
+    await assertSegmentScope(ctx.org.id, segment, { role: ctx.role, shopIds: ctx.shops.map((x) => x.id) });
     let scheduledAt: Date | null = null;
     if (input.intent === 'schedule') {
       const m = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})$/.exec(input.scheduledAt ?? '');

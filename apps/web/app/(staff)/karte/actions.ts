@@ -6,11 +6,10 @@ import { assertShop, requireStaff } from '@/lib/server/session';
 import { runAction, AppError, ForbiddenError, type ActionResult } from '@/lib/server/errors';
 import { env } from '@/lib/server/env';
 import { prisma } from '@/lib/server/db';
-import { sendCustomerMessage } from '@/lib/server/notify';
 import { actorOf } from '@/lib/server/crm';
 import {
   addKartePhotos, createKarte, deleteCounselingForm, deleteKarte, deleteKartePhoto, deleteKarteTemplate, formFieldSchema,
-  issueCounselingLink, saveCounselingForm, saveKarteTemplate, setKarteShare, updateKarte, updateKartePhoto,
+  issueCounselingLink, saveCounselingForm, saveKarteTemplate, sendKarteShare, setKarteShare, shopActorOf, updateKarte, updateKartePhoto,
 } from '@/lib/server/karte';
 
 const s = (fd: FormData, k: string) => { const v = fd.get(k); return typeof v === 'string' ? v : null; };
@@ -38,7 +37,8 @@ export async function saveKarteAction(_: ActionResult<{ id: string }> | null, fd
       revalidatePath(`/customers/${k.customerId}`);
       return { ok: true, message: 'カルテを保存しました', data: { id } };
     }
-    const res = await createKarte(actorOf(ctx), { ...fields, customerId: s(fd, 'customerId'), appointmentId: s(fd, 'appointmentId') || null, shopId: ctx.shop.id });
+    // shopActorOf: an appointment from a shop outside ctx.shops is rejected by the service.
+    const res = await createKarte(shopActorOf(ctx), { ...fields, customerId: s(fd, 'customerId'), appointmentId: s(fd, 'appointmentId') || null, shopId: ctx.shop.id });
     createdId = res.id;
   });
   if (r.ok && createdId) redirect(`/karte/${createdId}?created=1`);
@@ -72,7 +72,7 @@ export async function uploadPhotoAction(fd: FormData): Promise<ActionResult> {
 export async function updatePhotoAction(fd: FormData) {
   return runAction(async () => {
     const ctx = await requireStaff('karte.write');
-    const karteId = await updateKartePhoto(actorOf(ctx), String(fd.get('photoId')), {
+    const karteId = await updateKartePhoto(shopActorOf(ctx), String(fd.get('photoId')), {
       shareable: fd.has('shareable') ? fd.get('shareable') === '1' : undefined,
       caption: fd.has('caption') ? s(fd, 'caption') : undefined,
       kind: s(fd, 'kind') ?? undefined,
@@ -84,7 +84,7 @@ export async function updatePhotoAction(fd: FormData) {
 export async function deletePhotoAction(fd: FormData) {
   return runAction(async () => {
     const ctx = await requireStaff('karte.write');
-    const karteId = await deleteKartePhoto(actorOf(ctx), String(fd.get('photoId')));
+    const karteId = await deleteKartePhoto(shopActorOf(ctx), String(fd.get('photoId')));
     revalidatePath(`/karte/${karteId}`);
   });
 }
@@ -93,8 +93,9 @@ export async function setShareAction(fd: FormData): Promise<ActionResult<{ url: 
   return runAction(async () => {
     const ctx = await requireStaff('karte.write');
     const k = await karteInShop(ctx.org.id, String(fd.get('karteId')));
+    assertShop(ctx, k.shopId);
     const mode = String(fd.get('mode'));
-    const updated = await setKarteShare(actorOf(ctx), k.id, mode !== 'disable', { regenerate: mode === 'regenerate' });
+    const updated = await setKarteShare(shopActorOf(ctx), k.id, mode !== 'disable', { regenerate: mode === 'regenerate' });
     revalidatePath(`/karte/${k.id}`);
     return { ok: true, data: { url: updated.shareEnabled && updated.shareToken ? `${env.appUrl}/k/${updated.shareToken}` : null } };
   });
@@ -104,17 +105,10 @@ export async function sendShareAction(fd: FormData): Promise<ActionResult> {
   return runAction(async () => {
     const ctx = await requireStaff('karte.write');
     if (!ctx.can('message.send')) throw new ForbiddenError('メッセージ送信の権限がありません');
-    const k = await prisma.karte.findFirst({ where: { id: String(fd.get('karteId')), organizationId: ctx.org.id }, include: { customer: { select: { lastName: true, firstName: true } } } });
-    if (!k) throw new AppError('カルテが見つかりません');
-    if (!k.shareEnabled || !k.shareToken) throw new AppError('先に共有リンクを有効にしてください');
-    const shop = await prisma.shop.findFirst({ where: { id: k.shopId, organizationId: ctx.org.id }, select: { name: true } });
+    const k = await karteInShop(ctx.org.id, String(fd.get('karteId')));
+    assertShop(ctx, k.shopId);
     const channel = fd.get('channel') === 'EMAIL' ? 'EMAIL' : 'LINE';
-    const msg = await sendCustomerMessage({
-      orgId: ctx.org.id, shopId: k.shopId, customerId: k.customerId, createdById: ctx.user.id, channel,
-      subject: `【${shop?.name ?? ''}】本日の施術記録`,
-      body: `${k.customer.lastName}様\n本日はご来店ありがとうございました。施術の写真とご自宅でのケア方法をお送りします。\n${env.appUrl}/k/${k.shareToken}\n${shop?.name ?? ''}`,
-    });
-    await prisma.karte.update({ where: { id: k.id }, data: { sharedAt: new Date() } });
+    const msg = await sendKarteShare(shopActorOf(ctx), k.id, channel);
     revalidatePath(`/karte/${k.id}`);
     if (msg.status === 'SKIPPED') throw new AppError(`送信できませんでした: ${msg.error ?? '連絡先がありません'}`);
     if (msg.status === 'FAILED') throw new AppError(`送信に失敗しました: ${msg.error ?? ''}`);

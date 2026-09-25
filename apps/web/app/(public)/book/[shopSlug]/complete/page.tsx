@@ -37,7 +37,7 @@ export default async function CompletePage({ params, searchParams }: { params: P
           </span>
           <h2 style={{ fontSize: 20, marginTop: 10 }}>{requested ? 'ご予約リクエストを受け付けました' : 'ご予約が確定しました'}</h2>
           <p className="sub" style={{ marginTop: 6 }}>
-            {requested ? 'サロンで内容を確認のうえ、確定のご連絡をいたします。' : `${a.customer ? `${a.customer.lastName} ${a.customer.firstName}`.trim() : ''}様、ご来店をお待ちしております。`}
+            {requested ? 'サロンで内容を確認のうえ、確定のご連絡をいたします。' : `${a.guestName ? `${a.guestName}様、` : ''}ご来店をお待ちしております。`}
             {sent && <><br />{sent.channel === 'LINE' ? 'LINE' : 'メール'}に確認メッセージをお送りしました。</>}
           </p>
         </div>

@@ -25,7 +25,8 @@ export interface ProviderResult { ok: boolean; externalId?: string; error?: stri
 
 export async function linePush(orgId: string, shopId: string | null | undefined, to: string, text: string): Promise<ProviderResult> {
   const it = await getIntegration(orgId, 'LINE', shopId);
-  const token: string = it?.config.channelAccessToken || env.line.accessToken;
+  // Env token only when there is no row or the row has no LINE credentials of its own (see line.ts usesEnvChannel).
+  const token: string = it?.config.channelAccessToken || (!it?.config.channelSecret ? env.line.accessToken : '');
   if (!token || it?.integration.status === 'PAUSED') return { ok: true, sandbox: true, externalId: `sandbox-line-${Date.now()}` };
   try {
     const res = await fetch('https://api.line.me/v2/bot/message/push', {

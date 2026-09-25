@@ -6,13 +6,15 @@ import { computeTicket, settle, type CouponRule } from '@salonos/core';
 import { Modal, CopyButton } from '@/components/client';
 import { yen } from '@/lib/format';
 import { LINE_KIND_LABEL, METHOD_LABEL, METHOD_SHORT, PAYMENT_METHODS, type DraftLine, type PaymentMethodName } from '@/lib/pos-shared';
-import { checkoutAction, saveDraftAction, searchCustomersAction, startProviderPaymentAction, voidAction } from '../actions';
+import { cancelPendingPaymentAction, checkoutAction, saveDraftAction, searchCustomersAction, startProviderPaymentAction, voidAction } from '../actions';
 
 export interface CustomerLite { id: string; name: string; kana: string; visitCount: number; points: number }
 export interface CheckoutInitial {
   transactionId: string | null; number: number | null; shopId: string; appointmentId: string | null; appointmentLabel: string | null;
   customer: CustomerLite | null; guestName?: string; staffId: string | null; defaultStaffId?: string;
   couponId: string | null; manualDiscount: number; pointsToUse: number; note: string; lines: DraftLine[];
+  /** Payment link / terminal checkout waiting for the customer (blocks edits and other tenders). */
+  pendingPayment?: { method: string; amount: number; reference: string | null } | null;
 }
 type MenuOpt = { id: string; name: string; category: string; price: number; durationMin: number };
 type ProductOpt = { id: string; name: string; brand: string | null; price: number; stock: number; sku: string | null };
@@ -40,7 +42,8 @@ export function CheckoutClient({ initial, shop, menus, products, staff, coupons,
   const [pointsToUse, setPointsToUse] = useState(initial.pointsToUse);
   const [note, setNote] = useState(initial.note);
   const [tenders, setTenders] = useState<Tender[]>([]);
-  const [busy, setBusy] = useState<null | 'save' | 'checkout' | 'provider' | 'discard'>(null);
+  const [busy, setBusy] = useState<null | 'save' | 'checkout' | 'provider' | 'discard' | 'cancelPending'>(null);
+  const [pending, setPending] = useState(initial.pendingPayment ?? null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [custOpen, setCustOpen] = useState(false);
@@ -119,7 +122,20 @@ export function CheckoutClient({ initial, shop, menus, products, staff, coupons,
       rememberId(r.data!.id);
       setDirty(false);
       setProviderLink({ provider, url: r.data!.url, reference: r.data!.reference, sandbox: r.data!.sandbox });
+      setPending({ method: provider, amount: totals.total, reference: r.data!.reference });
     } catch { setError('決済の開始に失敗しました。再試行してください。'); } finally { setBusy(null); }
+  }
+
+  async function cancelPending() {
+    if (!txId) return;
+    if (!window.confirm('オンライン決済の待機を取り消しますか？（リンク・端末での支払いは受け付けなくなります）')) return;
+    setBusy('cancelPending'); setError(null); setMessage(null);
+    try {
+      const r = await cancelPendingPaymentAction(txId);
+      if (!r.ok) return fail(r);
+      setPending(null); setProviderLink(null);
+      setMessage(r.message ?? '決済待ちを取り消しました');
+    } catch { setError('取り消しに失敗しました。再試行してください。'); } finally { setBusy(null); }
   }
 
   async function discard() {
@@ -331,6 +347,15 @@ export function CheckoutClient({ initial, shop, menus, products, staff, coupons,
             {cashIn > 0 && <div className="sub">現金 {yen(cashIn)} お預り</div>}
           </div>
 
+          {pending && !providerLink && (
+            <div className="alert warn" style={{ marginTop: 10 }}>
+              <div>{pending.method === 'SQUARE' ? '端末決済' : '決済リンク'}（{yen(pending.amount)}）のお支払い待ちです。完了すると自動で会計が確定します。その間は金額の変更や別の方法での会計はできません。</div>
+              <div className="row-wrap" style={{ marginTop: 8 }}>
+                <button type="button" className="btn sm secondary" onClick={() => router.refresh()}>状態を確認</button>
+                <button type="button" className="btn sm ghost" onClick={cancelPending} disabled={busy !== null}>{busy === 'cancelPending' ? <span className="spinner" /> : null}決済待ちを取り消す</button>
+              </div>
+            </div>
+          )}
           {providerLink && (
             <div className="alert info" style={{ marginTop: 10 }}>
               {providerLink.url ? (
@@ -339,7 +364,10 @@ export function CheckoutClient({ initial, shop, menus, products, staff, coupons,
                   <div className="row-wrap"><a className="link mono" href={providerLink.url} target="_blank" rel="noreferrer">{providerLink.url.slice(0, 48)}…</a><CopyButton text={providerLink.url} /></div>
                 </div>
               ) : <div>{providerLink.provider === 'SQUARE' ? '端末に金額を送信しました。' : '決済を開始しました。'}{providerLink.sandbox ? '（サンドボックス）' : ''} 完了後に自動で会計が確定します。</div>}
-              <button type="button" className="btn sm secondary" style={{ marginTop: 8 }} onClick={() => router.refresh()}>状態を確認</button>
+              <div className="row-wrap" style={{ marginTop: 8 }}>
+                <button type="button" className="btn sm secondary" onClick={() => router.refresh()}>状態を確認</button>
+                <button type="button" className="btn sm ghost" onClick={cancelPending} disabled={busy !== null}>{busy === 'cancelPending' ? <span className="spinner" /> : null}決済待ちを取り消す</button>
+              </div>
             </div>
           )}
         </section>

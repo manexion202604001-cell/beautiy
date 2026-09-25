@@ -13,9 +13,11 @@ export interface BuilderInitial { id: string; name: string; body: string; channe
 
 type Count = Awaited<ReturnType<typeof countRecipientsAction>>;
 
-export function BroadcastBuilder({ initial, tags, staff, shops, templates, shopName, minLocal }: {
+export function BroadcastBuilder({ initial, tags, staff, shops, templates, shopName, minLocal, orgWide, defaultShopId }: {
   initial?: BuilderInitial; tags: { id: string; name: string; color: string }[]; staff: { userId: string; displayName: string }[];
   shops: { id: string; name: string }[]; templates: TemplateLite[]; shopName: string; minLocal: string;
+  /** OWNER/DIRECTOR may send to all shops; others must pick one of their shops (server-enforced). */
+  orgWide: boolean; defaultShopId: string;
 }) {
   const router = useRouter();
   const s0 = initial?.segment ?? {};
@@ -26,7 +28,7 @@ export function BroadcastBuilder({ initial, tags, staff, shops, templates, shopN
   const [minVisits, setMinVisits] = useState(s0.minVisits?.toString() ?? '');
   const [staffId, setStaffId] = useState(s0.staffId ?? '');
   const [favorite, setFavorite] = useState(!!s0.favorite);
-  const [shopId, setShopId] = useState(s0.shopId ?? '');
+  const [shopId, setShopId] = useState(s0.shopId ?? (orgWide ? '' : defaultShopId));
   const [mode, setMode] = useState<'now' | 'schedule'>(initial?.scheduledAtLocal ? 'schedule' : 'now');
   const [seed, setSeed] = useState({ key: 0, body: initial?.body ?? '' });
   const [count, setCount] = useState<Count | null>(null);
@@ -87,7 +89,7 @@ export function BroadcastBuilder({ initial, tags, staff, shops, templates, shopN
             <div className="stack">
               <Field label="店舗">
                 <select name="segShopId" className="select" value={shopId} onChange={(e) => setShopId(e.target.value)}>
-                  <option value="">すべての店舗</option>
+                  {orgWide && <option value="">すべての店舗</option>}
                   {shops.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </Field>

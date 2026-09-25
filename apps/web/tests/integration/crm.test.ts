@@ -8,6 +8,7 @@ import {
 import {
   copyFromPrevious, createKarte, getCounselingByToken, getSharedKarte, issueCounselingLink, parseSketch, previousKarte,
   saveCounselingForm, setKarteShare, submitCounseling, updateKarte, validateAnswers, CounselingValidationError,
+  deleteKartePhoto, sendKarteShare, updateKartePhoto,
 } from '@/lib/server/karte';
 import { makeOrg } from './helpers';
 
@@ -154,7 +155,7 @@ describe('CRM CSV import', () => {
 describe('Karte', () => {
   it('enforces one karte per appointment (including concurrent creates)', async () => {
     const { org, shop, staff } = await makeOrg();
-    const actor = { orgId: org.id, userId: staff[1].userId };
+    const actor = { orgId: org.id, userId: staff[1].userId, shopIds: [shop.id] };
     const c = await prisma.customer.create({ data: { organizationId: org.id, lastName: 'K', firstName: 'A' } });
     const a = await appt(org.id, shop.id, c.id, 1);
     const results = await Promise.all([1, 2, 3].map(() => createKarte(actor, { appointmentId: a.id, shopId: shop.id, treatmentNote: 'x' })));
@@ -167,7 +168,7 @@ describe('Karte', () => {
     expect(k.visitDate.getTime()).toBe(a.startAt.getTime());
     // cross-tenant appointment is rejected
     const other = await makeOrg();
-    await expect(createKarte({ orgId: other.org.id, userId: other.staff[0].userId }, { appointmentId: a.id, shopId: other.shop.id })).rejects.toThrow();
+    await expect(createKarte({ orgId: other.org.id, userId: other.staff[0].userId, shopIds: [other.shop.id] }, { appointmentId: a.id, shopId: other.shop.id })).rejects.toThrow();
     // appointment without customer is rejected
     const guest = await appt(org.id, shop.id, null, 1);
     await expect(createKarte(actor, { appointmentId: guest.id, shopId: shop.id })).rejects.toThrow(/顧客/);
@@ -175,7 +176,7 @@ describe('Karte', () => {
 
   it('copies from the previous karte of the same customer', async () => {
     const { org, shop, staff } = await makeOrg();
-    const actor = { orgId: org.id, userId: staff[0].userId };
+    const actor = { orgId: org.id, userId: staff[0].userId, shopIds: [shop.id] };
     const c = await prisma.customer.create({ data: { organizationId: org.id, lastName: 'K', firstName: 'B' } });
     const other = await prisma.customer.create({ data: { organizationId: org.id, lastName: 'K', firstName: 'C' } });
     const a1 = await appt(org.id, shop.id, c.id, 60), a2 = await appt(org.id, shop.id, c.id, 30), a3 = await appt(org.id, shop.id, c.id, 0);
@@ -196,7 +197,7 @@ describe('Karte', () => {
 
   it('validates sketch JSON and stores it', async () => {
     const { org, shop, staff } = await makeOrg();
-    const actor = { orgId: org.id, userId: staff[0].userId };
+    const actor = { orgId: org.id, userId: staff[0].userId, shopIds: [shop.id] };
     const c = await prisma.customer.create({ data: { organizationId: org.id, lastName: 'S', firstName: 'K' } });
     const { id } = await createKarte(actor, { customerId: c.id, shopId: shop.id, visitDate: '2026-01-15' });
     const sketch = JSON.stringify({ v: 1, bg: 'head', strokes: [{ c: '#d6334a', w: 3, p: [[0.1, 0.2], [0.3, 0.4]] }] });
@@ -210,7 +211,7 @@ describe('Karte', () => {
 
   it('share token: only enabled links resolve and only customer-facing data is exposed', async () => {
     const { org, shop, staff } = await makeOrg();
-    const actor = { orgId: org.id, userId: staff[0].userId };
+    const actor = { orgId: org.id, userId: staff[0].userId, shopIds: [shop.id] };
     const c = await prisma.customer.create({ data: { organizationId: org.id, lastName: '共有', firstName: '太郎', ...piiColumns({ phone: '09000001111' }) } });
     const { id } = await createKarte(actor, { customerId: c.id, shopId: shop.id, treatmentNote: 'INTERNAL', formulaNote: 'SECRET', assistantNote: 'ASSIST', careMemo: 'ケアメモ' });
     await prisma.kartePhoto.createMany({ data: [
@@ -240,7 +241,40 @@ describe('Karte', () => {
     expect(await getSharedKarte(regen.shareToken!)).toBeNull();
     // other tenant cannot toggle
     const other = await makeOrg();
-    await expect(setKarteShare({ orgId: other.org.id, userId: other.staff[0].userId }, id, true)).rejects.toThrow();
+    await expect(setKarteShare({ orgId: other.org.id, userId: other.staff[0].userId, shopIds: [other.shop.id] }, id, true)).rejects.toThrow();
+  });
+
+  it('M3: karte photo/share/send and appointment-based create are limited to the caller\'s shops', async () => {
+    const { org, shop, staff } = await makeOrg();
+    const shopB = await prisma.shop.create({ data: { organizationId: org.id, name: 'B店', slug: `b-${Date.now().toString(36)}` } });
+    const inA = { orgId: org.id, userId: staff[1].userId, shopIds: [shop.id] };
+    const inB = { orgId: org.id, userId: staff[0].userId, shopIds: [shopB.id] };
+    const c = await prisma.customer.create({ data: { organizationId: org.id, lastName: '他店', firstName: '客', ...piiColumns({ email: 'k@example.com' }) } });
+    const { id } = await createKarte(inB, { customerId: c.id, shopId: shopB.id, careMemo: 'memo' });
+    const photo = await prisma.kartePhoto.create({ data: { karteId: id, kind: 'AFTER', storageKey: `org/${org.id}/karte/x.jpg`, contentType: 'image/jpeg', size: 1, shareable: false } });
+
+    await expect(updateKartePhoto(inA, photo.id, { shareable: true, caption: 'hacked' })).rejects.toThrow(/アクセス権/);
+    await expect(deleteKartePhoto(inA, photo.id)).rejects.toThrow(/アクセス権/);
+    await expect(setKarteShare(inA, id, true)).rejects.toThrow(/アクセス権/);
+    const p0 = await prisma.kartePhoto.findUniqueOrThrow({ where: { id: photo.id } });
+    expect(p0).toMatchObject({ shareable: false, caption: null });
+    expect((await prisma.karte.findUniqueOrThrow({ where: { id } })).shareEnabled).toBe(false);
+
+    // the owning shop can
+    await updateKartePhoto(inB, photo.id, { shareable: true });
+    await setKarteShare(inB, id, true);
+    await expect(sendKarteShare(inA, id, 'EMAIL')).rejects.toThrow(/アクセス権/);
+    const msg = await sendKarteShare(inB, id, 'EMAIL');
+    expect(msg.status).toBe('SENT');
+    expect(await prisma.message.count({ where: { customerId: c.id } })).toBe(1);
+
+    // an appointment of shop B can't be used to create a karte from shop A
+    const apptB = await appt(org.id, shopB.id, c.id, 1);
+    await expect(createKarte(inA, { appointmentId: apptB.id, shopId: shop.id })).rejects.toThrow(/アクセス権/);
+    await expect(createKarte(inA, { customerId: c.id, shopId: shopB.id })).rejects.toThrow(/アクセス権/);
+    expect(await prisma.karte.count({ where: { appointmentId: apptB.id } })).toBe(0);
+    await deleteKartePhoto(inB, photo.id);
+    expect(await prisma.kartePhoto.count({ where: { id: photo.id } })).toBe(0);
   });
 });
 

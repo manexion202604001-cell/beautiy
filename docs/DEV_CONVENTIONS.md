@@ -17,7 +17,7 @@
 - PII: never render `*Enc` columns directly. Use `readCustomerContact` (audited) or `maskedContact`. Write with `piiColumns`.
 - Audit (`audit(ctx, action, resourceType, id, meta)`) for PII reads/unlocks/exports, permission/role changes, refunds/voids, merges, integration config changes, deletes.
 - Booking writes only through `lib/server/booking.ts` (locks + conflict checks + idempotency).
-- Customer find-or-create from external/public input only through `resolveCustomer`.
+- Customer find-or-create from external/public input only through `resolveCustomer`. Unverified public input (web booking, store orders) passes `requireNameMatch: true`; public pages render only what the visitor typed (`Appointment.guestName`, `Order.contactName`), never the matched customer record.
 - Customer messages only through `sendCustomerMessage` / `notifyAppointment` (delivery log + opt-out).
 - Webhooks: verify signature → store event with unique (provider, eventId) → process idempotently.
 

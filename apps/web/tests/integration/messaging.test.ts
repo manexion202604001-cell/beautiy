@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { prisma } from '@salonos/db';
 import { hmacBase64 } from '@salonos/core/crypto';
 import { normalizeLineWebhook, verifyLineSignature } from '@salonos/core/integrations/line';
-import { executeBroadcast, listConversations, normalizeSegment, retryMessage, segmentRecipients, startBroadcast } from '@/lib/server/messaging';
+import { assertSegmentScope, executeBroadcast, listConversations, normalizeSegment, retryMessage, segmentRecipients, startBroadcast } from '@/lib/server/messaging';
 import { processScheduledBroadcasts, runAutomations } from '@/lib/server/automation';
 import { buildBookingRichMenu, handleLineEvents, type LineIntegrationRef } from '@/lib/server/line';
 import { submitReview, reviewStats } from '@/lib/server/reviews';
@@ -300,5 +300,21 @@ describe('reviews', () => {
     await expect(submitReview('nope', { rating: 5, authorName: 'H' })).rejects.toThrow();
     const s = await reviewStats({ organizationId: org.id });
     expect(s).toMatchObject({ total: 1, average: 4 });
+  });
+});
+
+describe('L3: broadcast audience is limited to the sender\'s shops', () => {
+  it('non-OWNER/DIRECTOR must pick one of their own shops; org-wide only for OWNER/DIRECTOR', async () => {
+    const { org, shop } = await makeOrg();
+    const shopB = await prisma.shop.create({ data: { organizationId: org.id, name: 'B店', slug: `lb-${Date.now().toString(36)}` } });
+    const manager = { role: 'MANAGER' as const, shopIds: [shop.id] };
+    await expect(assertSegmentScope(org.id, normalizeSegment({}), manager)).rejects.toThrow(/店舗を選択/);
+    await expect(assertSegmentScope(org.id, normalizeSegment({ shopId: shopB.id }), manager)).rejects.toThrow(/権限/);
+    await assertSegmentScope(org.id, normalizeSegment({ shopId: shop.id }), manager);
+    await assertSegmentScope(org.id, normalizeSegment({}), { role: 'OWNER', shopIds: [shop.id, shopB.id] });
+    await assertSegmentScope(org.id, normalizeSegment({ shopId: shopB.id }), { role: 'DIRECTOR', shopIds: [shop.id, shopB.id] });
+    // foreign shop ids are still rejected for everyone
+    const other = await makeOrg();
+    await expect(assertSegmentScope(org.id, normalizeSegment({ shopId: other.shop.id }), { role: 'OWNER', shopIds: [] })).rejects.toThrow(/店舗/);
   });
 });

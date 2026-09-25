@@ -19,19 +19,34 @@ export const LINE_FALLBACK_NAME = 'LINEのお客様';
 
 export interface LineIntegrationRef { id: string; organizationId: string; shopId: string | null; status?: string; config: IntegrationConfig }
 
+/**
+ * Env credentials (LINE_CHANNEL_SECRET / LINE_MESSAGING_CHANNEL_ACCESS_TOKEN) belong to the
+ * deployment's own LINE channel. An integration row may rely on them only when it carries no
+ * LINE credentials of its own at all (a placeholder row for a single-channel deployment).
+ * A row with its own channelSecret or channelAccessToken never mixes in the env values, so
+ * events signed for the platform channel can't be replayed into a salon with its own channel
+ * and vice versa.
+ */
+function usesEnvChannel(integration: Pick<LineIntegrationRef, 'config'>): boolean {
+  return !integration.config.channelSecret && !integration.config.channelAccessToken;
+}
+
 export function lineAccessToken(integration: Pick<LineIntegrationRef, 'config'>): string {
-  return integration.config.channelAccessToken || env.line.accessToken || '';
+  if (integration.config.channelAccessToken) return integration.config.channelAccessToken;
+  return usesEnvChannel(integration) ? env.line.accessToken || '' : '';
 }
 
-/** Channel secret for signature verification; env fallback only when the integration has none. */
+/** Channel secret for signature verification (env fallback only for credential-less rows, see usesEnvChannel). */
 export function lineChannelSecret(integration: Pick<LineIntegrationRef, 'config'>): string {
-  return integration.config.channelSecret || env.line.channelSecret || '';
+  if (integration.config.channelSecret) return integration.config.channelSecret;
+  return usesEnvChannel(integration) ? env.line.channelSecret || '' : '';
 }
 
+/** Integration addressed by a webhook URL. PAUSED integrations do not accept events. */
 export async function findLineIntegrationByKey(webhookKey: string): Promise<LineIntegrationRef | null> {
   if (!webhookKey || webhookKey.length > 64) return null;
   const it = await prisma.integration.findUnique({ where: { webhookKey } });
-  if (!it || it.provider !== 'LINE') return null;
+  if (!it || it.provider !== 'LINE' || it.status === 'PAUSED') return null;
   return toRef(it);
 }
 

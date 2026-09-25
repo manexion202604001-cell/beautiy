@@ -13,7 +13,8 @@ export async function reviewableAppointment(token: string) {
   if (!token || token.length > 64) return null;
   const a = await prisma.appointment.findUnique({
     where: { manageToken: token },
-    include: { shop: true, menus: true, customer: { select: { lastName: true, firstName: true } } },
+    // Public page: never load the customer record; the page only shows what the booker typed (guestName).
+    include: { shop: true, menus: true },
   });
   if (!a) return null;
   const existing = await prisma.review.findUnique({ where: { appointmentId: a.id } });

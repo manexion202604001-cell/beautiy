@@ -4,7 +4,7 @@ import { requireStaff } from '@/lib/server/session';
 import { prisma } from '@/lib/server/db';
 import { AppError, ForbiddenError, runAction, type ActionResult } from '@/lib/server/errors';
 import {
-  actorOf, checkout, closeRegister, openRegister, refundTransaction, saveDraft, searchPosCustomers, startProviderPayment, voidTransaction,
+  actorOf, cancelPendingPayment, checkout, closeRegister, openRegister, refundTransaction, saveDraft, searchPosCustomers, startProviderPayment, voidTransaction,
 } from '@/lib/server/pos';
 import { draftSchema, PAYMENT_METHODS, tenderSchema, type DraftInput, type TenderInput } from '@/lib/pos-shared';
 import type { TicketTotals } from '@salonos/core';
@@ -60,6 +60,16 @@ export async function startProviderPaymentAction(payload: SavePayload & { provid
     const saved = await saveDraft(actor, { ...ref, draft: draftSchema.parse(payload.draft) });
     const r = await startProviderPayment(actor, saved.id, provider);
     return { ok: true, message: provider === 'STRIPE' ? '決済リンクを発行しました' : '端末に金額を送信しました', data: { id: saved.id, ...r } };
+  });
+}
+
+/** Release a pending payment link / terminal checkout so the ticket can be changed or paid otherwise. */
+export async function cancelPendingPaymentAction(transactionId: string): Promise<ActionResult> {
+  return runAction(async () => {
+    const ctx = await requireStaff('pos.checkout');
+    const id = z.string().min(1).parse(transactionId);
+    await cancelPendingPayment(actorOf(ctx), id);
+    return { ok: true, message: '決済待ちを取り消しました。別の方法で会計できます' };
   });
 }
 

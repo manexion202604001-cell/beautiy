@@ -2,10 +2,10 @@
 // broadcast execution and delivery retry. All sends go through notify.ts
 // (sendCustomerMessage / provider helpers) so opt-outs and the delivery log apply.
 import { Prisma, type MessageChannel } from '@salonos/db';
-import { matchesSegment, renderTemplate, jaWeekday, minutesToHHMM, toLocalParts, type Segment } from '@salonos/core';
+import { matchesSegment, renderTemplate, jaWeekday, minutesToHHMM, toLocalParts, type RoleName, type Segment } from '@salonos/core';
 import { prisma } from './db';
 import { env } from './env';
-import { AppError, NotFoundError } from './errors';
+import { AppError, ForbiddenError, NotFoundError } from './errors';
 import { linePush, resolveChannel, sendCustomerMessage, sendEmail } from './notify';
 import { signLineLink } from './line-link';
 
@@ -36,8 +36,19 @@ export function normalizeSegment(raw: unknown): Segment {
   return s;
 }
 
-/** Validate foreign ids inside a segment belong to the org (tags, staff user, shop). */
-export async function assertSegmentScope(orgId: string, s: Segment) {
+/** Who is sending: OWNER/DIRECTOR may target the whole org, others only their own shops. */
+export interface BroadcastSender { role: RoleName; shopIds: string[] }
+
+/**
+ * Validate foreign ids inside a segment belong to the org (tags, staff user, shop), and that
+ * the sender may address that audience: below OWNER/DIRECTOR a shop is required and must be
+ * one of the sender's shops (no org-wide broadcasts).
+ */
+export async function assertSegmentScope(orgId: string, s: Segment, sender: BroadcastSender) {
+  if (sender.role !== 'OWNER' && sender.role !== 'DIRECTOR') {
+    if (!s.shopId) throw new ForbiddenError('配信対象の店舗を選択してください（全店舗への配信はオーナー・ディレクターのみ可能です）');
+    if (!sender.shopIds.includes(s.shopId)) throw new ForbiddenError('この店舗のお客様へ配信する権限がありません');
+  }
   if (s.tagIds?.length) {
     const n = await prisma.tag.count({ where: { organizationId: orgId, id: { in: s.tagIds } } });
     if (n !== s.tagIds.length) throw new AppError('タグの指定が正しくありません');

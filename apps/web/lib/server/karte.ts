@@ -5,11 +5,22 @@ import { Prisma } from '@salonos/db';
 import { randomToken } from '@salonos/core/crypto';
 import { prisma } from './db';
 import { audit } from './audit';
+import { env } from './env';
+import { sendCustomerMessage } from './notify';
 import { deleteObject, objectKey, putObject, readUpload } from './storage';
-import { AppError, NotFoundError } from './errors';
+import { AppError, ForbiddenError, NotFoundError } from './errors';
 import type { Actor } from './crm';
 
 // ───────────────────────── Karte ─────────────────────────
+
+/** Actor plus the shops the caller may access (ctx.shops). Karte writes are shop-scoped. */
+export interface ShopActor extends Actor { shopIds: string[] }
+export const shopActorOf = (ctx: { org: { id: string }; user: { id: string }; shops: { id: string }[] }): ShopActor =>
+  ({ orgId: ctx.org.id, userId: ctx.user.id, shopIds: ctx.shops.map((s) => s.id) });
+
+function assertKarteShop(actor: ShopActor, shopId: string) {
+  if (!actor.shopIds.includes(shopId)) throw new ForbiddenError('この店舗へのアクセス権がありません');
+}
 
 const note = z.string().max(10000, '10,000文字以内で入力してください').optional().nullable().transform((v) => (v?.trim() ? v.replace(/\r\n/g, '\n') : null));
 
@@ -63,14 +74,17 @@ export interface CreateKarteInput extends KarteFields { customerId?: string | nu
  * Create a karte. With an appointment, enforces one karte per appointment: if one exists
  * (including a concurrent insert racing on the unique index) returns it with existing=true.
  */
-export async function createKarte(actor: Actor, input: CreateKarteInput): Promise<{ id: string; existing: boolean }> {
+export async function createKarte(actor: ShopActor, input: CreateKarteInput): Promise<{ id: string; existing: boolean }> {
   const f = karteFieldsSchema.parse(input);
+  assertKarteShop(actor, input.shopId);
   let customerId = input.customerId ?? null;
   let shopId = input.shopId;
   let visitDate = new Date();
   if (input.appointmentId) {
     const appt = await prisma.appointment.findFirst({ where: { id: input.appointmentId, organizationId: actor.orgId }, include: { karte: { select: { id: true } } } });
     if (!appt) throw new NotFoundError('予約が見つかりません');
+    // The appointment's shop (not the caller's active shop) decides access.
+    assertKarteShop(actor, appt.shopId);
     if (appt.karte) return { id: appt.karte.id, existing: true };
     if (!appt.customerId) throw new AppError('この予約には顧客が紐づいていません。先に顧客を登録してください。');
     if (customerId && customerId !== appt.customerId) throw new AppError('予約と顧客が一致しません');
@@ -197,9 +211,10 @@ export async function addKartePhotos(actor: Actor, karteId: string, files: File[
   return created;
 }
 
-export async function updateKartePhoto(actor: Actor, photoId: string, data: { shareable?: boolean; caption?: string | null; kind?: string }) {
-  const p = await prisma.kartePhoto.findFirst({ where: { id: photoId, karte: { organizationId: actor.orgId } } });
+export async function updateKartePhoto(actor: ShopActor, photoId: string, data: { shareable?: boolean; caption?: string | null; kind?: string }) {
+  const p = await prisma.kartePhoto.findFirst({ where: { id: photoId, karte: { organizationId: actor.orgId } }, include: { karte: { select: { shopId: true } } } });
   if (!p) throw new NotFoundError('写真が見つかりません');
+  assertKarteShop(actor, p.karte.shopId);
   await prisma.kartePhoto.update({
     where: { id: p.id },
     data: {
@@ -211,9 +226,10 @@ export async function updateKartePhoto(actor: Actor, photoId: string, data: { sh
   return p.karteId;
 }
 
-export async function deleteKartePhoto(actor: Actor, photoId: string) {
-  const p = await prisma.kartePhoto.findFirst({ where: { id: photoId, karte: { organizationId: actor.orgId } } });
+export async function deleteKartePhoto(actor: ShopActor, photoId: string) {
+  const p = await prisma.kartePhoto.findFirst({ where: { id: photoId, karte: { organizationId: actor.orgId } }, include: { karte: { select: { shopId: true } } } });
   if (!p) throw new NotFoundError('写真が見つかりません');
+  assertKarteShop(actor, p.karte.shopId);
   await prisma.kartePhoto.delete({ where: { id: p.id } });
   await deleteObject(p.storageKey).catch((e) => console.error('[karte.photo.delete] object', e));
   await audit(actor, 'karte.photo.delete', 'Karte', p.karteId, { photoId: p.id });
@@ -222,9 +238,10 @@ export async function deleteKartePhoto(actor: Actor, photoId: string) {
 
 // ── share ──
 
-export async function setKarteShare(actor: Actor, karteId: string, enabled: boolean, opts: { regenerate?: boolean } = {}) {
+export async function setKarteShare(actor: ShopActor, karteId: string, enabled: boolean, opts: { regenerate?: boolean } = {}) {
   const k = await prisma.karte.findFirst({ where: { id: karteId, organizationId: actor.orgId } });
   if (!k) throw new NotFoundError('カルテが見つかりません');
+  assertKarteShop(actor, k.shopId);
   const token = enabled ? (opts.regenerate || !k.shareToken ? randomToken(18) : k.shareToken) : k.shareToken;
   const updated = await prisma.karte.update({
     where: { id: k.id },
@@ -232,6 +249,25 @@ export async function setKarteShare(actor: Actor, karteId: string, enabled: bool
   });
   await audit(actor, enabled ? 'karte.share.enable' : 'karte.share.disable', 'Karte', k.id, { regenerated: !!opts.regenerate });
   return updated;
+}
+
+/**
+ * Send the enabled share link to the karte's customer (LINE/email via sendCustomerMessage).
+ * Shop-scoped like every karte write.
+ */
+export async function sendKarteShare(actor: ShopActor, karteId: string, channel: 'LINE' | 'EMAIL') {
+  const k = await prisma.karte.findFirst({ where: { id: karteId, organizationId: actor.orgId }, include: { customer: { select: { lastName: true } } } });
+  if (!k) throw new NotFoundError('カルテが見つかりません');
+  assertKarteShop(actor, k.shopId);
+  if (!k.shareEnabled || !k.shareToken) throw new AppError('先に共有リンクを有効にしてください');
+  const shop = await prisma.shop.findFirst({ where: { id: k.shopId, organizationId: actor.orgId }, select: { name: true } });
+  const msg = await sendCustomerMessage({
+    orgId: actor.orgId, shopId: k.shopId, customerId: k.customerId, createdById: actor.userId, channel,
+    subject: `【${shop?.name ?? ''}】本日の施術記録`,
+    body: `${k.customer.lastName}様\n本日はご来店ありがとうございました。施術の写真とご自宅でのケア方法をお送りします。\n${env.appUrl}/k/${k.shareToken}\n${shop?.name ?? ''}`,
+  });
+  await prisma.karte.update({ where: { id: k.id }, data: { sharedAt: new Date() } });
+  return msg;
 }
 
 /**

@@ -13,14 +13,15 @@ export interface SquareConfig {
 
 export async function squareConfig(orgId: string, shopId?: string | null): Promise<SquareConfig> {
   const it = await getIntegration(orgId, 'SQUARE', shopId).catch(() => null);
-  const active = it && it.integration.status !== 'PAUSED';
-  const c = (active && it?.config) || {};
-  const accessToken: string = c.accessToken || env.square.accessToken || '';
+  // PAUSED: no fallback to the platform's env credentials (sandbox instead).
+  const paused = !!it && it.integration.status === 'PAUSED';
+  const c = (!paused && it?.config) || {};
+  const accessToken: string = paused ? '' : c.accessToken || env.square.accessToken || '';
   const environment: string = c.environment || process.env.SQUARE_ENVIRONMENT || 'production';
   return {
     accessToken,
     locationId: c.locationId || process.env.SQUARE_LOCATION_ID || '',
-    signatureKey: c.signatureKey || env.square.signatureKey || '',
+    signatureKey: paused ? '' : c.signatureKey || env.square.signatureKey || '',
     deviceId: c.deviceId || process.env.SQUARE_DEVICE_ID || '',
     baseUrl: environment === 'sandbox' ? 'https://connect.squareupsandbox.com' : 'https://connect.squareup.com',
     live: !!accessToken,
@@ -86,6 +87,14 @@ export async function createTerminalCheckout(orgId: string, input: { amount: num
     checkout: { amount_money: { amount: input.amount, currency: 'JPY' }, reference_id: input.referenceId, note: input.note, device_options: { device_id: cfg.deviceId } },
   });
   return { id: r.checkout?.id, status: r.checkout?.status ?? 'PENDING', sandbox: false };
+}
+
+/** Cancel a pending Terminal checkout (no-op in sandbox). */
+export async function cancelTerminalCheckout(orgId: string, checkoutId: string, shopId?: string | null): Promise<{ sandbox: boolean }> {
+  const cfg = await squareConfig(orgId, shopId);
+  if (!cfg.live || checkoutId.startsWith('sandbox_')) return { sandbox: true };
+  await squareRequest(cfg, 'POST', `/v2/terminals/checkouts/${encodeURIComponent(checkoutId)}/cancel`);
+  return { sandbox: false };
 }
 
 export async function retrieveSquarePayment(orgId: string, paymentId: string, shopId?: string | null): Promise<{ id: string; status: string; amount: number; referenceId: string | null; sandbox: boolean }> {

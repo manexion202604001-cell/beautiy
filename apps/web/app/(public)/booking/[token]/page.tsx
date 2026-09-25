@@ -41,7 +41,8 @@ export default async function ManageBookingPage({ params }: { params: Promise<{ 
             <span className={`badge ${st.tone}`}>{st.label}</span>
           </div>
           <dl className="bk-summary">
-            <dt>お名前</dt><dd>{a.customer ? `${a.customer.lastName} ${a.customer.firstName}`.trim() : a.guestName ?? '—'} 様</dd>
+            {/* Only the name the booker typed — never the matched customer record (see resolveCustomer). */}
+            {a.guestName && <><dt>お名前</dt><dd>{a.guestName} 様</dd></>}
             <dt>日時</dt><dd><b style={a.status === 'CANCELLED' ? { textDecoration: 'line-through' } : undefined}>{p.year}年{p.month}月{p.day}日({jaWeekday(p.weekday)}) {minutesToHHMM(p.minutes)}〜{minutesToHHMM(e.minutes)}</b></dd>
             <dt>メニュー</dt><dd>{a.menus.length ? a.menus.map((m) => <div key={m.id}>{m.name}</div>) : a.kind === 'CONSULTATION' ? 'ご相談' : '—'}</dd>
             <dt>スタッフ</dt><dd>{a.nominated && a.staffName ? a.staffName : '指名なし'}</dd>

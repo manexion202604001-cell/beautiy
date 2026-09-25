@@ -7,6 +7,7 @@ import { createSession, destroySession, getStaffContext } from '@/lib/server/ses
 import { audit } from '@/lib/server/audit';
 import { runAction, type ActionResult, AppError } from '@/lib/server/errors';
 import { slugify, uniqueShopSlug, createDefaultShopSetup } from '@/lib/server/shops';
+import { safeNextPath } from '@/lib/safe-redirect';
 
 // Best-effort per-instance login throttle (defence in depth; use a WAF/Redis limiter at scale).
 const attempts = new Map<string, { n: number; until: number }>();
@@ -36,7 +37,8 @@ export async function loginAction(_: ActionResult | null, fd: FormData): Promise
     await createSession(user.id, m.organizationId);
     await audit({ orgId: m.organizationId, userId: user.id }, 'auth.login', 'User', user.id);
   });
-  if (r.ok) redirect(String(fd.get('next') || '/dashboard'));
+  // Never redirect off-site: `next` comes from the query string.
+  if (r.ok) redirect(safeNextPath(fd.get('next')));
   return r;
 }
 

@@ -200,7 +200,7 @@ async function main() {
 
   // private block & consultation today for the ledger
   const owner = staff[0];
-  await prisma.appointment.create({ data: { organizationId: org.id, shopId: shops[0].id, staffId: owner.userId, startAt: localToUtc(addDays(today, 1), 13 * 60, TZ), endAt: localToUtc(addDays(today, 1), 14 * 60, TZ), kind: 'PRIVATE', title: '打ち合わせ（メーカー）', status: 'CONFIRMED' } });
+  await prisma.appointment.create({ data: { organizationId: org.id, shopId: shops[0].id, staffId: owner.userId, startAt: localToUtc(addDays(today, 1), 13 * 60, TZ), endAt: localToUtc(addDays(today, 1), 14 * 60, TZ), kind: 'PRIVATE', title: '打ち合わせ（メーカー）', status: 'CONFIRMED', manageToken: randomUUID().replace(/-/g, '') } });
 
   for (const c of await prisma.customer.findMany({ where: { organizationId: org.id }, select: { id: true } })) await recomputeCustomerStats(c.id);
 
