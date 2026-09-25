@@ -3,9 +3,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000",
-    "build": "next build",
+    "build": "prisma generate --schema ../../packages/db/prisma/schema.prisma && next build",
     "start": "next start",
-    "typecheck": "tsc --noEmit -p ."
+    "typecheck": "tsc --noEmit -p .",
+    "db:deploy": "prisma migrate deploy --schema ../../packages/db/prisma/schema.prisma"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1140.0",

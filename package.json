@@ -1,10 +1,13 @@
 {
   "name": "manexion-salon-os",
   "private": true,
-  "workspaces": ["apps/*", "packages/*"],
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "dev": "npm run dev -w @salonos/web",
-    "build": "npm run db:generate && npm run build -w @salonos/web",
+    "build": "npm run build -w @salonos/web",
     "start": "npm run start -w @salonos/web",
     "typecheck": "npm run typecheck -w @salonos/core && npm run typecheck -w @salonos/web",
     "test": "vitest run",
@@ -14,7 +17,9 @@
     "db:generate": "prisma generate --schema packages/db/prisma/schema.prisma",
     "db:push": "prisma db push --schema packages/db/prisma/schema.prisma",
     "db:reset": "prisma db push --force-reset --schema packages/db/prisma/schema.prisma",
-    "db:seed": "cd apps/web && tsx --env-file-if-exists=../../.env scripts/seed.ts"
+    "db:seed": "cd apps/web && tsx --env-file-if-exists=../../.env scripts/seed.ts",
+    "postinstall": "prisma generate --schema packages/db/prisma/schema.prisma",
+    "db:migrate:deploy": "prisma migrate deploy --schema packages/db/prisma/schema.prisma"
   },
   "devDependencies": {
     "@playwright/test": "1.55.1",

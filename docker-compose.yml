@@ -7,6 +7,10 @@ services:
       POSTGRES_DB: salonos
     ports: ["5432:5432"]
     volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U salonos"]
+      interval: 5s
+      retries: 10
   redis:
     image: redis:7-alpine
     ports: ["6379:6379"]
@@ -18,6 +22,24 @@ services:
       MINIO_ROOT_PASSWORD: minio123
     ports: ["9000:9000", "9001:9001"]
     volumes: ["miniodata:/data"]
+  # Full stack: `docker compose --profile app up --build`
+  web:
+    profiles: ["app"]
+    build: .
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      DATABASE_URL: postgresql://salonos:salonos@postgres:5432/salonos
+      APP_URL: http://localhost:3000
+      PII_ENCRYPTION_KEY: ${PII_ENCRYPTION_KEY:-change-me-local-encryption-key-32chars}
+      PII_HASH_KEY: ${PII_HASH_KEY:-change-me-local-hash-key-32chars}
+      CRON_SECRET: ${CRON_SECRET:-change-me-cron}
+      DEMO_MODE: ${DEMO_MODE:-1}
+      S3_ENDPOINT: http://minio:9000
+      S3_BUCKET: salonos
+      S3_ACCESS_KEY: minio
+      S3_SECRET_KEY: minio123
+    ports: ["3000:3000"]
 volumes:
   pgdata:
   miniodata:
