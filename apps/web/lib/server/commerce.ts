@@ -1,6 +1,6 @@
 // Storefront EC: orders, payment completion, subscriptions, recommendations, fulfillment.
 import type { OrderStatus, Prisma } from '@salonos/db';
-import { hmacHex } from '@salonos/core/crypto';
+import { hmacHex, randomToken } from '@salonos/core/crypto';
 import { prisma, type Tx } from './db';
 import { AppError, NotFoundError } from './errors';
 import { audit } from './audit';
@@ -262,7 +262,7 @@ export async function createRecommendation(actor: Actor & { shopIds: string[] },
   if (!staff) throw new AppError('スタッフが見つかりません');
   if (input.customerId && !customer) throw new AppError('顧客が見つかりません');
   const rec = await prisma.productRecommendation.create({
-    data: { organizationId: actor.orgId, shopId: input.shopId, staffId: input.staffId, customerId: input.customerId ?? null, productIds: ids, message: input.message?.trim() || null },
+    data: { token: randomToken(18), organizationId: actor.orgId, shopId: input.shopId, staffId: input.staffId, customerId: input.customerId ?? null, productIds: ids, message: input.message?.trim() || null },
   });
   await audit(actor, 'commerce.recommendation.create', 'ProductRecommendation', rec.id, { customerId: input.customerId ?? null, products: ids.length });
   return rec;

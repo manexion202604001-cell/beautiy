@@ -8,7 +8,7 @@ import {
   checkout, closeRegister, createDraft, dailyReport, openRegister, refundTransaction, registerSummary, saveDraft, updateDraft, voidTransaction,
   type PosActor,
 } from '@/lib/server/pos';
-import { createStoreOrder, markOrderPaid, orderToken, verifyOrderToken } from '@/lib/server/commerce';
+import { createRecommendation, createStoreOrder, markOrderPaid, orderToken, transitionOrder, updateSubscription, verifyOrderToken } from '@/lib/server/commerce';
 import { handlePaymentWebhook } from '@/lib/server/payments/webhooks';
 import type { DraftLine } from '@/lib/pos-shared';
 import { futureDate, makeOrg } from './helpers';
@@ -360,5 +360,61 @@ describe('payment webhooks & storefront orders', () => {
     expect(after.refundedTotal).toBe(2000);
     expect(after.status).toBe('PARTIALLY_REFUNDED');
     expect(await prisma.webhookEvent.count({ where: { eventId: { in: ['evt_tx_1', 'evt_tx_r1', 'evt_tx_r2'] } } })).toBe(3);
+  });
+});
+
+describe('commerce operations', () => {
+  it('walks orders through transitions, cancels subscriptions on refund and restocks', async () => {
+    const { org, shop, staff, product } = await setup({ stock: 10 });
+    const actor = { orgId: org.id, userId: staff[0].userId };
+    const o = await createStoreOrder({ shopSlug: shop.slug, items: [{ productId: product.id, quantity: 2 }], name: 'A B', email: 'ab@example.com', phone: '09012345678', address: '東京都港区1-1', subscribe: true });
+    const other = await setup();
+    await expect(transitionOrder({ orgId: other.org.id, userId: null }, o.orderId, 'PAID')).rejects.toThrow(/見つかりません/);
+    await expect(transitionOrder(actor, o.orderId, 'FULFILLED')).rejects.toThrow(/変更できません/);
+    await transitionOrder(actor, o.orderId, 'PAID');
+    expect((await prisma.product.findUniqueOrThrow({ where: { id: product.id } })).stock).toBe(8);
+    const sub = await prisma.subscription.findFirstOrThrow({ where: { orderId: o.orderId } });
+    await transitionOrder(actor, o.orderId, 'FULFILLED', { trackingNumber: '1234-5678' });
+    const shipped = await prisma.order.findUniqueOrThrow({ where: { id: o.orderId } });
+    expect(shipped).toMatchObject({ status: 'FULFILLED', trackingNumber: '1234-5678' });
+    expect(shipped.fulfilledAt).toBeTruthy();
+
+    await updateSubscription(actor, sub.id, 'pause');
+    await expect(updateSubscription(actor, sub.id, 'shipped')).rejects.toThrow(/継続中/);
+    await updateSubscription(actor, sub.id, 'resume');
+    await updateSubscription(actor, sub.id, 'shipped');
+    const advanced = await prisma.subscription.findUniqueOrThrow({ where: { id: sub.id } });
+    expect(advanced.nextShipAt.getTime() - sub.nextShipAt.getTime()).toBe(30 * 86400000);
+    expect((await prisma.product.findUniqueOrThrow({ where: { id: product.id } })).stock).toBe(6);
+
+    await transitionOrder(actor, o.orderId, 'REFUNDED', { restock: true, reason: '返品' });
+    expect((await prisma.order.findUniqueOrThrow({ where: { id: o.orderId } })).status).toBe('REFUNDED');
+    expect((await prisma.subscription.findUniqueOrThrow({ where: { id: sub.id } })).status).toBe('CANCELLED');
+    expect((await prisma.product.findUniqueOrThrow({ where: { id: product.id } })).stock).toBe(8);
+    expect(await prisma.auditLog.count({ where: { organizationId: org.id, resourceId: o.orderId } })).toBeGreaterThanOrEqual(3);
+  });
+
+  it('attributes store orders to the recommending stylist', async () => {
+    const { org, shop, staff, customer, product } = await setup();
+    const actor = { orgId: org.id, userId: staff[0].userId, shopIds: [shop.id] };
+    const foreign = await setup();
+    await expect(createRecommendation(actor, { shopId: shop.id, staffId: staff[1].userId, productIds: [foreign.product.id] })).rejects.toThrow(/オンライン販売中/);
+    const rec = await createRecommendation(actor, { shopId: shop.id, staffId: staff[1].userId, customerId: customer.id, productIds: [product.id], message: 'おすすめです' });
+    expect(rec.token.length).toBeGreaterThanOrEqual(20);
+    const o = await createStoreOrder({ shopSlug: shop.slug, items: [{ productId: product.id, quantity: 1 }], name: '別名 太郎', email: 'x@example.com', phone: '08011112222', address: '大阪府大阪市1-1', recToken: rec.token });
+    const order = await prisma.order.findUniqueOrThrow({ where: { id: o.orderId } });
+    expect(order).toMatchObject({ attributedStaffId: staff[1].userId, recommendationId: rec.id, customerId: customer.id, shippingFee: 660, total: 3300 + 660 });
+    // a token from another org is ignored
+    const foreignRec = await createRecommendation({ orgId: foreign.org.id, userId: foreign.staff[0].userId, shopIds: [foreign.shop.id] }, { shopId: foreign.shop.id, staffId: foreign.staff[0].userId, productIds: [foreign.product.id] });
+    const o2 = await createStoreOrder({ shopSlug: shop.slug, items: [{ productId: product.id, quantity: 1 }], name: 'C D', email: 'cd@example.com', phone: '08011113333', address: '大阪府大阪市1-2', recToken: foreignRec.token });
+    expect((await prisma.order.findUniqueOrThrow({ where: { id: o2.orderId } })).attributedStaffId).toBeNull();
+  });
+
+  it('rejects out-of-stock and off-sale products at order time', async () => {
+    const { shop, product, org } = await setup({ stock: 1 });
+    const base = { shopSlug: shop.slug, name: 'A', email: 'a@example.com', phone: '09000000000', address: '住所12345' };
+    await expect(createStoreOrder({ ...base, items: [{ productId: product.id, quantity: 2 }] })).rejects.toThrow(/在庫/);
+    const hidden = await prisma.product.create({ data: { organizationId: org.id, name: '非公開', price: 100, stock: 5, onlineSale: false } });
+    await expect(createStoreOrder({ ...base, items: [{ productId: hidden.id, quantity: 1 }] })).rejects.toThrow(/販売を終了/);
   });
 });

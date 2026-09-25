@@ -447,7 +447,7 @@ function CustomerPicker({ open, onClose, onPick }: { open: boolean; onClose: () 
         {loading && <div className="sub" style={{ padding: 10 }}><span className="spinner" /> 検索中…</div>}
         {err && <div className="alert error">{err}</div>}
         {!loading && rows && rows.length === 0 && <div className="sub" style={{ padding: 10 }}>該当するお客様が見つかりません</div>}
-        {!loading && !rows && <div className="sub" style={{ padding: 10 }}>2文字以上入力すると候補が表示されます</div>}
+        {!loading && !rows && <div className="sub" style={{ padding: 10 }}>氏名・カナ・電話番号を入力すると候補が表示されます</div>}
         {rows?.map((c) => (
           <button type="button" key={c.id} className="choice" onClick={() => onPick({ id: c.id, name: c.name, kana: c.kana, visitCount: c.visitCount, points: c.points })}>
             <span><strong>{c.name}</strong><br /><span className="sub">{c.kana} ・ 来店{c.visitCount}回</span></span>
