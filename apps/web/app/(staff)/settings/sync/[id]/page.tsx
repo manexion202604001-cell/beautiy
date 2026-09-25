@@ -102,8 +102,8 @@ export default async function SyncEventPage({ params }: { params: Promise<{ id: 
                   <li>外部サイト側でお断りした場合は「無視する」</li>
                 </ul>
                 <div className="row-wrap" style={{ marginTop: 6 }}>
-                  <InlineAction action={forceSyncAction} fields={{ id: ev.id }} className="btn">強制登録（席数超過を許可）</InlineAction>
-                  {(conflict?.reason === 'STAFF_CONFLICT' || conflict?.staffId) && <InlineAction action={forceSyncAction} fields={{ id: ev.id, dropStaff: '1' }} className="btn secondary">担当者なしで登録</InlineAction>}
+                  {conflict?.reason !== 'STAFF_CONFLICT' && <InlineAction action={forceSyncAction} fields={{ id: ev.id }} className="btn">強制登録（席数超過を許可）</InlineAction>}
+                  {conflict?.staffId && <InlineAction action={forceSyncAction} fields={{ id: ev.id, dropStaff: '1' }} className={conflict.reason === 'STAFF_CONFLICT' ? 'btn' : 'btn secondary'}>担当者なしで登録{conflict.reason !== 'STAFF_CONFLICT' ? '（席数超過を許可）' : ''}</InlineAction>}
                 </div>
               </div>
             </Card>

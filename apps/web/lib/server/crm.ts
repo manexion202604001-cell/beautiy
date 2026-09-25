@@ -393,7 +393,7 @@ export async function customerTimeline(orgId: string, customerId: string, limit 
       title: `予約 ${a.menus.map((m) => m.name).join('・') || a.title || (a.kind === 'CONSULTATION' ? 'ご相談' : 'メニュー未設定')}`,
       detail: [a.shop.name, a.staffId ? `担当: ${staffName.get(a.staffId) ?? '—'}` : '指名なし', a.cancelReason ? `理由: ${a.cancelReason}` : null].filter(Boolean).join(' / '),
       badges: [{ label, tone }, { label: SOURCE[a.source] ?? a.source, tone: 'gray' }],
-      href: `/reservations?appointmentId=${a.id}`,
+      href: `/reservations?appt=${a.id}`,
     });
   }
   for (const t of txs) {

@@ -1,13 +1,17 @@
 'use client';
 // Client interaction primitives shared across modules.
-import { useActionState, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, startTransition, useActionState, useContext, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { useFormStatus } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { X } from 'lucide-react';
 import type { ActionResult } from '@/lib/server/errors';
 
+const ActionPendingCtx = createContext(false);
+
 export function SubmitButton({ children, className = 'btn', pendingText, disabled, name, value, formAction }: { children: ReactNode; className?: string; pendingText?: string; disabled?: boolean; name?: string; value?: string; formAction?: (fd: FormData) => void }) {
-  const { pending } = useFormStatus();
+  const status = useFormStatus();
+  const ctxPending = useContext(ActionPendingCtx);
+  const pending = status.pending || ctxPending;
   return (
     <button type="submit" className={className} disabled={pending || disabled} aria-busy={pending} name={name} value={value} formAction={formAction}>
       {pending ? <><span className="spinner" /> {pendingText ?? '処理中…'}</> : children}
@@ -27,7 +31,7 @@ export function ActionForm<T = any>({
   action: Action<T>; children: ReactNode; className?: string; resetOnSuccess?: boolean;
   onSuccess?: (r: ActionResult<T>) => void; successMessage?: string; id?: string; showSuccess?: boolean; refresh?: boolean;
 }) {
-  const [state, formAction] = useActionState<ActionResult<T> | null, FormData>(action, null);
+  const [state, dispatch, pending] = useActionState<ActionResult<T> | null, FormData>(action, null);
   const ref = useRef<HTMLFormElement>(null);
   const router = useRouter();
   const last = useRef<ActionResult<T> | null>(null);
@@ -40,11 +44,19 @@ export function ActionForm<T = any>({
       onSuccess?.(state);
     }
   }, [state, resetOnSuccess, onSuccess, router, refresh]);
+  // Dispatch from onSubmit (not <form action>) so React 19 does not auto-reset the form:
+  // auto-reset desyncs controlled checkboxes and wipes input after a validation error.
+  const submit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (pending) return;
+    const fd = new FormData(e.currentTarget, (e.nativeEvent as SubmitEvent).submitter ?? undefined);
+    startTransition(() => dispatch(fd));
+  };
   return (
-    <form ref={ref} action={formAction} className={className} id={id} noValidate={false}>
+    <form ref={ref} onSubmit={submit} className={className} id={id} aria-busy={pending}>
       {state && !state.ok && <div className="alert error" role="alert" style={{ marginBottom: 12 }}>{state.error}{state.fieldErrors && Object.keys(state.fieldErrors).length > 0 && <ul style={{ margin: '4px 0 0', paddingLeft: 18 }}>{Object.entries(state.fieldErrors).map(([k, v]) => <li key={k}>{v}</li>)}</ul>}</div>}
       {state && state.ok && showSuccess && (state.message || successMessage) && <div className="alert success" role="status" style={{ marginBottom: 12 }}>{state.message ?? successMessage}</div>}
-      {children}
+      <ActionPendingCtx.Provider value={pending}>{children}</ActionPendingCtx.Provider>
     </form>
   );
 }
