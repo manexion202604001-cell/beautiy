@@ -865,3 +865,4 @@ a.crm-name:hover > span { color: var(--accent); }
   .crm-answers dd { margin-bottom: 6px; }
 }
 /* ── /crm/karte module ── */
+.viz-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }

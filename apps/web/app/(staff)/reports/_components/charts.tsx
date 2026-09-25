@@ -56,7 +56,7 @@ export function ColumnChart({
           {series.map((s) => <span key={s.key}><i style={{ background: s.color }} />{s.label}</span>)}
         </div>
       )}
-      <svg viewBox={`0 0 ${W} ${H}`} className="viz-svg" role="img" aria-label={ariaLabel}>
+      <div className="viz-scroll"><svg viewBox={`0 0 ${W} ${H}`} className="viz-svg" role="img" aria-label={ariaLabel} style={{ minWidth: Math.round(W * 0.65) }}>
         {ticks.map((t) => (
           <g key={t}>
             <line x1={padL} x2={W - padR} y1={y(t)} y2={y(t)} className={t === 0 ? 'viz-base' : 'viz-grid'} />
@@ -81,7 +81,7 @@ export function ColumnChart({
           );
         })}
         {empty && <text x={padL + plotW / 2} y={padT + plotH / 2} textAnchor="middle" className="viz-empty">この期間のデータはありません</text>}
-      </svg>
+      </svg></div>
       {table && (
         <details className="viz-table">
           <summary>表で見る</summary>
