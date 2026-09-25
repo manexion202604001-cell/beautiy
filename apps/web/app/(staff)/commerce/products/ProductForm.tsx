@@ -16,7 +16,7 @@ export function ProductForm({ product }: { product?: ProductValues }) {
   const [removeImage, setRemoveImage] = useState(false);
   const isNew = !product?.id;
   return (
-    <ActionForm action={saveProductAction} refresh={!isNew} onSuccess={(r) => { if (isNew && r.data?.id) router.push(`/commerce/products/${r.data.id}?created=1`); }}>
+    <ActionForm action={saveProductAction} refresh={!isNew} onSuccess={(r) => { if (isNew && r.ok && r.data?.id) router.push(`/commerce/products/${r.data.id}?created=1`); }}>
       {product?.id && <input type="hidden" name="id" value={product.id} />}
       <div className="form-grid">
         <div className="field full">

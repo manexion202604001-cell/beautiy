@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { CalendarClock, MessageCircle, Star, RefreshCw, Inbox } from 'lucide-react';
-import { LIFECYCLE_LABEL, addDays, localToUtc, todayIn, type AppointmentStatus } from '@salonos/core';
+import { LIFECYCLE_LABEL, addDays, localToUtc, todayIn } from '@salonos/core';
+import type { AppointmentStatus } from '@salonos/db';
 import { requirePage } from '@/lib/server/session';
 import { prisma } from '@/lib/server/db';
 import { PageHeader, Card, Stat, Empty, Badge, type Tone } from '@/components/ui';
