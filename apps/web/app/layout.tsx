@@ -6,6 +6,7 @@ export const metadata: Metadata = {
   description: '美容サロンの顧客・予約・カルテ・会計・再来店をひとつの顧客IDでつなぐ業務OS',
   manifest: '/manifest.webmanifest',
   applicationName: 'MANEXION Salon OS',
+  icons: { icon: '/icon.svg' },
 };
 
 export const viewport: Viewport = { themeColor: '#0b1428', width: 'device-width', initialScale: 1 };
