@@ -72,8 +72,8 @@ export default async function AutomationsPage({ searchParams }: { searchParams: 
               </div>
               <p className="sub" style={{ margin: '8px 0' }}>{TRIGGER_HELP[r.trigger]}</p>
               <div className="tpl-body clamp">{r.body}</div>
-              <div className="between" style={{ marginTop: 10 }}>
-                <div className="sub">直近30日 {countMap.get(r.id) ?? 0}件 · 最終実行 {r.lastRunAt ? fmtDateTime(r.lastRunAt, tz) : '未実行'}</div>
+              <div className="sub" style={{ marginTop: 10 }}>直近30日 {countMap.get(r.id) ?? 0}件 · 最終実行 {r.lastRunAt ? fmtDateTime(r.lastRunAt, tz) : '未実行'}</div>
+              <div className="rule-actions">
                 <div className="toolbar">
                   <Link href={`/messages/automations?rule=${r.id}#log`} className="btn ghost sm">ログ</Link>
                   {r.active && <InlineAction action={runAutomationsNowAction} fields={{ ruleId: r.id }} confirm={`「${r.name}」を今すぐ実行しますか？`} className="btn ghost sm">実行</InlineAction>}

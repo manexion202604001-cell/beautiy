@@ -4,7 +4,7 @@ import type { Prisma } from '@salonos/db';
 import { prisma } from '@/lib/server/db';
 import { requirePage } from '@/lib/server/session';
 import { reviewStats } from '@/lib/server/reviews';
-import { Badge, Bar, Card, Empty, PageHeader, Stars, Stat, Tabs } from '@/components/ui';
+import { Badge, Card, Empty, PageHeader, Stars, Stat, Tabs } from '@/components/ui';
 import { fmtDate, fmtDateTime } from '@/lib/format';
 import { setReviewPublishedAction, syncGoogleReviewsAction } from './actions';
 import { ReplyButton, ResultButton } from './ui';
@@ -76,7 +76,7 @@ export default async function ReviewsPage({ searchParams }: { searchParams: Prom
               <div className="stack-sm">
                 {[5, 4, 3, 2, 1].map((n) => (
                   <Link key={n} href={qs({ rating: rating === n ? undefined : String(n), page: undefined })} className="dist-row" aria-label={`星${n}で絞り込み`}>
-                    <span className={rating === n ? 'link' : ''}>★{n}</span><Bar value={stats.dist[n]} max={maxDist} /><span className="right sub">{stats.dist[n]}</span>
+                    <span className={rating === n ? 'link' : ''}>★{n}</span><div className="bar"><span style={{ width: `${Math.round((stats.dist[n] / maxDist) * 100)}%` }} /></div><span className="right sub">{stats.dist[n]}</span>
                   </Link>
                 ))}
               </div>

@@ -651,6 +651,10 @@ tr.row-muted td { color: var(--muted); }
   .rating-summary { grid-template-columns: minmax(0, 1fr); }
   .msg .bubble, .bubble-error { max-width: 88%; }
 }
+.overlay.center .modal { text-align: left; }
+.star-input { position: relative; }
+.rule-actions { display: flex; justify-content: flex-end; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+.rule-actions .toolbar { align-items: flex-start; }
 /* ── /messaging/reviews module ── */
 
 /* ── pos/commerce module ── */

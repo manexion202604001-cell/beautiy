@@ -1,5 +1,5 @@
 'use client';
-import { useActionState } from 'react';
+import { Fragment, useActionState } from 'react';
 import { CheckCircle2 } from 'lucide-react';
 import type { ActionResult } from '@/lib/server/errors';
 import { SubmitButton } from '@/components/client';
@@ -33,10 +33,10 @@ export function ReviewForm({ token, defaultName, shopSlug }: { token: string; de
         <legend className="label req" style={{ marginBottom: 6 }}>総合評価</legend>
         <div className="star-input" role="radiogroup" aria-label="総合評価">
           {[5, 4, 3, 2, 1].map((n) => (
-            <span key={n} style={{ display: 'contents' }}>
+            <Fragment key={n}>
               <input type="radio" id={`star-${n}`} name="rating" value={n} required />
               <label htmlFor={`star-${n}`} title={LABELS[n]} aria-label={`${n}つ星（${LABELS[n]}）`}>★</label>
-            </span>
+            </Fragment>
           ))}
         </div>
       </fieldset>
