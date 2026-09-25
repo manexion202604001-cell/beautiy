@@ -1,6 +1,6 @@
 'use client';
 // Client interaction primitives shared across modules.
-import { createContext, startTransition, useActionState, useContext, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { createContext, startTransition, useActionState, useContext, useEffect, useRef, useState, useTransition, type FormEvent, type ReactNode } from 'react';
 import { useFormStatus } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { X } from 'lucide-react';
@@ -32,23 +32,34 @@ export function ActionForm<T = any>({
   onSuccess?: (r: ActionResult<T>) => void; successMessage?: string; id?: string; showSuccess?: boolean; refresh?: boolean;
 }) {
   const [state, dispatch, pending] = useActionState<ActionResult<T> | null, FormData>(action, null);
+  const [refreshing, startRefresh] = useTransition();
   const ref = useRef<HTMLFormElement>(null);
   const router = useRouter();
   const last = useRef<ActionResult<T> | null>(null);
+  const awaitingRefresh = useRef<ActionResult<T> | null>(null);
   useEffect(() => {
     if (!state || state === last.current) return;
     last.current = state;
-    if (state.ok) {
-      if (resetOnSuccess) ref.current?.reset();
-      if (refresh) router.refresh();
-      onSuccess?.(state);
-    }
+    if (!state.ok) return;
+    if (resetOnSuccess) ref.current?.reset();
+    if (refresh) {
+      // Keep this form mounted until the refreshed page has committed, then run onSuccess
+      // (which often closes the modal). Unmounting mid-refresh can drop the refresh.
+      awaitingRefresh.current = state;
+      startRefresh(() => router.refresh());
+    } else onSuccess?.(state);
   }, [state, resetOnSuccess, onSuccess, router, refresh]);
+  useEffect(() => {
+    if (refreshing || !awaitingRefresh.current) return;
+    const r = awaitingRefresh.current;
+    awaitingRefresh.current = null;
+    onSuccess?.(r);
+  }, [refreshing, onSuccess]);
   // Dispatch from onSubmit (not <form action>) so React 19 does not auto-reset the form:
   // auto-reset desyncs controlled checkboxes and wipes input after a validation error.
   const submit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (pending) return;
+    if (pending || refreshing) return;
     const fd = new FormData(e.currentTarget, (e.nativeEvent as SubmitEvent).submitter ?? undefined);
     startTransition(() => dispatch(fd));
   };
@@ -56,7 +67,7 @@ export function ActionForm<T = any>({
     <form ref={ref} onSubmit={submit} className={className} id={id} aria-busy={pending}>
       {state && !state.ok && <div className="alert error" role="alert" style={{ marginBottom: 12 }}>{state.error}{state.fieldErrors && Object.keys(state.fieldErrors).length > 0 && <ul style={{ margin: '4px 0 0', paddingLeft: 18 }}>{Object.entries(state.fieldErrors).map(([k, v]) => <li key={k}>{v}</li>)}</ul>}</div>}
       {state && state.ok && showSuccess && (state.message || successMessage) && <div className="alert success" role="status" style={{ marginBottom: 12 }}>{state.message ?? successMessage}</div>}
-      <ActionPendingCtx.Provider value={pending}>{children}</ActionPendingCtx.Provider>
+      <ActionPendingCtx.Provider value={pending || refreshing}>{children}</ActionPendingCtx.Provider>
     </form>
   );
 }

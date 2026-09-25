@@ -23,8 +23,10 @@
 
 ## UI rules
 - Japanese UI copy, independent MANEXION design (blue base). No third-party salon-SaaS branding/text.
-- Each screen handles loading (`loading.tsx` or skeleton), empty (`<Empty>`), populated and error states.
+- Each screen handles loading (skeletons; `loading.tsx` only on public routes), empty (`<Empty>`), populated and error states.
 - Desktop-first staff app, responsive to tablet/mobile; public customer pages mobile-first.
+- Do not add `loading.tsx` under `app/(staff)`: in production builds (Next 15.5) a route Suspense boundary there stops `router.refresh()` from committing, so lists go stale after mutations. Use in-component skeletons instead.
+- Forms: use `ActionForm` (dispatches from onSubmit, so React 19 does not auto-reset inputs; runs `router.refresh()` in a tracked transition and calls `onSuccess` only after the refreshed page commits).
 - Use the CSS primitives in `app/globals.css` (card, btn, badge, table, form-grid, field, input/select/textarea, tabs, seg, drawer, modal…).
 
 ## Tests
