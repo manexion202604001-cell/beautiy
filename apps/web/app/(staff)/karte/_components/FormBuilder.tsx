@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { ArrowUp, ArrowDown, Trash2, Plus, Copy } from 'lucide-react';
-import { ActionForm, SubmitButton } from '@/components/client';
+import { StableActionForm, StableSubmit } from '../../customers/_components/StableActionForm';
 import { saveFormAction } from '../actions';
 
 export type FieldType = 'text' | 'textarea' | 'select' | 'multiselect' | 'checkbox' | 'date';
@@ -45,7 +45,7 @@ export function FormBuilder({ initial }: { initial: BuilderForm }) {
   });
 
   return (
-    <ActionForm action={saveFormAction}>
+    <StableActionForm action={saveFormAction}>
       {f.id && <input type="hidden" name="id" value={f.id} />}
       <input type="hidden" name="payload" value={payload} />
       <div className="stack">
@@ -124,9 +124,9 @@ export function FormBuilder({ initial }: { initial: BuilderForm }) {
           )}
         </div>
 
-        <div className="form-actions"><SubmitButton pendingText="保存中…">{f.id ? 'フォームを保存' : 'フォームを作成'}</SubmitButton></div>
+        <div className="form-actions"><StableSubmit pendingText="保存中…">{f.id ? 'フォームを保存' : 'フォームを作成'}</StableSubmit></div>
       </div>
-    </ActionForm>
+    </StableActionForm>
   );
 }
 

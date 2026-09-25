@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { useState } from 'react';
-import { ActionForm, SubmitButton } from '@/components/client';
+import { StableActionForm, StableSubmit } from './StableActionForm';
 import { saveCustomerAction } from '../actions';
 
 export interface CustomerFormValues {
@@ -35,7 +35,7 @@ export function CustomerForm({
   const isEdit = !!initial.id;
   const maskedHint = (v: string | null | undefined) => (v ? `登録済み: ${v}（変更する場合のみ入力）` : '未登録');
   return (
-    <ActionForm action={saveCustomerAction} onSuccess={() => setDupHint(false)} showSuccess={false}>
+    <StableActionForm action={saveCustomerAction} onSuccess={() => setDupHint(false)} showSuccess={false}>
       {initial.id && <input type="hidden" name="id" value={initial.id} />}
       <input type="hidden" name="contactEditable" value={contactEditable ? '1' : '0'} />
       <div className="card">
@@ -114,8 +114,8 @@ export function CustomerForm({
       )}
       <div className="form-actions">
         <Link href={isEdit ? `/customers/${initial.id}` : '/customers'} className="btn secondary">キャンセル</Link>
-        <SubmitButton pendingText="保存中…">{isEdit ? '保存する' : '登録する'}</SubmitButton>
+        <StableSubmit pendingText="保存中…">{isEdit ? '保存する' : '登録する'}</StableSubmit>
       </div>
-    </ActionForm>
+    </StableActionForm>
   );
 }

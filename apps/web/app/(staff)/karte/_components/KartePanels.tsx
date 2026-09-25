@@ -137,8 +137,10 @@ export function PhotoPanel({ karteId, photos, canEdit }: { karteId: string; phot
   );
 }
 
-export function SharePanel({ karteId, enabled, url, sharedAt, careMemo, shareablePhotos, canEdit, canSend }: {
+export function SharePanel({ karteId, enabled, url, sharedAt, careMemo, shareablePhotos, canEdit, canSend, reach }: {
   karteId: string; enabled: boolean; url: string | null; sharedAt: string | null; careMemo: boolean; shareablePhotos: number; canEdit: boolean; canSend: boolean;
+  /** whether the customer can receive on each channel (linked + opted in) */
+  reach: { line: boolean; email: boolean };
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -173,8 +175,8 @@ export function SharePanel({ karteId, enabled, url, sharedAt, careMemo, shareabl
         <div className="row-wrap">
           {enabled ? (
             <>
-              {canSend && <button type="button" className="btn sm" disabled={pending} onClick={() => run(sendShareAction, { karteId, channel: 'LINE' })}><Send size={13} />LINEで共有</button>}
-              {canSend && <button type="button" className="btn secondary sm" disabled={pending} onClick={() => run(sendShareAction, { karteId, channel: 'EMAIL' })}>メールで共有</button>}
+              {canSend && <button type="button" className="btn sm" disabled={pending || !reach.line} title={reach.line ? undefined : 'LINE未連携、または配信停止中です'} onClick={() => run(sendShareAction, { karteId, channel: 'LINE' })}><Send size={13} />LINEで共有</button>}
+              {canSend && <button type="button" className="btn secondary sm" disabled={pending || !reach.email} title={reach.email ? undefined : 'メール未登録、または配信停止中です'} onClick={() => run(sendShareAction, { karteId, channel: 'EMAIL' })}>メールで共有</button>}
               <button type="button" className="btn ghost sm" disabled={pending} onClick={() => run(setShareAction, { karteId, mode: 'regenerate' }, '共有URLを作り直しますか？\n以前のURLは使えなくなります。')}><RefreshCw size={13} />URL再発行</button>
               <button type="button" className="btn danger-outline sm" disabled={pending} onClick={() => run(setShareAction, { karteId, mode: 'disable' })}>共有を停止</button>
             </>
@@ -183,6 +185,7 @@ export function SharePanel({ karteId, enabled, url, sharedAt, careMemo, shareabl
           )}
         </div>
       )}
+      {enabled && canSend && !reach.line && !reach.email && <p className="sub" style={{ margin: '8px 0 0' }}>LINE・メールで送れる連絡先がありません。URLをコピーしてお渡しください。</p>}
       {sharedAt && <p className="sub" style={{ margin: '8px 0 0' }}>最終共有: {sharedAt}</p>}
     </div>
   );

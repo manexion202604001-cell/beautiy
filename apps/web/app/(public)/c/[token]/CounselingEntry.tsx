@@ -1,6 +1,5 @@
 'use client';
-import { useActionState, useEffect, useMemo, useRef, useState } from 'react';
-import { useFormStatus } from 'react-dom';
+import { startTransition, useActionState, useEffect, useMemo, useRef, useState } from 'react';
 import { CheckCircle2, Eraser } from 'lucide-react';
 import type { ActionResult } from '@/lib/server/errors';
 import { submitCounselingAction } from './actions';
@@ -11,7 +10,9 @@ interface Form { name: string; description: string | null; fields: Field[]; requ
 
 export function CounselingEntry({ token, form, intro }: { token: string; form: Form; intro: string | null }) {
   const action = useMemo(() => submitCounselingAction.bind(null, token), [token]);
-  const [state, formAction] = useActionState<ActionResult | null, FormData>(action, null);
+  // Dispatched from onSubmit (not <form action>) so React does not auto-reset the form and
+  // desync controlled checkboxes/radios after a validation error.
+  const [state, dispatch, pending] = useActionState<ActionResult | null, FormData>(action, null);
   const [values, setValues] = useState<Record<string, string | string[] | boolean>>({});
   const [consent, setConsent] = useState(false);
   const [name, setName] = useState('');
@@ -41,7 +42,10 @@ export function CounselingEntry({ token, form, intro }: { token: string; form: F
   const set = (id: string, v: string | string[] | boolean) => setValues((s) => ({ ...s, [id]: v }));
 
   return (
-    <form action={formAction} className="stack" noValidate>
+    <form
+      className="stack" noValidate aria-busy={pending}
+      onSubmit={(e) => { e.preventDefault(); if (pending) return; const fd = new FormData(e.currentTarget); startTransition(() => dispatch(fd)); }}
+    >
       <div ref={topRef} />
       <section className="card">
         <h1 style={{ fontSize: 20 }}>{form.name}</h1>
@@ -107,15 +111,10 @@ export function CounselingEntry({ token, form, intro }: { token: string; form: F
       )}
       {!form.requireConsent && <input type="hidden" name="signedName" value="" />}
 
-      <Submit />
+      <button type="submit" className="btn lg block" disabled={pending}>{pending ? <><span className="spinner" /> 送信中…</> : '回答を送信する'}</button>
       <p className="sub center">ご入力内容はサロンのスタッフのみが確認し、施術のご提案に利用します。</p>
     </form>
   );
-}
-
-function Submit() {
-  const { pending } = useFormStatus();
-  return <button type="submit" className="btn lg block" disabled={pending}>{pending ? <><span className="spinner" /> 送信中…</> : '回答を送信する'}</button>;
 }
 
 /** Touch/pen/mouse signature capture → PNG data URL (white background, max 2x density). */

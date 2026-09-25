@@ -6,7 +6,7 @@ import { maskedContact } from '@/lib/server/pii';
 import { fullName } from '@/lib/server/customers';
 import { liveWhere } from '@/lib/server/crm';
 import { Card, Empty, PageHeader, Badge } from '@/components/ui';
-import { ActionForm, SubmitButton } from '@/components/client';
+import { StableActionForm, StableSubmit } from '../_components/StableActionForm';
 import { fmtDate, yen } from '@/lib/format';
 import { mergeCustomersAction } from '../actions';
 
@@ -61,7 +61,7 @@ export default async function MergePage({ searchParams }: { searchParams: Promis
   return (
     <>
       <PageHeader title="顧客の統合" back={{ href: '/customers/duplicates', label: '重複候補' }} sub="残す顧客を選んでください。もう一方の履歴はすべて残す顧客に移動します。" />
-      <ActionForm action={mergeCustomersAction}>
+      <StableActionForm action={mergeCustomersAction}>
         <div className="table-wrap">
           <table className="table crm-merge">
             <thead>
@@ -97,10 +97,10 @@ export default async function MergePage({ searchParams }: { searchParams: Promis
           </ul>
           <div className="between">
             <label className="checkbox"><input type="checkbox" name="confirm" required />内容を確認しました</label>
-            <SubmitButton pendingText="統合中…" className="btn danger">統合する</SubmitButton>
+            <StableSubmit pendingText="統合中…" className="btn danger">統合する</StableSubmit>
           </div>
         </Card>
-      </ActionForm>
+      </StableActionForm>
     </>
   );
 }

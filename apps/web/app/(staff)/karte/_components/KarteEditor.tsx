@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { Mic, MicOff, Copy, FileText } from 'lucide-react';
-import { ActionForm, SubmitButton } from '@/components/client';
+import { StableActionForm, StableSubmit } from '../../customers/_components/StableActionForm';
 import { saveKarteAction } from '../actions';
 import { SketchCanvas, EMPTY_SKETCH, type Sketch } from './SketchCanvas';
 import { useDictation } from './useDictation';
@@ -77,7 +77,7 @@ export function KarteEditor({
   const activeLabel = FIELD_META.find((m) => m.key === active)?.label;
 
   return (
-    <ActionForm action={saveKarteAction} onSuccess={() => setDirty(false)} className="stack">
+    <StableActionForm action={saveKarteAction} onSuccess={() => setDirty(false)} className="stack">
       {karteId && <input type="hidden" name="id" value={karteId} />}
       <input type="hidden" name="customerId" value={customerId} />
       {appointmentId && <input type="hidden" name="appointmentId" value={appointmentId} />}
@@ -148,9 +148,9 @@ export function KarteEditor({
       {!readOnly && (
         <div className="kt-savebar">
           <span className="sub">{dirty ? '未保存の変更があります' : karteId ? '保存済み' : ''}</span>
-          <SubmitButton pendingText="保存中…">{karteId ? 'カルテを保存' : 'カルテを作成'}</SubmitButton>
+          <StableSubmit pendingText="保存中…">{karteId ? 'カルテを保存' : 'カルテを作成'}</StableSubmit>
         </div>
       )}
-    </ActionForm>
+    </StableActionForm>
   );
 }

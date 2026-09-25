@@ -27,13 +27,15 @@ export default async function KartePage({ params, searchParams }: { params: Prom
   if (!k) notFound();
   const tz = ctx.shop.timezone;
   const canEdit = ctx.can('karte.write') && ctx.shops.some((s) => s.id === k.shopId);
-  const [templates, prev, history, shop, author] = await Promise.all([
+  const [templates, prev, history, shop, author, reachRow] = await Promise.all([
     canEdit ? prisma.karteTemplate.findMany({ where: { organizationId: ctx.org.id }, orderBy: { name: 'asc' }, select: { id: true, name: true, treatmentNote: true, formulaNote: true, careMemo: true } }) : [],
     previousKarte(ctx.org.id, k.customerId, { before: k.visitDate, excludeId: k.id }),
     prisma.karte.findMany({ where: { organizationId: ctx.org.id, customerId: k.customerId, NOT: { id: k.id } }, orderBy: { visitDate: 'desc' }, take: 6, select: { id: true, visitDate: true, treatmentNote: true, formulaNote: true } }),
     prisma.shop.findFirst({ where: { id: k.shopId, organizationId: ctx.org.id }, select: { name: true } }),
     prisma.membership.findFirst({ where: { organizationId: ctx.org.id, userId: k.authorId }, select: { displayName: true } }),
+    prisma.customer.findFirst({ where: { id: k.customerId, organizationId: ctx.org.id }, select: { lineOptIn: true, emailOptIn: true, emailHash: true, identities: { where: { provider: 'LINE' }, select: { id: true }, take: 1 } } }),
   ]);
+  const reach = { line: !!reachRow?.lineOptIn && !!reachRow.identities.length, email: !!reachRow?.emailOptIn && !!reachRow.emailHash };
   const customerGone = !!(k.customer.deletedAt || k.customer.mergedIntoId);
   const sketch = k.sketchJson && typeof k.sketchJson === 'object' ? (k.sketchJson as unknown as Sketch) : null;
 
@@ -69,7 +71,7 @@ export default async function KartePage({ params, searchParams }: { params: Prom
           <SharePanel
             karteId={k.id} enabled={k.shareEnabled} url={k.shareEnabled && k.shareToken ? `${env.appUrl}/k/${k.shareToken}` : null}
             sharedAt={k.sharedAt ? fmtDateTime(k.sharedAt, tz) : null} careMemo={!!k.careMemo?.trim()} shareablePhotos={k.photos.filter((p) => p.shareable).length}
-            canEdit={canEdit && !customerGone} canSend={ctx.can('message.send')}
+            canEdit={canEdit && !customerGone} canSend={ctx.can('message.send')} reach={reach}
           />
           <Card title="過去のカルテ" flush>
             {history.length === 0 ? <p className="sub" style={{ padding: '0 18px 16px', margin: 0 }}>他のカルテはありません。</p> : (
