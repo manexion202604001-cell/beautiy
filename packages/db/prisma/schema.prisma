@@ -1,0 +1,1041 @@
+// MANEXION Salon OS — system of record.
+// Every business record is scoped by organizationId (and shopId where relevant).
+// Customer PII is stored encrypted (AES-256-GCM, *Enc columns) with HMAC blind
+// indexes (*Hash columns) for exact-match lookup. Never select *Enc columns into
+// the UI without going through the PII service (apps/web/lib/server/pii.ts).
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  OWNER
+  DIRECTOR
+  MANAGER
+  STYLIST
+  ASSISTANT
+  RECEPTION
+}
+
+enum AppointmentStatus {
+  REQUESTED
+  CONFIRMED
+  ARRIVED
+  IN_SERVICE
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum AppointmentKind {
+  NORMAL
+  CONSULTATION
+  PRIVATE
+}
+
+enum BookingSource {
+  STAFF
+  WEB
+  LINE
+  PHONE
+  INSTAGRAM
+  GOOGLE
+  HOTPEPPER
+  MINIMO
+  RAKUTEN
+  OTHER
+}
+
+enum BookingMode {
+  INSTANT
+  REQUEST
+}
+
+enum TransactionStatus {
+  DRAFT
+  PAID
+  PARTIALLY_REFUNDED
+  REFUNDED
+  VOID
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  EMONEY
+  QR
+  STRIPE
+  SQUARE
+  CUSTOM
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+}
+
+enum MessageChannel {
+  LINE
+  EMAIL
+  SMS
+  PUSH
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum MessageStatus {
+  QUEUED
+  SENT
+  DELIVERED
+  FAILED
+  RECEIVED
+  SKIPPED
+}
+
+enum AutomationTrigger {
+  REMINDER_BEFORE
+  VISIT_CYCLE
+  AFTER_VISIT_REVIEW
+  BIRTHDAY
+  DORMANT
+}
+
+enum SyncStatus {
+  PENDING
+  PROCESSING
+  DONE
+  FAILED
+  DEAD
+  CONFLICT
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  FULFILLED
+  CANCELLED
+  REFUNDED
+}
+
+// ───────────────────────── Identity & access ─────────────────────────
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+
+  shops        Shop[]
+  memberships  Membership[]
+  customers    Customer[]
+  tags         Tag[]
+  invitations  Invitation[]
+  auditLogs    AuditLog[]
+  integrations Integration[]
+  products     Product[]
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  memberships  Membership[]
+  sessions     Session[]
+  appointments Appointment[] @relation("StaffAppointments")
+  kartes       Karte[]       @relation("AuthorKartes")
+}
+
+model Session {
+  id             String   @id @default(cuid())
+  tokenHash      String   @unique
+  userId         String
+  organizationId String
+  activeShopId   String?
+  expiresAt      DateTime
+  createdAt      DateTime @default(now())
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Membership {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  role           Role
+  canViewPII     Boolean  @default(false)
+  active         Boolean  @default(true)
+  // Public stylist profile
+  displayName    String
+  bookable       Boolean  @default(true)
+  publicBio      String?
+  imageUrl       String?
+  instagramUrl   String?
+  specialties    String?
+  sortOrder      Int      @default(0)
+  nominationFee  Int      @default(0)
+  createdAt      DateTime @default(now())
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shops        StaffAssignment[]
+
+  @@unique([organizationId, userId])
+}
+
+// Staff ↔ shop assignment (multi-shop)
+model StaffAssignment {
+  membershipId String
+  shopId       String
+  membership   Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  shop         Shop       @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@id([membershipId, shopId])
+}
+
+model Invitation {
+  id             String    @id @default(cuid())
+  organizationId String
+  email          String
+  name           String
+  role           Role
+  shopIds        String[]
+  tokenHash      String    @unique
+  expiresAt      DateTime
+  acceptedAt     DateTime?
+  createdById    String
+  createdAt      DateTime  @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+}
+
+// One-time codes for sensitive operations (PII unlock, export).
+model OtpChallenge {
+  id         String    @id @default(cuid())
+  userId     String
+  purpose    String
+  codeHash   String
+  attempts   Int       @default(0)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId, purpose])
+}
+
+// Temporary PII unlock window granted after OTP verification.
+model PiiUnlock {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  reason         String
+  expiresAt      DateTime
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, userId, expiresAt])
+}
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String?
+  action         String
+  resourceType   String
+  resourceId     String?
+  metadata       Json?
+  ip             String?
+  userAgent      String?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, resourceType, resourceId])
+}
+
+// ───────────────────────── Shop ─────────────────────────
+
+model Shop {
+  id                  String      @id @default(cuid())
+  organizationId      String
+  name                String
+  slug                String      @unique
+  phone               String?
+  address             String?
+  timezone            String      @default("Asia/Tokyo")
+  seatCount           Int         @default(3)
+  bookingMode         BookingMode @default(INSTANT)
+  slotIntervalMin     Int         @default(30)
+  // how far ahead customers may book online, and minimum notice
+  bookingHorizonDays  Int         @default(60)
+  minNoticeMin        Int         @default(60)
+  cancelDeadlineHours Int         @default(24)
+  taxRatePct          Int         @default(10)
+  pointRatePct        Int         @default(1)
+  // public profile
+  description         String?
+  imageUrl            String?
+  instagramUrl        String?
+  websiteUrl          String?
+  accessInfo          String?
+  hygieneInfo         String?
+  active              Boolean     @default(true)
+  createdAt           DateTime    @default(now())
+
+  organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  businessHours    BusinessHour[]
+  holidays         ShopHoliday[]
+  staff            StaffAssignment[]
+  menus            Menu[]
+  coupons          Coupon[]
+  appointments     Appointment[]
+  holds            SlotHold[]
+  waitlist         WaitlistEntry[]
+  transactions     Transaction[]
+  registerSessions RegisterSession[]
+  reviews          Review[]
+  orders           Order[]
+
+  @@index([organizationId])
+}
+
+model BusinessHour {
+  id       String  @id @default(cuid())
+  shopId   String
+  weekday  Int // 0=Sun .. 6=Sat
+  openMin  Int // minutes from local midnight
+  closeMin Int
+  closed   Boolean @default(false)
+  shop     Shop    @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@unique([shopId, weekday])
+}
+
+model ShopHoliday {
+  id     String  @id @default(cuid())
+  shopId String
+  date   String // YYYY-MM-DD local
+  reason String?
+  shop   Shop    @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@unique([shopId, date])
+}
+
+// ───────────────────────── Customer CRM ─────────────────────────
+
+model Customer {
+  id              String    @id @default(cuid())
+  organizationId  String
+  primaryShopId   String?
+  lastName        String
+  firstName       String
+  lastNameKana    String?
+  firstNameKana   String?
+  phoneEnc        String?
+  phoneHash       String?
+  emailEnc        String?
+  emailHash       String?
+  addressEnc      String?
+  birthday        String? // YYYY-MM-DD
+  gender          String?
+  notes           String?
+  favorite        Boolean   @default(false)
+  assignedStaffId String?
+  lineOptIn       Boolean   @default(true)
+  emailOptIn      Boolean   @default(true)
+  // denormalized stats (recomputed by analytics service on checkout / merge)
+  visitCount      Int       @default(0)
+  totalSales      Int       @default(0)
+  firstVisitAt    DateTime?
+  lastVisitAt     DateTime?
+  noShowCount     Int       @default(0)
+  cancelCount     Int       @default(0)
+  mergedIntoId    String?
+  deletedAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  tags         CustomerTag[]
+  identities   CustomerIdentity[]
+  appointments Appointment[]
+  kartes       Karte[]
+  transactions Transaction[]
+  reviews      Review[]
+  messages     Message[]
+  points       PointLedger[]
+  counseling   CounselingResponse[]
+  orders       Order[]
+
+  @@index([organizationId, lastNameKana])
+  @@index([organizationId, lastName, firstName])
+  @@index([organizationId, phoneHash])
+  @@index([organizationId, emailHash])
+}
+
+// External identities: LINE userId, external booking site customer id, etc.
+model CustomerIdentity {
+  id             String   @id @default(cuid())
+  organizationId String
+  customerId     String
+  provider       String
+  externalId     String
+  displayName    String?
+  createdAt      DateTime @default(now())
+  customer       Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, provider, externalId])
+}
+
+model Tag {
+  id             String        @id @default(cuid())
+  organizationId String
+  name           String
+  color          String        @default("#4d6fff")
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customers      CustomerTag[]
+
+  @@unique([organizationId, name])
+}
+
+model CustomerTag {
+  customerId String
+  tagId      String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  tag        Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([customerId, tagId])
+}
+
+model CustomerMerge {
+  id             String   @id @default(cuid())
+  organizationId String
+  survivorId     String
+  mergedId       String
+  performedById  String
+  snapshot       Json
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId])
+}
+
+// ───────────────────────── Menu / coupon / product ─────────────────────────
+
+model Menu {
+  id             String   @id @default(cuid())
+  organizationId String
+  shopId         String
+  category       String   @default("その他")
+  name           String
+  description    String?
+  durationMin    Int
+  price          Int
+  isConsultation Boolean  @default(false)
+  publicBookable Boolean  @default(true)
+  active         Boolean  @default(true)
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+  shop           Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@index([shopId, active])
+}
+
+model Coupon {
+  id              String    @id @default(cuid())
+  organizationId  String
+  shopId          String
+  name            String
+  description     String?
+  code            String?
+  discountType    String    @default("AMOUNT") // AMOUNT | PERCENT
+  discountValue   Int
+  menuIds         String[]
+  newCustomerOnly Boolean   @default(false)
+  publicBookable  Boolean   @default(true)
+  validFrom       DateTime?
+  validTo         DateTime?
+  active          Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  shop            Shop      @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@index([shopId, active])
+}
+
+model Product {
+  id                       String       @id @default(cuid())
+  organizationId           String
+  sku                      String?
+  name                     String
+  brand                    String?
+  description              String?
+  price                    Int
+  stock                    Int          @default(0)
+  imageUrl                 String?
+  active                   Boolean      @default(true)
+  onlineSale               Boolean      @default(true)
+  subscriptionIntervalDays Int?
+  createdAt                DateTime     @default(now())
+  organization             Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, active])
+}
+
+// ───────────────────────── Booking ─────────────────────────
+
+model Appointment {
+  id               String            @id @default(cuid())
+  organizationId   String
+  shopId           String
+  customerId       String?
+  staffId          String?
+  startAt          DateTime
+  endAt            DateTime
+  status           AppointmentStatus @default(CONFIRMED)
+  kind             AppointmentKind   @default(NORMAL)
+  source           BookingSource     @default(STAFF)
+  title            String?
+  note             String?
+  customerNote     String?
+  nominated        Boolean           @default(false)
+  couponId         String?
+  totalPrice       Int               @default(0)
+  guestName        String?
+  guestPhone       String?
+  externalProvider String?
+  externalRef      String?
+  idempotencyKey   String?
+  manageToken      String            @unique @default(cuid())
+  cancelledAt      DateTime?
+  cancelReason     String?
+  createdById      String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  shop        Shop                 @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  customer    Customer?            @relation(fields: [customerId], references: [id])
+  staff       User?                @relation("StaffAppointments", fields: [staffId], references: [id])
+  menus       AppointmentMenu[]
+  karte       Karte?
+  transaction Transaction?
+  counseling  CounselingResponse[]
+
+  @@unique([organizationId, idempotencyKey])
+  @@unique([externalProvider, externalRef])
+  @@index([shopId, startAt])
+  @@index([staffId, startAt])
+  @@index([customerId, startAt])
+}
+
+model AppointmentMenu {
+  id            String      @id @default(cuid())
+  appointmentId String
+  menuId        String?
+  name          String
+  price         Int
+  durationMin   Int
+  appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+}
+
+// Temporary slot lock while a customer completes the booking form.
+model SlotHold {
+  id        String   @id @default(cuid())
+  shopId    String
+  staffId   String?
+  startAt   DateTime
+  endAt     DateTime
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  shop      Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@index([shopId, startAt])
+}
+
+model WaitlistEntry {
+  id          String   @id @default(cuid())
+  shopId      String
+  customerId  String?
+  name        String
+  contact     String?
+  desiredDate String // YYYY-MM-DD
+  timeNote    String?
+  menuNote    String?
+  staffId     String?
+  status      String   @default("WAITING") // WAITING | CONTACTED | BOOKED | CLOSED
+  createdAt   DateTime @default(now())
+  shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@index([shopId, desiredDate])
+}
+
+// ───────────────────────── Karte ─────────────────────────
+
+model Karte {
+  id             String    @id @default(cuid())
+  organizationId String
+  shopId         String
+  customerId     String
+  appointmentId  String?   @unique
+  authorId       String
+  visitDate      DateTime  @default(now())
+  treatmentNote  String?
+  formulaNote    String?
+  assistantNote  String?
+  careMemo       String? // customer-facing
+  sketchJson     Json?
+  shareToken     String?   @unique
+  shareEnabled   Boolean   @default(false)
+  sharedAt       DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  appointment Appointment? @relation(fields: [appointmentId], references: [id])
+  customer    Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  author      User         @relation("AuthorKartes", fields: [authorId], references: [id])
+  photos      KartePhoto[]
+
+  @@index([customerId, visitDate])
+}
+
+model KartePhoto {
+  id          String   @id @default(cuid())
+  karteId     String
+  kind        String   @default("AFTER") // BEFORE | AFTER | OTHER
+  storageKey  String
+  contentType String
+  size        Int
+  caption     String?
+  shareable   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  karte       Karte    @relation(fields: [karteId], references: [id], onDelete: Cascade)
+}
+
+// DB blob fallback for object storage (used when S3 is not configured).
+model StoredFile {
+  id             String   @id @default(cuid())
+  organizationId String
+  key            String   @unique
+  contentType    String
+  size           Int
+  data           Bytes
+  createdAt      DateTime @default(now())
+}
+
+model KarteTemplate {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  treatmentNote  String?
+  formulaNote    String?
+  careMemo       String?
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId])
+}
+
+model CounselingForm {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  description    String?
+  // [{id,label,type:'text'|'textarea'|'select'|'multiselect'|'checkbox'|'date',options?:string[],required?:boolean}]
+  fields         Json
+  requireConsent Boolean  @default(false)
+  consentText    String?
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  responses CounselingResponse[]
+
+  @@index([organizationId])
+}
+
+model CounselingResponse {
+  id             String    @id @default(cuid())
+  organizationId String
+  formId         String
+  customerId     String?
+  appointmentId  String?
+  token          String    @unique @default(cuid()) // customer self-entry link
+  status         String    @default("PENDING") // PENDING | SUBMITTED
+  answers        Json?
+  signatureData  String? // data URL of e-signature
+  signedName     String?
+  signedAt       DateTime?
+  submittedAt    DateTime?
+  createdAt      DateTime  @default(now())
+
+  form        CounselingForm @relation(fields: [formId], references: [id], onDelete: Cascade)
+  customer    Customer?      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  appointment Appointment?   @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, customerId])
+}
+
+// ───────────────────────── POS ─────────────────────────
+
+model RegisterSession {
+  id           String        @id @default(cuid())
+  shopId       String
+  openedById   String
+  openedAt     DateTime      @default(now())
+  openingCash  Int
+  closedById   String?
+  closedAt     DateTime?
+  expectedCash Int?
+  actualCash   Int?
+  difference   Int?
+  note         String?
+  summary      Json?
+  shop         Shop          @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+
+  @@index([shopId, openedAt])
+}
+
+model Transaction {
+  id                String            @id @default(cuid())
+  organizationId    String
+  shopId            String
+  number            Int               @default(autoincrement())
+  customerId        String?
+  appointmentId     String?           @unique
+  staffId           String?
+  registerSessionId String?
+  status            TransactionStatus @default(DRAFT)
+  subtotal          Int               @default(0)
+  discountTotal     Int               @default(0)
+  taxTotal          Int               @default(0) // tax included in total (内税)
+  total             Int               @default(0)
+  pointsUsed        Int               @default(0)
+  pointsEarned      Int               @default(0)
+  couponId          String?
+  refundedTotal     Int               @default(0)
+  note              String?
+  paidAt            DateTime?
+  voidedAt          DateTime?
+  createdById       String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  shop            Shop              @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  customer        Customer?         @relation(fields: [customerId], references: [id])
+  appointment     Appointment?      @relation(fields: [appointmentId], references: [id])
+  registerSession RegisterSession?  @relation(fields: [registerSessionId], references: [id])
+  items           TransactionItem[]
+  payments        Payment[]
+  refunds         Refund[]
+
+  @@index([shopId, createdAt])
+  @@index([customerId, createdAt])
+}
+
+model TransactionItem {
+  id            String      @id @default(cuid())
+  transactionId String
+  kind          String // SERVICE | RETAIL | OTHER
+  menuId        String?
+  productId     String?
+  name          String
+  unitPrice     Int
+  quantity      Int         @default(1)
+  discount      Int         @default(0)
+  staffId       String?
+  nominated     Boolean     @default(false)
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  transactionId String
+  method        PaymentMethod
+  label         String?
+  provider      String?
+  externalRef   String?       @unique
+  amount        Int
+  status        PaymentStatus @default(SUCCEEDED)
+  createdAt     DateTime      @default(now())
+  transaction   Transaction   @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+}
+
+model Refund {
+  id            String        @id @default(cuid())
+  transactionId String
+  amount        Int
+  reason        String?
+  method        PaymentMethod
+  externalRef   String?       @unique
+  createdById   String?
+  createdAt     DateTime      @default(now())
+  transaction   Transaction   @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+}
+
+model PointLedger {
+  id             String   @id @default(cuid())
+  organizationId String
+  customerId     String
+  delta          Int
+  reason         String
+  transactionId  String?
+  createdAt      DateTime @default(now())
+  customer       Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+}
+
+// Payment provider webhooks (Stripe/Square) — idempotent by (provider,eventId).
+model WebhookEvent {
+  id          String    @id @default(cuid())
+  provider    String
+  eventId     String
+  type        String
+  payload     Json
+  status      String    @default("RECEIVED") // RECEIVED | PROCESSED | IGNORED | FAILED
+  error       String?
+  processedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@unique([provider, eventId])
+}
+
+// ───────────────────────── Messaging ─────────────────────────
+
+model Message {
+  id                String           @id @default(cuid())
+  organizationId    String
+  shopId            String?
+  customerId        String
+  channel           MessageChannel
+  direction         MessageDirection
+  body              String
+  status            MessageStatus
+  error             String?
+  templateId        String?
+  broadcastId       String?
+  automationRuleId  String?
+  appointmentId     String?
+  externalMessageId String?
+  readAt            DateTime?
+  scheduledAt       DateTime?
+  sentAt            DateTime?
+  createdById       String?
+  createdAt         DateTime         @default(now())
+  customer          Customer         @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+  @@index([customerId, createdAt])
+}
+
+model MessageTemplate {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  category       String   @default("GENERAL")
+  body           String
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId])
+}
+
+model Broadcast {
+  id             String         @id @default(cuid())
+  organizationId String
+  shopId         String?
+  name           String
+  body           String
+  channel        MessageChannel @default(LINE)
+  // {tagIds?:string[], lastVisitDaysMin?:number, lastVisitDaysMax?:number, staffId?:string, minVisits?:number, favorite?:boolean}
+  segment        Json
+  status         String         @default("DRAFT") // DRAFT | SCHEDULED | SENDING | SENT
+  scheduledAt    DateTime?
+  sentAt         DateTime?
+  recipientCount Int            @default(0)
+  createdById    String?
+  createdAt      DateTime       @default(now())
+
+  @@index([organizationId])
+}
+
+model AutomationRule {
+  id             String            @id @default(cuid())
+  organizationId String
+  shopId         String?
+  name           String
+  trigger        AutomationTrigger
+  // REMINDER_BEFORE: hours before start; VISIT_CYCLE/DORMANT: days since last visit; AFTER_VISIT_REVIEW: hours after completion
+  offsetValue    Int
+  body           String
+  channel        MessageChannel    @default(LINE)
+  active         Boolean           @default(true)
+  lastRunAt      DateTime?
+  createdAt      DateTime          @default(now())
+
+  dispatches AutomationDispatch[]
+
+  @@index([organizationId])
+}
+
+// Dedupe ledger so automation never double-sends.
+model AutomationDispatch {
+  id         String         @id @default(cuid())
+  ruleId     String
+  customerId String
+  dedupeKey  String         @unique
+  messageId  String?
+  createdAt  DateTime       @default(now())
+  rule       AutomationRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+}
+
+// ───────────────────────── Reviews ─────────────────────────
+
+model Review {
+  id             String    @id @default(cuid())
+  organizationId String
+  shopId         String
+  staffId        String?
+  customerId     String?
+  appointmentId  String?   @unique
+  rating         Int
+  title          String?
+  body           String?
+  authorName     String
+  reply          String?
+  repliedAt      DateTime?
+  repliedById    String?
+  source         String    @default("INTERNAL") // INTERNAL | GOOGLE
+  externalRef    String?
+  published      Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+
+  shop     Shop      @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  customer Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  @@index([shopId, createdAt])
+}
+
+// ───────────────────────── Integrations / external sync ─────────────────────────
+
+model Integration {
+  id             String       @id @default(cuid())
+  organizationId String
+  shopId         String?
+  provider       String // LINE | STRIPE | SQUARE | GOOGLE | INSTAGRAM | HOTPEPPER | MINIMO | RAKUTEN | GENERIC
+  status         String       @default("ACTIVE") // ACTIVE | PAUSED | ERROR
+  configEnc      String? // encrypted JSON (tokens, secrets, id maps)
+  webhookKey     String       @unique @default(cuid()) // path segment for inbound webhooks
+  lastSyncAt     DateTime?
+  lastError      String?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, provider])
+}
+
+model SyncEvent {
+  id              String     @id @default(cuid())
+  organizationId  String
+  integrationId   String?
+  provider        String
+  direction       String     @default("INBOUND") // INBOUND | OUTBOUND
+  externalEventId String
+  type            String
+  payload         Json
+  normalized      Json?
+  status          SyncStatus @default(PENDING)
+  attempts        Int        @default(0)
+  nextAttemptAt   DateTime   @default(now())
+  lastError       String?
+  appointmentId   String?
+  processedAt     DateTime?
+  createdAt       DateTime   @default(now())
+
+  @@unique([provider, externalEventId])
+  @@index([organizationId, status])
+}
+
+// ───────────────────────── Commerce ─────────────────────────
+
+model ProductRecommendation {
+  id             String   @id @default(cuid())
+  organizationId String
+  shopId         String
+  token          String   @unique @default(cuid())
+  customerId     String?
+  staffId        String
+  productIds     String[]
+  message        String?
+  createdAt      DateTime @default(now())
+}
+
+model Order {
+  id                 String      @id @default(cuid())
+  organizationId     String
+  shopId             String
+  number             Int         @default(autoincrement())
+  customerId         String?
+  status             OrderStatus @default(PENDING)
+  subtotal           Int
+  shippingFee        Int         @default(0)
+  total              Int
+  contactName        String
+  contactEmailEnc    String?
+  contactPhoneEnc    String?
+  shippingAddressEnc String?
+  attributedStaffId  String?
+  recommendationId   String?
+  paymentProvider    String?
+  paymentRef         String?     @unique
+  isSubscription     Boolean     @default(false)
+  fulfilledAt        DateTime?
+  trackingNumber     String?
+  createdAt          DateTime    @default(now())
+
+  shop     Shop        @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  customer Customer?   @relation(fields: [customerId], references: [id])
+  items    OrderItem[]
+
+  @@index([organizationId, createdAt])
+}
+
+model OrderItem {
+  id        String @id @default(cuid())
+  orderId   String
+  productId String
+  name      String
+  unitPrice Int
+  quantity  Int
+  order     Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model Subscription {
+  id             String   @id @default(cuid())
+  organizationId String
+  customerId     String?
+  orderId        String
+  productId      String
+  quantity       Int      @default(1)
+  intervalDays   Int
+  nextShipAt     DateTime
+  status         String   @default("ACTIVE") // ACTIVE | PAUSED | CANCELLED
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, status])
+}

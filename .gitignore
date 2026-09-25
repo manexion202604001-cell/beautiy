@@ -1,0 +1,9 @@
+node_modules
+.next
+.env
+.env.local
+*.tsbuildinfo
+.uploads
+test-results
+playwright-report
+.vercel
