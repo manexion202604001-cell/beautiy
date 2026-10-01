@@ -399,6 +399,9 @@ export const storeApi = {
     api.get<CustomerOrder[]>('/public/me/orders', undefined, cust(token)),
   myOrder: (token: string, id: string) =>
     api.get<CustomerOrder>(`/public/me/orders/${id}`, undefined, cust(token)),
+  /** dev/mock only: simulate the hosted payment page completing this order's pending payment */
+  mockPay: (token: string, id: string) =>
+    api.post<{ paymentId: string; status: string; orderId: string }>(`/public/me/orders/${id}/mock-pay`, { success: true }, cust(token)),
   retryPayment: (token: string, id: string) =>
     api.post<{ orderId: string; payment: OrderPayment | null }>(
       `/public/me/orders/${id}/pay`,

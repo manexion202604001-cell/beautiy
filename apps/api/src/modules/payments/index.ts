@@ -1,4 +1,5 @@
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
+import { z } from 'zod';
 import { idParam } from '../../lib/schemas.js';
 import { registerWebhookProvider } from '../../lib/webhooks.js';
 import { createCustomMethodSchema, listCustomMethodsSchema, mockCompleteSchema, refundSchema, startPaymentSchema, updateCustomMethodSchema } from './schemas.js';
@@ -31,6 +32,15 @@ const plugin: FastifyPluginAsyncZod = async (app) => {
     '/payments/:id/mock-complete',
     { schema: { tags, summary: '[dev/test] モック決済の完了/失敗をシミュレート', description: 'PAYMENT_PROVIDER=mock の場合のみ有効', params: idParam, body: mockCompleteSchema.optional() } },
     (req) => req.tx((ctx) => svc.mockComplete(ctx, req.params.id, req.body ?? { success: true })),
+  );
+
+  app.post(
+    '/public/me/orders/:id/mock-pay',
+    {
+      config: { auth: 'customer' },
+      schema: { tags, summary: '[dev] 顧客側モック決済(ホスト型決済ページの代替)', description: 'PAYMENT_PROVIDER=mock かつ本番以外のみ。自分の注文の未完了決済を確定する', params: idParam, body: z.object({ success: z.boolean().default(true) }).optional() },
+    },
+    (req) => req.tx((ctx) => svc.customerMockPayOrder(ctx, req.customer().customerId, req.params.id, { success: req.body?.success ?? true })),
   );
 
   // 店舗独自決済

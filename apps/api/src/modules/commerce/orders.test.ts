@@ -268,3 +268,19 @@ describe('commerce sales', () => {
     expect((await t.owner.get('/v1/commerce/sales', { from: '2026-10-02', to: '2026-10-01' })).status).toBe(400);
   });
 });
+
+describe('customer-side mock payment (dev hosted page substitute)', () => {
+  it('lets the ordering customer settle their own pending mock payment only', async () => {
+    const env = await setup();
+    const { order } = await placeOrder(env, [{ productId: env.shampoo.id, quantity: 1 }]);
+    const stranger = await customerApi(env.t, (await createCustomer(env.t)).id);
+    expect((await stranger.post(`/v1/public/me/orders/${order.id}/mock-pay`, {})).status).toBe(404);
+    const paid = await env.shopper.post(`/v1/public/me/orders/${order.id}/mock-pay`, {});
+    expect(paid.status).toBe(200);
+    expect(paid.body.status).toBe('succeeded');
+    await runJobs();
+    const view = await env.shopper.get(`/v1/public/me/orders/${order.id}`);
+    expect(view.body.status).toBe('paid');
+    expect((await env.shopper.post(`/v1/public/me/orders/${order.id}/mock-pay`, {})).status).toBe(404);
+  });
+});

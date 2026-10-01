@@ -243,10 +243,12 @@ export async function listKartes(ctx: Ctx, input: ListKartesInput) {
     .selectFrom('kartes')
     .leftJoin('staffs', 'staffs.id', 'kartes.staff_id')
     .leftJoin('karte_templates', 'karte_templates.id', 'kartes.template_id')
+    .leftJoin('customers as kc', 'kc.id', 'kartes.customer_id')
     .selectAll('kartes')
     .select([
       'staffs.display_name as staff_name',
       'karte_templates.name as template_name',
+      sql<string>`coalesce(nullif(trim(kc.last_name || ' ' || kc.first_name), ''), trim(kc.last_name_kana || ' ' || kc.first_name_kana))`.as('customer_name'),
       (eb) =>
         eb
           .selectFrom('karte_assets')

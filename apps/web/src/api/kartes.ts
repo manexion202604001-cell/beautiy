@@ -87,6 +87,7 @@ export interface KarteListItem {
   id: string;
   shop_id: string;
   customer_id: string;
+  customer_name?: string | null;
   appointment_id: string | null;
   staff_id: string;
   staff_name: string | null;

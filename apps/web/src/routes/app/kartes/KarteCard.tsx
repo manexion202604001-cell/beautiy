@@ -47,7 +47,7 @@ export function KarteCard({
             to={`/app/customers/${k.customer_id}?tab=kartes`}
             className="text-xs text-primary hover:underline"
           >
-            お客様の詳細・カルテ履歴
+            {k.customer_name ? `${k.customer_name} 様の詳細・カルテ履歴` : 'お客様の詳細・カルテ履歴'}
           </Link>
         </div>
       ) : null}

@@ -119,6 +119,27 @@ export async function mockComplete(ctx: Ctx, paymentId: string, input: { success
   return getPayment(ctx, paymentId);
 }
 
+/**
+ * Customer-side simulation of the provider's hosted payment page (mock provider, non-production only).
+ * Lets the storefront complete its own order payment in dev/demo without staff intervention.
+ */
+export async function customerMockPayOrder(ctx: Ctx, customerId: string, orderId: string, input: { success: boolean }) {
+  if (config.PAYMENT_PROVIDER !== 'mock' || config.NODE_ENV === 'production') throw Errors.notFound('リソース');
+  const p = await ctx.trx
+    .selectFrom('payments')
+    .innerJoin('orders', 'orders.id', 'payments.order_id')
+    .select(['payments.id', 'payments.provider'])
+    .where('orders.id', '=', orderId)
+    .where('orders.customer_id', '=', customerId)
+    .where('payments.status', 'in', ['pending', 'requires_action'])
+    .orderBy('payments.created_at', 'desc')
+    .executeTakeFirst();
+  if (!p) throw Errors.notFound('未完了の決済', orderId);
+  if (p.provider !== 'mock') throw Errors.business('NOT_MOCK_PAYMENT', 'モック決済ではありません');
+  const settled = await settleOnlinePayment(ctx, p.id, { success: input.success, failureCode: input.success ? undefined : 'card_declined' });
+  return { paymentId: settled.id, status: settled.status, orderId };
+}
+
 // ---------------------------------------------------------------------------------------------
 // 店舗独自決済 (custom payment methods: 回数券 / 商品券 ...)
 // ---------------------------------------------------------------------------------------------

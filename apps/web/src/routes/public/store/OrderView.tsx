@@ -21,6 +21,19 @@ export function OrderView({ order: o, token }: { order: CustomerOrder; token: st
       setRetrying(false);
     }
   };
+  const [mockPaying, setMockPaying] = useState(false);
+  const mockPay = async () => {
+    setMockPaying(true);
+    try {
+      await storeApi.mockPay(token, o.id);
+      toast.success('テスト決済を完了しました');
+      void qc.invalidateQueries({ queryKey: ['public', 'my-order'] });
+    } catch (e) {
+      toast.error(e);
+    } finally {
+      setMockPaying(false);
+    }
+  };
   const addr = o.shippingAddress;
   return (
     <div className="space-y-4" data-testid="order-view">
@@ -52,10 +65,12 @@ export function OrderView({ order: o, token }: { order: CustomerOrder; token: st
               <p className="mt-1 text-xs text-subtle">お支払い期限 {formatDateTime(o.expiresAt)}</p>
             ) : null}
             {import.meta.env.DEV ? (
-              <p className="mt-3 rounded-lg bg-info-soft px-3 py-2 text-left text-xs text-info">
-                開発環境: 決済プロバイダはモックです。スタッフ画面「商品・EC →
-                EC注文」の注文詳細で「モック決済を完了」を押すと支払済になります。
-              </p>
+              <div className="mt-3 space-y-2 rounded-lg bg-info-soft px-3 py-2 text-left text-xs text-info">
+                <p>開発環境: 決済プロバイダはモックです。下のボタンで決済ページでの支払い完了を再現できます。</p>
+                <Button size="sm" loading={mockPaying} onClick={() => void mockPay()}>
+                  テスト決済を完了
+                </Button>
+              </div>
             ) : null}
           </div>
         )
