@@ -321,7 +321,8 @@ export async function listStaff(ctx: Ctx, filter: { shopId?: string; includeInac
     .orderBy('staffs.sort_order')
     .orderBy('staffs.created_at');
   if (!filter.includeInactive) q = q.where('staffs.status', 'in', ['active', 'invited']);
-  if (filter.bookableOnly) q = q.where('staffs.is_bookable', '=', true);
+  // bookable = can actually take bookings: active (not merely invited) and flagged bookable
+  if (filter.bookableOnly) q = q.where('staffs.is_bookable', '=', true).where('staffs.status', '=', 'active');
   const shopIds = filter.shopId ? [filter.shopId] : accessibleShopIds(ctx.actor);
   if (shopIds) {
     q = q.where((eb) =>

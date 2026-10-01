@@ -563,18 +563,34 @@ export async function attentionList(ctx: Ctx, shopId: string) {
   requirePermission(ctx.actor, 'appointment.read');
   assertShopAccess(ctx.actor, shopId);
   const now = new Date();
-  const [tentative, overdue] = await Promise.all([
-    ctx.trx.selectFrom('appointments').select(['id', 'start_at', 'customer_id', 'staff_id', 'source']).where('shop_id', '=', shopId).where('status', '=', 'tentative').where('deleted_at', 'is', null).orderBy('start_at').limit(100).execute(),
+  const base = () =>
     ctx.trx
       .selectFrom('appointments')
-      .select(['id', 'start_at', 'customer_id', 'staff_id', 'source'])
-      .where('shop_id', '=', shopId)
-      .where('status', '=', 'confirmed')
-      .where('start_at', '<', addMinutes(now, -30))
-      .where('start_at', '>', addMinutes(now, -7 * 24 * 60))
-      .where('deleted_at', 'is', null)
-      .orderBy('start_at')
-      .limit(100)
+      .leftJoin('customers', 'customers.id', 'appointments.customer_id')
+      .leftJoin('staffs', 'staffs.id', 'appointments.staff_id')
+      .select([
+        'appointments.id',
+        'appointments.start_at',
+        'appointments.end_at',
+        'appointments.status',
+        'appointments.version',
+        'appointments.customer_id',
+        'appointments.staff_id',
+        'appointments.source',
+        'appointments.booking_reference',
+        sql<string>`trim(coalesce(customers.last_name, '') || ' ' || coalesce(customers.first_name, ''))`.as('customer_name'),
+        'staffs.display_name as staff_name',
+      ])
+      .where('appointments.shop_id', '=', shopId)
+      .where('appointments.deleted_at', 'is', null)
+      .orderBy('appointments.start_at')
+      .limit(100);
+  const [tentative, overdue] = await Promise.all([
+    base().where('appointments.status', '=', 'tentative').execute(),
+    base()
+      .where('appointments.status', '=', 'confirmed')
+      .where('appointments.start_at', '<', addMinutes(now, -30))
+      .where('appointments.start_at', '>', addMinutes(now, -7 * 24 * 60))
       .execute(),
   ]);
   return { tentative, noShowCandidates: overdue };

@@ -49,7 +49,8 @@ const plugin: FastifyPluginAsyncZod = async (app) => {
 
   app.post(
     '/auth/refresh',
-    { config: { auth: 'public', ...authRateLimit }, schema: { tags: ['auth'], summary: 'トークン更新(ローテーション)', body: z.object({ refreshToken: z.string().min(10) }) } },
+    // separate, looser bucket: SPAs refresh on every full page load and salons share one IP across devices
+    { config: { auth: 'public', rateLimit: { max: config.NODE_ENV === 'test' ? 100000 : 300, timeWindow: '1 minute' } }, schema: { tags: ['auth'], summary: 'トークン更新(ローテーション)', body: z.object({ refreshToken: z.string().min(10) }) } },
     (req) => svc.refresh(req.body.refreshToken, meta(req)),
   );
 

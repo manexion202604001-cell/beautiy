@@ -261,7 +261,7 @@ export async function updateCustomerProfile(
   return customerProfile(ctx, customerId);
 }
 
-export function sanitizeAppointment(a: Awaited<ReturnType<typeof getAppointmentUnchecked>>, shop: { name: string; cancelDeadlineHours: number }) {
+export function sanitizeAppointment(a: Awaited<ReturnType<typeof getAppointmentUnchecked>>, shop: { name: string; slug?: string; timezone?: string; cancelDeadlineHours: number }) {
   const deadline = addMinutes(a.start_at, -shop.cancelDeadlineHours * 60);
   const active = ['tentative', 'confirmed'].includes(a.status);
   return {
@@ -269,6 +269,8 @@ export function sanitizeAppointment(a: Awaited<ReturnType<typeof getAppointmentU
     bookingReference: a.booking_reference,
     shopId: a.shop_id,
     shopName: shop.name,
+    shopSlug: shop.slug ?? null,
+    timezone: shop.timezone ?? 'Asia/Tokyo',
     staffId: a.staff_id,
     staffName: a.staff_name,
     isNominated: a.is_nominated,
@@ -285,8 +287,8 @@ export function sanitizeAppointment(a: Awaited<ReturnType<typeof getAppointmentU
 }
 
 async function shopMeta(ctx: Ctx, shopId: string) {
-  const s = await ctx.trx.selectFrom('shops').select(['name', 'settings']).where('id', '=', shopId).executeTakeFirstOrThrow();
-  return { name: s.name, cancelDeadlineHours: parseShopSettings(s.settings).booking.cancelDeadlineHours, settings: parseShopSettings(s.settings) };
+  const s = await ctx.trx.selectFrom('shops').select(['name', 'slug', 'timezone', 'settings']).where('id', '=', shopId).executeTakeFirstOrThrow();
+  return { name: s.name, slug: s.slug, timezone: s.timezone, cancelDeadlineHours: parseShopSettings(s.settings).booking.cancelDeadlineHours, settings: parseShopSettings(s.settings) };
 }
 
 export interface PublicBookingInput {

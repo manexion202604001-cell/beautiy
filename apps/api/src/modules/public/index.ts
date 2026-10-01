@@ -54,13 +54,26 @@ const plugin: FastifyPluginAsyncZod = async (app) => {
           staffId: uuid.optional(),
           from: isoDate,
           to: isoDate,
+          /** reschedule own booking (customer token required) */
+          excludeAppointmentId: uuid.optional(),
         }),
       },
     },
     async (req) => {
       const shop = await svc.resolveShopSlug(req.params.slug);
       return svc.publicTx(shop, req.meta, async (ctx) => {
-        const res = await computeAvailability(ctx, { shopId: shop.shopId, ...req.query, publicBooking: true });
+        const { excludeAppointmentId, ...query } = req.query;
+        let exclude: string | undefined;
+        if (excludeAppointmentId) {
+          const actor = req.actor;
+          const own =
+            actor?.kind === 'customer' && actor.organizationId === shop.organizationId
+              ? await ctx.trx.selectFrom('appointments').select('id').where('id', '=', excludeAppointmentId).where('customer_id', '=', actor.customerId).executeTakeFirst()
+              : undefined;
+          if (!own) throw Errors.forbidden('この予約の空き枠は確認できません');
+          exclude = own.id;
+        }
+        const res = await computeAvailability(ctx, { shopId: shop.shopId, ...query, excludeAppointmentId: exclude, publicBooking: true });
         // do not reveal which staff are free for フリー queries beyond what is needed
         return { ...res, days: res.days.map((d) => ({ date: d.date, slots: d.slots.map((s) => ({ start: s.start, end: s.end, staffIds: req.query.staffId ? [req.query.staffId] : s.staffIds })) })) };
       });

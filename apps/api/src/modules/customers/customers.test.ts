@@ -146,3 +146,14 @@ describe('customers', () => {
     expect(denied.status).toBe(403);
   });
 });
+
+describe('customer search refinements', () => {
+  it('finds customers by partial phone (prefix / last 4 digits)', async () => {
+    const t = await createTenant();
+    const c = (await t.owner.post('/v1/customers', { lastName: '部分', phone: '090-2468-1357' })).body.customer;
+    for (const q of ['1357', '090-2468', '0902468']) {
+      const res = await t.owner.get('/v1/customers', { q });
+      expect(res.body.items.map((x: { id: string }) => x.id), q).toContain(c.id);
+    }
+  });
+});

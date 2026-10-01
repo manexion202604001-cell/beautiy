@@ -6,6 +6,7 @@ import { Errors } from '../../lib/errors.js';
 import { emit } from '../../lib/events.js';
 import { normalizeEmail, normalizeKana, normalizePhone } from '../../lib/normalize.js';
 import { decodeCursor, paginate } from '../../lib/pagination.js';
+import { dayBounds } from '../../lib/time.js';
 import { assertCustomerAccess, canSeeAllCustomers, visibleCustomerFilter } from './access.js';
 import { findDuplicateCandidates } from './duplicates.js';
 import type { CreateCustomerInput, SearchCustomersInput, UpdateCustomerInput } from './schemas.js';
@@ -53,12 +54,15 @@ export async function searchCustomers(ctx: Ctx, input: SearchCustomersInput) {
   if (filter) q = q.where(filter);
 
   if (input.q) {
-    const term = normalizeKana(input.q);
+    const rawQ = input.q;
+    const term = normalizeKana(rawQ);
     const phone = normalizePhone(input.q);
     q = q.where((eb) =>
       eb.or([
         eb('customers.search_text', 'like', `%${term.replace(/[%_]/g, '\\$&')}%`),
         ...(phone ? [eb('customers.phone_normalized', '=', phone)] : []),
+        // partial phone (e.g. "090" prefix or last 4 digits) against the domestic format
+        ...(/^[\d-]{3,}$/.test(rawQ.trim()) ? [eb(sql`regexp_replace(customers.phone_normalized, '^[+]81', '0')`, 'like', `%${rawQ.replace(/\D/g, '')}%`)] : []),
         ...(term.length >= 3 ? [eb(sql`similarity(customers.search_text, ${term})`, '>', 0.3)] : []),
       ]),
     );
@@ -78,8 +82,12 @@ export async function searchCustomers(ctx: Ctx, input: SearchCustomersInput) {
     );
   }
   if (input.staffId) q = q.where('customers.primary_staff_id', '=', input.staffId);
-  if (input.lastVisitBefore) q = q.where('customers.last_visit_at', '<', new Date(input.lastVisitBefore));
-  if (input.lastVisitAfter) q = q.where('customers.last_visit_at', '>=', new Date(input.lastVisitAfter));
+  // date filters are interpreted in the organization's timezone (not UTC midnight)
+  if (input.lastVisitBefore || input.lastVisitAfter) {
+    const org = await ctx.trx.selectFrom('organizations').select('timezone').where('id', '=', ctx.actor.organizationId).executeTakeFirstOrThrow();
+    if (input.lastVisitBefore) q = q.where('customers.last_visit_at', '<', dayBounds(input.lastVisitBefore, org.timezone).start);
+    if (input.lastVisitAfter) q = q.where('customers.last_visit_at', '>=', dayBounds(input.lastVisitAfter, org.timezone).start);
+  }
   if (input.hasFutureAppointment !== undefined) {
     q = input.hasFutureAppointment ? q.where('customers.next_appointment_at', 'is not', null) : q.where('customers.next_appointment_at', 'is', null);
   }

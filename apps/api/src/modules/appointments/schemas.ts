@@ -61,4 +61,6 @@ export const availabilitySchema = z.object({
   staffId: uuid.optional(),
   from: isoDate,
   to: isoDate,
+  /** reschedule: ignore this appointment's own occupancy */
+  excludeAppointmentId: uuid.optional(),
 });

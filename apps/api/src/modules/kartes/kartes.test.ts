@@ -168,7 +168,13 @@ describe('kartes', () => {
     const shop2 = (await t.owner.post('/v1/shops', { name: '2号店', slug: `k2-${Date.now()}` })).body;
     const stylist = await createStaffUser(t, 'stylist'); // main shop only
     const reception = await createStaffUser(t, 'reception');
-    const manager = await createStaffUser(t, 'manager'); // main shop, but customer.read_all_shops
+    // cross-shop reader: custom role granting customer.read_all_shops (not part of the default manager role)
+    await t.owner.post('/v1/roles', {
+      key: 'area_manager',
+      name: 'エリアマネージャー',
+      permissions: ['staff.read', 'customer.read', 'customer.read_all_shops', 'karte.read', 'karte.write'],
+    });
+    const manager = await createStaffUser(t, 'area_manager');
     const c2 = await createCustomer(t, { primaryShopId: shop2.id });
     const shared = await createCustomer(t); // main shop customer
     const k2 = (await t.owner.post('/v1/kartes', { customerId: c2.id, shopId: shop2.id, fields: {}, note: '2号店の記録' })).body;

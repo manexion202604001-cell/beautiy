@@ -1,3 +1,4 @@
+import { sql } from 'kysely';
 import { signStaffAccessToken } from '../../auth/jwt.js';
 import { invalidateActorCache } from '../../auth/load-actor.js';
 import { config } from '../../config.js';
@@ -9,6 +10,7 @@ import { sendEmail } from '../../lib/mailer.js';
 const MAX_FAILED_LOGINS = 10;
 const LOCK_MINUTES = 15;
 const OTP_TTL_MIN = 10;
+const REUSE_GRACE_MS = 30_000;
 
 export interface LoginMeta {
   ip?: string;
@@ -179,7 +181,25 @@ export async function refresh(refreshToken: string, meta: LoginMeta): Promise<To
       .executeTakeFirst();
     if (!session) return { error: 'invalid' as const };
     if (session.revoked_at) {
-      await trx.updateTable('auth_sessions').set({ revoked_at: new Date() }).where('user_id', '=', session.user_id).where('revoked_at', 'is', null).execute();
+      // grace window: two tabs refreshing concurrently (or a lost response) replay the token within seconds of rotation
+      const recentChild = await trx
+        .selectFrom('auth_sessions')
+        .select('id')
+        .where('rotated_from', '=', session.id)
+        .where('created_at', '>', new Date(Date.now() - REUSE_GRACE_MS))
+        .executeTakeFirst();
+      if (recentChild) return { error: 'race' as const };
+      // genuine reuse: revoke only this token family (all sessions rotated from the same root), not every device
+      await sql`
+        WITH RECURSIVE up AS (
+          SELECT id, rotated_from FROM auth_sessions WHERE id = ${session.id}
+          UNION ALL SELECT s.id, s.rotated_from FROM auth_sessions s JOIN up ON s.id = up.rotated_from
+        ), root AS (SELECT id FROM up WHERE rotated_from IS NULL LIMIT 1),
+        down AS (
+          SELECT id FROM auth_sessions WHERE id = (SELECT id FROM root)
+          UNION ALL SELECT s.id FROM auth_sessions s JOIN down ON s.rotated_from = down.id
+        )
+        UPDATE auth_sessions SET revoked_at = now() WHERE id IN (SELECT id FROM down) AND revoked_at IS NULL`.execute(trx);
       return { error: 'reused' as const };
     }
     if (session.expires_at < new Date()) return { error: 'invalid' as const };
@@ -188,6 +208,9 @@ export async function refresh(refreshToken: string, meta: LoginMeta): Promise<To
     await trx.updateTable('auth_sessions').set({ revoked_at: new Date(), last_used_at: new Date() }).where('id', '=', session.id).execute();
     return { tokens: await issueTokens(trx, session.user_id, session.organization_id, membership.staff_id, meta, session.id) };
   });
+  if ('error' in result && result.error === 'race') {
+    throw Errors.conflict('REFRESH_IN_PROGRESS', 'トークンは既に更新されています。最新のトークンで再試行してください');
+  }
   if ('error' in result) {
     throw Errors.unauthenticated(
       result.error === 'reused' ? 'セッションが無効化されました。再度ログインしてください' : 'セッションの有効期限が切れました',

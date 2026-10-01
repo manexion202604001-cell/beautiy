@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { withSystem } from '../../db/tenant.js';
 import { api, createStaffUser, createTenant } from '../../test/helpers.js';
 
 describe('auth & organization', () => {
@@ -27,17 +28,27 @@ describe('auth & organization', () => {
     expect(locked.body.error.code).toBe('ACCOUNT_LOCKED');
   });
 
-  it('rotates refresh tokens and detects reuse', async () => {
+  it('rotates refresh tokens, tolerates concurrent refresh, and revokes only the reused family', async () => {
     const t = await createTenant();
     const login = await api().post('/v1/auth/login', { email: t.email, password: t.password });
+    const otherDevice = await api().post('/v1/auth/login', { email: t.email, password: t.password });
     expect(login.body.status).toBe('authenticated');
     const r1 = await api().post('/v1/auth/refresh', { refreshToken: login.body.refreshToken });
     expect(r1.status).toBe(200);
+    // replay within the grace window (two tabs) → 409, nothing revoked
+    const race = await api().post('/v1/auth/refresh', { refreshToken: login.body.refreshToken });
+    expect(race.status).toBe(409);
+    expect(race.body.error.code).toBe('REFRESH_IN_PROGRESS');
+    // age the rotation beyond the grace window → genuine reuse
+    await withSystem((trx) => trx.updateTable('auth_sessions').set({ created_at: new Date(Date.now() - 120_000) }).where('user_id', 'is not', null).where('revoked_at', 'is', null).execute());
     const reuse = await api().post('/v1/auth/refresh', { refreshToken: login.body.refreshToken });
     expect(reuse.body.error.code).toBe('REFRESH_TOKEN_REUSED');
-    // the whole family is revoked
+    // the whole family is revoked …
     const r2 = await api().post('/v1/auth/refresh', { refreshToken: r1.body.refreshToken });
     expect(r2.status).toBe(401);
+    // … but other devices keep working
+    const other = await api().post('/v1/auth/refresh', { refreshToken: otherDevice.body.refreshToken });
+    expect(other.status).toBe(200);
   });
 
   it('supports MFA with email OTP', async () => {
