@@ -170,3 +170,106 @@ export async function createCustomer(tenant: Tenant, overrides: Record<string, u
   if (res.status !== 201) throw new Error(`customer create failed ${JSON.stringify(res.body)}`);
   return res.body.customer as { id: string };
 }
+
+// ---------------------------------------------------------------- messaging fixtures (LINE webhook / channels / jobs)
+import { sql as _msgSql } from 'kysely';
+import { hmacSha256 as _msgHmac } from '../lib/crypto.js';
+import { clock as _messagingClock } from '../modules/messaging/clock.js';
+import { mockBotUserId as _mockBotUserId } from '../modules/messaging/providers/line.js';
+import { processLineEvent as _processLineEvent, verifyLineWebhook as _verifyLineWebhook } from '../modules/messaging/webhook.js';
+
+export interface TestLineChannel {
+  id: string;
+  channelId: string;
+  secret: string;
+  accessToken: string;
+  botUserId: string;
+}
+
+export async function createLineChannel(t: Tenant, opts: { shopId?: string | null } = {}): Promise<TestLineChannel> {
+  const suffix = randomUUID().replace(/-/g, '');
+  const body = {
+    shopId: opts.shopId ?? null,
+    channelId: `ch-${suffix.slice(0, 12)}`,
+    name: 'テストLINE',
+    channelSecret: `secret-${suffix}`,
+    accessToken: `token-${suffix}`,
+  };
+  const res = await t.owner.post('/v1/line-channels', body);
+  if (res.status !== 201) throw new Error(`line channel create failed: ${res.status} ${JSON.stringify(res.body)}`);
+  return { id: res.body.id, channelId: body.channelId, secret: body.channelSecret, accessToken: body.accessToken, botUserId: _mockBotUserId(body.accessToken) };
+}
+
+export function lineUserId(): string {
+  return `U${randomUUID().replace(/-/g, '')}`;
+}
+
+let lineSeq = 0;
+export function lineEvent(type: string, userId: string, extra: Record<string, unknown> = {}) {
+  lineSeq++;
+  return {
+    type,
+    mode: 'active',
+    timestamp: Date.now(),
+    webhookEventId: `01H${randomUUID().replace(/-/g, '').slice(0, 20).toUpperCase()}${lineSeq}`,
+    deliveryContext: { isRedelivery: false },
+    source: { type: 'user', userId },
+    ...extra,
+  };
+}
+
+export function textEvent(userId: string, text: string) {
+  return lineEvent('message', userId, { replyToken: 'r', message: { id: `m${Date.now()}${lineSeq}`, type: 'text', text } });
+}
+
+export function signedDelivery(channel: TestLineChannel, events: unknown[], opts: { secret?: string; destination?: string } = {}) {
+  const body = { destination: opts.destination ?? channel.botUserId, events };
+  const rawBody = JSON.stringify(body);
+  const signature = _msgHmac(opts.secret ?? channel.secret, rawBody, 'base64');
+  return { provider: 'line', headers: { 'x-line-signature': signature, 'content-type': 'application/json' }, rawBody, body };
+}
+
+/** verify + process a delivery like the generic webhook route would (each split event in its own tx) */
+export async function deliverWebhook(t: Tenant, channel: TestLineChannel, events: unknown[]) {
+  const verified = await _verifyLineWebhook(signedDelivery(channel, events));
+  if (!verified.signatureValid) throw new Error('signature invalid');
+  const results: string[] = [];
+  for (const ev of verified.events ?? []) {
+    results.push(await asSystem(t.organizationId, (ctx) => _processLineEvent(ctx, { eventId: ev.eventId, eventType: ev.eventType ?? null, payload: ev.payload })));
+  }
+  return { verified, results };
+}
+
+/** Follow the LINE account as a new user → returns the resolved customer id */
+export async function lineFollower(t: Tenant, channel: TestLineChannel, userId = lineUserId()) {
+  await deliverWebhook(t, channel, [lineEvent('follow', userId)]);
+  const row = await asSystem(t.organizationId, (ctx) =>
+    ctx.trx.selectFrom('customer_identities').select('customer_id').where('provider', '=', 'line').where('external_id', '=', userId).executeTakeFirstOrThrow(),
+  );
+  return { userId, customerId: row.customer_id };
+}
+
+export function messagesOf(t: Tenant, customerId: string) {
+  return asSystem(t.organizationId, (ctx) => ctx.trx.selectFrom('messages').selectAll().where('customer_id', '=', customerId).orderBy('created_at').orderBy('id').execute());
+}
+
+export function updateCustomer(t: Tenant, customerId: string, patch: Record<string, unknown>) {
+  return asSystem(t.organizationId, (ctx) => ctx.trx.updateTable('customers').set(patch).where('id', '=', customerId).execute());
+}
+
+/** Make queued jobs of this tenant runnable now (skip backoff / scheduled delays) */
+export function makeJobsDue(t: Tenant, filter: { type?: string } = {}) {
+  return asSystem(t.organizationId, (ctx) => {
+    let q = ctx.trx.updateTable('jobs').set({ run_at: _msgSql`now() - interval '1 second'` }).where('state', '=', 'queued').where('organization_id', '=', t.organizationId);
+    if (filter.type) q = q.where('type', '=', filter.type);
+    return q.execute();
+  });
+}
+
+export function daysAgo(n: number) {
+  return new Date(Date.now() - n * 86_400_000);
+}
+
+export function setClock(d: Date | null) {
+  _messagingClock.now = d ? () => new Date(d) : () => new Date();
+}

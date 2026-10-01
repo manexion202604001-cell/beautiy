@@ -65,7 +65,8 @@ src/
 | appointment.confirmed / checked_in / in_service / completed / cancelled / no_show / restored | { shopId, customerId, staffId, startAt, from, to, reason, cancelledBy } | appointments |
 | payment.succeeded / failed / refunded | { paymentId, transactionId, orderId, amount, refundedAmount? } | payments |
 | transaction.completed / voided / refunded | { transactionId, shopId, customerId, appointmentId, total, completedAt } | pos |
-| message.sent / message.failed | { messageId, customerId, channel } | messaging |
+| message.sent / message.failed | { messageId, customerId, channel } (+ error on failed) | messaging |
+| message.received | { messageId, customerId, channel, shopId } (LINE受信: text/image/sticker/postback) | messaging |
 | karte.created / karte.shared | { karteId, customerId, shopId } | kartes |
 | review.submitted | { reviewId, shopId, staffId, rating } | reviews |
 | order.paid / order.shipped / order.cancelled | { orderId, customerId, total } | commerce |
