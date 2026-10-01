@@ -170,3 +170,26 @@ export async function createCustomer(tenant: Tenant, overrides: Record<string, u
   if (res.status !== 201) throw new Error(`customer create failed ${JSON.stringify(res.body)}`);
   return res.body.customer as { id: string };
 }
+
+// ---- appended by reviews/marketing/commerce modules
+
+/** Make queued (delayed) jobs of a tenant due now, optionally only one job type */
+export async function makeJobsDue(organizationId: string, type?: string): Promise<number> {
+  return asSystem(organizationId, async (ctx) => {
+    let q = ctx.trx.updateTable('jobs').set({ run_at: new Date(Date.now() - 1000) }).where('state', '=', 'queued');
+    if (type) q = q.where('type', '=', type);
+    const res = await q.executeTakeFirst();
+    return Number(res.numUpdatedRows);
+  });
+}
+
+/** API client authenticated as a customer (same token as issued after LINE/OTP login) */
+export async function customerApi(tenant: Tenant, customerId: string): Promise<Api> {
+  const { signCustomerToken } = await import('../auth/jwt.js');
+  return api(await signCustomerToken({ sub: customerId, org: tenant.organizationId, via: 'otp' }));
+}
+
+/** Public slug of the tenant's first shop */
+export async function shopSlug(tenant: Tenant): Promise<string> {
+  return (await tenant.owner.get(`/v1/shops/${tenant.shopId}`)).body.slug as string;
+}

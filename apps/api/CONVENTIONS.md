@@ -67,9 +67,11 @@ src/
 | transaction.completed / voided / refunded | { transactionId, shopId, customerId, appointmentId, total, completedAt } | pos |
 | message.sent / message.failed | { messageId, customerId, channel } | messaging |
 | karte.created / karte.shared | { karteId, customerId, shopId } | kartes |
-| review.submitted | { reviewId, shopId, staffId, rating } | reviews |
-| order.paid / order.shipped / order.cancelled | { orderId, customerId, total } | commerce |
-| integration.degraded / integration.recovered | { integrationAccountId, provider } | integrations |
+| review.submitted | { reviewId, shopId, staffId, rating } (内部口コミ投稿時のみ。Google取込では発行しない) | reviews |
+| order.paid | { orderId, customerId, total, shopId, referralLinkId, attributedStaffId } | commerce |
+| order.shipped | { orderId, customerId, total, carrier, trackingNumber } | commerce |
+| order.cancelled | { orderId, customerId, total, refundedAmount, reason } | commerce |
+| integration.degraded / integration.recovered | { integrationAccountId, provider } | integrations, reviews (Google Business Profile) |
 
 新しいイベントを追加したら本表に追記すること。
 

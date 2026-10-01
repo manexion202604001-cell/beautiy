@@ -823,6 +823,7 @@ export interface OrderItems {
   organization_id: string;
   product_id: string;
   quantity: number;
+  sort_order: Generated<number>;
   tax_amount: Generated<number>;
   tax_rate_bp: number;
   unit_price: number;
@@ -841,18 +842,25 @@ export interface Orders {
   customer_id: string | null;
   delivered_at: Timestamp | null;
   discount_total: Generated<number>;
+  expires_at: Timestamp | null;
   id: Generated<string>;
+  idempotency_key: string | null;
   is_subscription: Generated<boolean>;
   note: string | null;
   order_number: string;
   organization_id: string;
   paid_at: Timestamp | null;
+  paid_payment_id: string | null;
+  payment_attempts: Generated<number>;
+  payment_failed_at: Timestamp | null;
   referral_link_id: string | null;
+  refunded_amount: Generated<number>;
   shipped_at: Timestamp | null;
   shipping_address: Json | null;
   shipping_fee: Generated<number>;
   shop_id: string | null;
   status: Generated<string>;
+  stock_released_at: Timestamp | null;
   subtotal: Generated<number>;
   tax_total: Generated<number>;
   total: Generated<number>;
@@ -1000,6 +1008,7 @@ export interface ReferralLinks {
   created_at: Generated<Timestamp>;
   created_by: string | null;
   customer_id: string | null;
+  deleted_at: Timestamp | null;
   id: Generated<string>;
   is_active: Generated<boolean>;
   name: string;
@@ -1008,6 +1017,7 @@ export interface ReferralLinks {
   staff_id: string | null;
   target: Generated<string>;
   target_id: string | null;
+  updated_at: Generated<Timestamp>;
   utm: Generated<Json>;
 }
 
@@ -1094,18 +1104,21 @@ export interface Reviews {
   customer_id: string | null;
   external_review_id: string | null;
   id: Generated<string>;
+  integration_account_id: string | null;
   organization_id: string;
   posted_at: Generated<Timestamp>;
   rating: number;
   replied_at: Timestamp | null;
   replied_by: string | null;
   reply_body: string | null;
+  reply_sync_error: string | null;
   reply_synced_at: Timestamp | null;
   review_request_id: string | null;
   reviewer_name: string | null;
   shop_id: string;
   source: Generated<string>;
   staff_id: string | null;
+  staff_rating: number | null;
   status: Generated<string>;
   title: string | null;
   updated_at: Generated<Timestamp>;
@@ -1204,11 +1217,14 @@ export interface SnsAssets {
   created_at: Generated<Timestamp>;
   created_by: string | null;
   customer_consent: Generated<boolean>;
+  deleted_at: Timestamp | null;
   file_id: string | null;
   hashtags: Generated<string[]>;
   id: Generated<string>;
   karte_asset_id: string | null;
   organization_id: string;
+  review_id: string | null;
+  shop_id: string | null;
   staff_id: string | null;
   template: string;
 }
