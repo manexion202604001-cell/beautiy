@@ -65,7 +65,8 @@ src/
 | appointment.confirmed / checked_in / in_service / completed / cancelled / no_show / restored | { shopId, customerId, staffId, startAt, from, to, reason, cancelledBy } | appointments |
 | payment.succeeded / failed / refunded | { paymentId, transactionId, orderId, amount, refundedAmount? } (オンライン決済の成否・全返金。店頭オフライン決済は succeeded を発行しない) | payments |
 | transaction.completed / voided / refunded | { transactionId, shopId, customerId, appointmentId, total, completedAt } + completed: { staffId, transactionNumber } / voided: { reason } / refunded: { refundedAmount, refundedTotal, status } | pos |
-| message.sent / message.failed | { messageId, customerId, channel } | messaging |
+| message.sent / message.failed | { messageId, customerId, channel } (+ error on failed) | messaging |
+| message.received | { messageId, customerId, channel, shopId } (LINE受信: text/image/sticker/postback) | messaging |
 | karte.created / karte.shared | { karteId, customerId, shopId } | kartes |
 | form.submitted | { responseId, templateId, kind, customerId, appointmentId, karteId, shopId, via } | kartes |
 | review.submitted | { reviewId, shopId, staffId, rating } (内部口コミ投稿時のみ。Google取込では発行しない) | reviews |

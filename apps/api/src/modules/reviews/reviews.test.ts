@@ -68,7 +68,9 @@ describe('automatic review requests', () => {
     await runJobs();
     const reqs = await requestsOf(t, customer.id);
     expect(reqs).toHaveLength(1);
-    expect(reqs[0]).toMatchObject({ appointment_id: appt.id, transaction_id: txId, staff_id: stylist.staffId, status: 'created' });
+    expect(reqs[0]).toMatchObject({ appointment_id: appt.id, transaction_id: txId, staff_id: stylist.staffId });
+    // with the messaging module the request message is delivered in the same drain (created → sent on message.sent)
+    expect(['created', 'sent']).toContain(reqs[0]!.status);
     expect(reqs[0]!.access_token_id).toBeTruthy();
     const msg = await asSystem(t.organizationId, (ctx) => ctx.trx.selectFrom('messages').selectAll().where('id', '=', reqs[0]!.message_id!).executeTakeFirstOrThrow());
     expect(msg.category).toBe('marketing');
