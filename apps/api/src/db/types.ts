@@ -1065,6 +1065,7 @@ export interface Refunds {
   payment_id: string;
   provider_refund_id: string | null;
   reason: string | null;
+  register_session_id: string | null;
   status: Generated<string>;
   updated_at: Generated<Timestamp>;
 }
@@ -1385,17 +1386,21 @@ export interface Tags {
 }
 
 export interface TransactionItems {
+  allocated_discount: Generated<number>;
   amount: number;
   coupon_id: string | null;
   created_at: Generated<Timestamp>;
+  details: Generated<Json>;
   id: Generated<string>;
   item_type: string;
   line_discount: Generated<number>;
   menu_id: string | null;
   name: string;
+  net_amount: Generated<number>;
   organization_id: string;
   product_id: string | null;
   quantity: Generated<number>;
+  returned_quantity: Generated<number>;
   sort_order: Generated<number>;
   tax_amount: Generated<number>;
   tax_rate_bp: Generated<number>;
@@ -1415,6 +1420,7 @@ export interface TransactionItemStaff {
 }
 
 export interface Transactions {
+  appointment_completed_by_tx: Generated<boolean>;
   appointment_id: string | null;
   change_total: Generated<number>;
   completed_at: Timestamp | null;
@@ -1425,6 +1431,7 @@ export interface Transactions {
   discount_total: Generated<number>;
   id: Generated<string>;
   is_new_customer: boolean | null;
+  is_nominated: Generated<boolean>;
   note: string | null;
   organization_id: string;
   paid_total: Generated<number>;
@@ -1433,6 +1440,7 @@ export interface Transactions {
   refunded_total: Generated<number>;
   register_session_id: string | null;
   shop_id: string;
+  staff_id: string | null;
   status: Generated<string>;
   subtotal: Generated<number>;
   tax_breakdown: Generated<Json>;
