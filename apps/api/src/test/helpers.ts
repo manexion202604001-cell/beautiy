@@ -189,3 +189,76 @@ export async function uploadTestFile(
   if (done.status !== 200) throw new Error(`complete failed: ${done.status} ${JSON.stringify(done.body)}`);
   return { fileId: pre.body.fileId as string };
 }
+
+// ---------------------------------------------------------------- integrations / ops helpers
+import { withSystem as withSystemTx } from '../db/tenant.js';
+
+/** Make queued jobs due now (skips retry backoff), optionally only some job types */
+export async function expediteJobs(types?: string[]): Promise<number> {
+  const res = await withSystemTx((trx) =>
+    trx
+      .updateTable('jobs')
+      .set({ run_at: new Date(Date.now() - 1000) })
+      .where('state', '=', 'queued')
+      .where('run_at', '>', new Date())
+      .$if(!!types?.length, (q) => q.where('type', 'in', types!))
+      .executeTakeFirst(),
+  );
+  return Number(res.numUpdatedRows);
+}
+
+/** Drain jobs repeatedly, expediting retries in between (simulates the passage of backoff time) */
+export async function runJobsWithRetries(rounds = 10, types?: string[]): Promise<void> {
+  for (let i = 0; i < rounds; i++) {
+    await drainJobs();
+    if ((await expediteJobs(types)) === 0) break;
+  }
+}
+
+/**
+ * Auth routes are rate limited per client IP (20/min). Suites that create many tenants use these
+ * variants, which present a distinct X-Forwarded-For per call (trustProxy is enabled).
+ */
+let unthrottledIp = 0;
+function nextClientIp(): Record<string, string> {
+  unthrottledIp++;
+  return { 'x-forwarded-for': `10.${(unthrottledIp >> 16) & 255}.${(unthrottledIp >> 8) & 255}.${unthrottledIp & 255}` };
+}
+
+export async function createTenantUnthrottled(name = 'テストサロン'): Promise<Tenant> {
+  const suffix = randomUUID().slice(0, 8);
+  const email = `owner-${suffix}@example.com`;
+  const res = await api().post(
+    '/v1/auth/signup',
+    { organizationName: name, organizationSlug: `org-${suffix}`, shopName: `${name} 本店`, shopSlug: `shop-${suffix}`, ownerName: 'オーナー 太郎', email, password: PASSWORD },
+    nextClientIp(),
+  );
+  if (res.status !== 201) throw new Error(`signup failed: ${res.status} ${JSON.stringify(res.body)}`);
+  const token = res.body.auth.accessToken as string;
+  return { organizationId: res.body.organizationId, shopId: res.body.shopId, ownerStaffId: res.body.staffId, ownerToken: token, owner: api(token), email, password: PASSWORD };
+}
+
+export async function createStaffUserUnthrottled(
+  tenant: Tenant,
+  roleKey: string,
+  opts: { shopIds?: string[]; displayName?: string; isBookable?: boolean } = {},
+): Promise<{ staffId: string; token: string; api: Api }> {
+  const roles = await tenant.owner.get('/v1/roles');
+  const role = (roles.body as { id: string; key: string }[]).find((r) => r.key === roleKey);
+  if (!role) throw new Error(`role ${roleKey} not found`);
+  const suffix = randomUUID().slice(0, 8);
+  const email = `${roleKey}-${suffix}@example.com`;
+  const created = await tenant.owner.post('/v1/staff', {
+    displayName: opts.displayName ?? `${roleKey} ${suffix}`,
+    email,
+    initialPassword: PASSWORD,
+    roleId: role.id,
+    shopIds: opts.shopIds ?? [tenant.shopId],
+    isBookable: opts.isBookable ?? true,
+    nominationFee: 0,
+  });
+  if (created.status !== 201) throw new Error(`staff create failed: ${JSON.stringify(created.body)}`);
+  const login = await api().post('/v1/auth/login', { email, password: PASSWORD, organizationId: tenant.organizationId }, nextClientIp());
+  if (login.body.status !== 'authenticated') throw new Error(`login failed: ${JSON.stringify(login.body)}`);
+  return { staffId: created.body.staff.id, token: login.body.accessToken, api: api(login.body.accessToken) };
+}

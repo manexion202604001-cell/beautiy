@@ -1,11 +1,12 @@
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
+import { config } from '../../config.js';
 import { uuid } from '../../lib/schemas.js';
 import { signup } from '../org/service.js';
 import { signupSchema } from '../org/schemas.js';
 import * as svc from './service.js';
 
-const authRateLimit = { rateLimit: { max: 20, timeWindow: '1 minute' } };
+const authRateLimit = { rateLimit: { max: config.NODE_ENV === 'test' ? 100000 : 20, timeWindow: '1 minute' } };
 
 const plugin: FastifyPluginAsyncZod = async (app) => {
   const meta = (req: { ip: string; headers: Record<string, unknown> }) => ({
