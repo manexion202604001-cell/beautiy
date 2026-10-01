@@ -52,9 +52,10 @@ import {
   formatYen,
 } from '../../../lib/format';
 import { CustomerKartesTab, CustomerFormsTab } from '../kartes/CustomerKarteTabs';
+import { CustomerMessagesTab } from '../messages/CustomerMessagesTab';
 import { CustomerForm, toInitial } from './CustomerForm';
 
-type Tab = 'profile' | 'visits' | 'timeline' | 'memos' | 'tags' | 'duplicates' | 'kartes' | 'forms';
+type Tab = 'profile' | 'visits' | 'timeline' | 'memos' | 'tags' | 'duplicates' | 'kartes' | 'forms' | 'messages';
 
 export default function CustomerDetail() {
   const { id = '' } = useParams();
@@ -263,6 +264,7 @@ export default function CustomerDetail() {
                 ]
               : []),
             { value: 'tags', label: 'タグ' },
+            { value: 'messages', label: 'メッセージ' },
             {
               value: 'duplicates',
               label: '重複候補・統合',
@@ -282,6 +284,7 @@ export default function CustomerDetail() {
             ) : null}
             {tab === 'tags' ? <TagsTab c={c} /> : null}
             {tab === 'duplicates' ? <DuplicatesTab c={c} /> : null}
+            {tab === 'messages' ? <CustomerMessagesTab customerId={c.id} customerName={c.display_name} /> : null}
           </TabPanel>
         </div>
       </div>

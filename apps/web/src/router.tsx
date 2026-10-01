@@ -46,6 +46,15 @@ const StoreProduct = lazy(() => import('./routes/public/store/ProductPage'));
 const StoreCart = lazy(() => import('./routes/public/store/CartPage'));
 const StoreCheckout = lazy(() => import('./routes/public/store/CheckoutPage'));
 const StoreOrder = lazy(() => import('./routes/public/store/OrderStatus'));
+// pass2-b: messaging / campaigns / analytics / integrations / ops + public link pages
+const Messages = lazy(() => import('./routes/app/messages/Messages'));
+const Campaigns = lazy(() => import('./routes/app/campaigns/Campaigns'));
+const Analytics = lazy(() => import('./routes/app/analytics/Analytics'));
+const Integrations = lazy(() => import('./routes/app/integrations/Integrations'));
+const Ops = lazy(() => import('./routes/app/ops/Ops'));
+const Unsubscribe = lazy(() => import('./routes/public/Unsubscribe'));
+const LineLink = lazy(() => import('./routes/public/LineLink'));
+const ShortLink = lazy(() => import('./routes/public/ShortLink'));
 
 const s = (el: ReactNode) => <Suspense fallback={<PageSpinner />}>{el}</Suspense>;
 
@@ -86,6 +95,10 @@ export const router = createBrowserRouter([
     { path: '/shop/:shopSlug', el: <Storefront /> },
     { path: '/shop/:shopSlug/products/:id', el: <StoreProduct /> },
   ].map((r) => ({ path: r.path, element: s(r.el), errorElement: <RouteError /> })),
+  // pass2-b
+  { path: '/unsubscribe', element: s(<Unsubscribe />), errorElement: <RouteError /> },
+  { path: '/line/link', element: s(<LineLink />), errorElement: <RouteError /> },
+  { path: '/s/:shopSlug/*', element: s(<ShortLink />), errorElement: <RouteError /> },
   {
     path: '/app',
     element: (
@@ -119,6 +132,12 @@ export const router = createBrowserRouter([
       { path: 'kartes/:id', element: s(<KarteEditor />) },
       { path: 'reviews', element: s(<ReviewsPage />) },
       { path: 'commerce', element: s(<CommercePage />) },
+      // pass2-b
+      { path: 'messages', element: s(<Messages />) },
+      { path: 'campaigns', element: s(<Campaigns />) },
+      { path: 'analytics', element: s(<Analytics />) },
+      { path: 'integrations', element: s(<Integrations />) },
+      { path: 'ops', element: s(<Ops />) },
       { path: '*', element: <NotFound inApp /> },
     ],
   },

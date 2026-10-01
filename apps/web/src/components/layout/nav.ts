@@ -39,12 +39,12 @@ export const NAV: NavSection[] = [
     ],
   },
   {
-    label: '近日公開',
+    label: '施術・会計・CRM',
     items: [
       { to: '/app/pos', label: '会計', icon: 'receipt', permissions: ['pos.read'] },
       { to: '/app/kartes', label: 'カルテ', icon: 'file', permissions: ['karte.read'] },
-      { to: '/app/soon/messages', label: 'メッセージ', icon: 'message', soon: true },
-      { to: '/app/soon/campaigns', label: '配信', icon: 'send', soon: true },
+      { to: '/app/messages', label: 'メッセージ', icon: 'message', permissions: ['message.read'] },
+      { to: '/app/campaigns', label: '配信', icon: 'send', permissions: ['campaign.manage', 'template.manage', 'marketing.manage'] },
       {
         to: '/app/reviews',
         label: '口コミ',
@@ -57,9 +57,9 @@ export const NAV: NavSection[] = [
         icon: 'bag',
         permissions: ['product.manage', 'order.manage'],
       },
-      { to: '/app/soon/analytics', label: '分析', icon: 'chart', soon: true },
-      { to: '/app/soon/integrations', label: '外部連携', icon: 'plug', soon: true },
-      { to: '/app/soon/ops', label: '運用・監査', icon: 'shield', soon: true },
+      { to: '/app/analytics', label: '分析', icon: 'chart', permissions: ['analytics.read', 'analytics.read_own', 'sales.read', 'sales.read_own'] },
+      { to: '/app/integrations', label: '外部連携', icon: 'plug', permissions: ['integration.manage'] },
+      { to: '/app/ops', label: '運用・監査', icon: 'shield', permissions: ['ops.manage', 'audit.read', 'export.data'] },
     ],
   },
 ];

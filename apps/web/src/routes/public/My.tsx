@@ -7,7 +7,6 @@ import { SlotPicker } from '../../components/appointments/Pickers';
 import { StatusBadge } from '../../components/appointments/StatusBadge';
 import {
   Alert,
-  Badge,
   Button,
   ButtonLink,
   ConfirmDialog,
@@ -28,6 +27,7 @@ import { WEEKDAYS_JA, formatDateJa, formatDateTime, formatTime, formatYen } from
 import { customerSession, type CustomerSession } from '../../lib/session';
 import { addDays, todayIn, weekdayOf, zonedParts } from '../../lib/time';
 import { CustomerLogin } from './CustomerLogin';
+import { NotificationChannels } from './NotificationChannels';
 import { PublicShell, ShopHeader } from './PublicShell';
 import { MyOrders } from './store/MyOrders';
 
@@ -573,18 +573,7 @@ function NotificationsTab({
         description="ご予約の確認やリマインドは、この設定に関わらずお送りします。"
       />
       <div className="border-t border-border pt-4">
-        <p className="mb-3 flex items-center gap-2 text-[13px] font-medium">
-          通知チャネルの選択{' '}
-          <Badge size="sm" tone="outline">
-            準備中
-          </Badge>
-        </p>
-        <div className="space-y-3 opacity-60">
-          <Switch checked onChange={() => undefined} disabled label="LINEで受け取る" />
-          <Switch checked={false} onChange={() => undefined} disabled label="メールで受け取る" />
-          <Switch checked={false} onChange={() => undefined} disabled label="SMSで受け取る" />
-        </div>
-        <p className="mt-3 text-xs text-muted">チャネルごとの通知設定は近日公開予定です。</p>
+        <NotificationChannels token={token} marketingOptIn={profile.marketing_opt_in} />
       </div>
     </div>
   );
