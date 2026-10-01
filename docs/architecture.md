@@ -475,13 +475,15 @@ flowchart TB
 
 | 区分 | 内容 | 対応方針 |
 |---|---|---|
-| バグ | `PATCH /customer-memos/:id` の入力スキーマが `memoSchema.partial()` で、`visibility` の `.default('shared')` が部分更新時にも適用される（zod 4 の仕様）。ピン留め等の更新でプライベートメモが共有に変わる | 更新用スキーマを `.default()` なしで定義する（CONVENTIONS 6 に従う） |
-| セキュリティ | 招待トークンは署名付き7日間で、受諾済み・既存パスワードありでも有効期間内は再利用でき、トークンだけでログインが成立する | `access_tokens(max_uses=1)` 化、または `staffs.status='invited'` の場合のみ受諾可にする |
-| セキュリティ | ゲスト予約の電話番号（未検証）で既存顧客へ自動紐付けされる | requirements 4.4 / 23.1 の判断に従う |
-| 性能 | `loginWithLine()` が LINE の ID トークン検証（外部 HTTP）をテナントトランザクション内で実行 | 検証をトランザクション前へ移動 |
-| 運用 | `package.json` の `db:seed`（`src/db/seed.ts`）・`openapi`（`src/scripts/openapi.ts`）スクリプトの実体が未作成、`infra/` 未整備 | Phase 1 で作成（本書 9.1 の compose を参照） |
+| セキュリティ | `audit_logs` の TRUNCATE が行トリガでは防げない | **解決済**: マイグレーション 0092 で `BEFORE TRUNCATE` トリガを追加 |
+| 運用 | ジョブ dedupe が実行中ジョブにも効き、実行中に投入された再計算が失われる | **解決済**: マイグレーション 0091 で dedupe 対象を `queued` のみに変更 |
+| バグ | `PATCH /customer-memos/:id` の入力スキーマが `memoSchema.partial()` で、`visibility` の `.default('shared')` が部分更新時にも適用される（zod 4 の仕様）。ピン留め等の更新でプライベートメモが共有に変わる | **解決済**: `updateMemoSchema`（default なし）に変更、回帰テスト `org/security-regressions.test.ts` |
+| セキュリティ | 招待トークンは署名付き7日間で、受諾済み・既存パスワードありでも有効期間内は再利用でき、トークンだけでログインが成立する | **解決済**: `staffs.status='invited'` の場合のみ受諾可（単回利用）。既存アカウントは現行パスワードの照合を必須化 |
+| セキュリティ | ゲスト予約の電話番号（未検証）で既存顧客へ自動紐付けされる | **解決済**: 未検証連絡先は「連絡先一致 かつ 氏名(漢字/カナ)一致」の場合のみ紐付け（`contactMatchRequiresName`）。不一致は新規作成し名寄せ候補へ |
+| 性能 | `loginWithLine()` が LINE の ID トークン検証（外部 HTTP）をテナントトランザクション内で実行 | **解決済**: チャネル取得と検証を分離し、外部HTTPはトランザクション外で実行 |
+| 運用 | `package.json` の `db:seed`（`src/db/seed.ts`）・`openapi`（`src/scripts/openapi.ts`）スクリプトの実体が未作成、`infra/` 未整備 | **解決済**: `src/db/seed.ts`・`src/scripts/openapi.ts`（`docs/openapi.json` 生成）・`infra/docker-compose.yml` を追加 |
 | 運用 | 顧客 CSV は同期出力（最大10万件）で、要件の非同期エクスポート（`data_exports`）とは別経路 | 大規模法人向けに ops の非同期エクスポートへ誘導、同期版は上限を下げる |
 | 規約差異 | `/appointments` 等のカレンダー系一覧は cursor pagination ではなく日付範囲 + 上限 | requirements 8.1.1 に例外として明記済み |
-| バグ | `PATCH /roles/:id` の入力スキーマが `roleSchema.omit({ key: true }).partial()` で、`permissions` の `.default([])` が部分更新時にも適用される。名前だけを変更すると `permissions=[]` となり、`updateRole()` がロールの全権限を削除する（オーナーロールは `OWNER_ROLE_IMMUTABLE` で拒否されるが、店長等のシステムロール・カスタムロールは権限を失う） | 更新用スキーマを `.default()` なしで定義する。回帰テストを追加 |
+| バグ | `PATCH /roles/:id` の入力スキーマが `roleSchema.omit({ key: true }).partial()` で、`permissions` の `.default([])` が部分更新時にも適用される。名前だけを変更すると `permissions=[]` となり、`updateRole()` がロールの全権限を削除する（オーナーロールは `OWNER_ROLE_IMMUTABLE` で拒否されるが、店長等のシステムロール・カスタムロールは権限を失う） | **解決済**: `updateRoleSchema`（default なし）に変更、回帰テスト追加 |
 | 設計 | `role_permissions.permission_key` は文字列で DB 制約がない | `createRole` / `updateRole` の `assertValidPermissions()` で検証済み。DB 側の CHECK は権限追加のたびにマイグレーションが必要になるため設けない |
 | 設計 | アクター権限キャッシュはプロセスローカル（15秒）。複数台構成ではロール変更の反映が最大15秒遅れる | 許容（重要操作は監査で追跡）。即時性が必要になれば LISTEN/NOTIFY で無効化 |

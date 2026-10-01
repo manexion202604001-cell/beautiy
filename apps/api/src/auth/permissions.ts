@@ -88,7 +88,7 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
     key: 'manager',
     name: '店長',
     description: '担当店舗の運営全般',
-    permissions: ALL_PERMISSIONS.filter((p) => !['org.manage', 'role.manage', 'customer.delete'].includes(p)),
+    permissions: ALL_PERMISSIONS.filter((p) => !['org.manage', 'role.manage', 'customer.delete', 'customer.read_all_shops'].includes(p)),
     allShops: false,
   },
   {
