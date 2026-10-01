@@ -29,8 +29,9 @@ import { customerSession, type CustomerSession } from '../../lib/session';
 import { addDays, todayIn, weekdayOf, zonedParts } from '../../lib/time';
 import { CustomerLogin } from './CustomerLogin';
 import { PublicShell, ShopHeader } from './PublicShell';
+import { MyOrders } from './store/MyOrders';
 
-type Tab = 'appointments' | 'profile' | 'notifications';
+type Tab = 'appointments' | 'orders' | 'profile' | 'notifications';
 
 export default function My() {
   const params = useParams();
@@ -124,7 +125,9 @@ function MyPage({
   session: CustomerSession;
   onLogout: () => void;
 }) {
-  const [tab, setTab] = useState<Tab>('appointments');
+  const [tab, setTab] = useState<Tab>(() =>
+    new URLSearchParams(window.location.search).get('tab') === 'orders' ? 'orders' : 'appointments',
+  );
   const profile = useQuery({
     queryKey: ['public', 'me', session.token],
     queryFn: () => publicApi.me(session.token),
@@ -164,6 +167,7 @@ function MyPage({
         className="w-full [&>button]:flex-1"
         options={[
           { value: 'appointments', label: 'ご予約' },
+          { value: 'orders', label: 'ご注文' },
           { value: 'profile', label: 'お客様情報' },
           { value: 'notifications', label: '通知設定' },
         ]}
@@ -171,6 +175,7 @@ function MyPage({
       {tab === 'appointments' ? (
         <AppointmentsTab slug={slug} shop={shop} token={session.token} />
       ) : null}
+      {tab === 'orders' ? <MyOrders slug={slug} token={session.token} /> : null}
       {tab === 'profile' ? (
         p ? (
           <ProfileTab token={session.token} profile={p} />

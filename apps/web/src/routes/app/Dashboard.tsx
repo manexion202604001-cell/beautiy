@@ -37,6 +37,7 @@ import {
 } from '../../lib/format';
 import { useNow } from '../../lib/hooks';
 import { todayIn, zonedParts } from '../../lib/time';
+import { StartCheckoutButton } from './pos/StartCheckoutButton';
 
 export default function Dashboard() {
   const { me, currentShop, currentShopId: shopId, timezone: tz, can } = useAuth();
@@ -232,11 +233,11 @@ function TodayRow({
 }) {
   const past = new Date(a.end_at) < now;
   return (
-    <li>
+    <li className="flex items-center hover:bg-surface-2/60">
       <button
         type="button"
         onClick={onOpen}
-        className="flex w-full items-center gap-4 px-5 py-3 text-left hover:bg-surface-2/60"
+        className="flex min-w-0 flex-1 items-center gap-4 px-5 py-3 text-left"
       >
         <div className="w-14 shrink-0 text-right">
           <p className={cn('text-sm font-semibold tabular', past ? 'text-muted' : 'text-fg')}>
@@ -274,6 +275,17 @@ function TodayRow({
         </div>
         <StatusBadge status={a.status} size="sm" />
       </button>
+      {['checked_in', 'in_service', 'completed'].includes(a.status) ? (
+        <div className="shrink-0 pr-4">
+          <StartCheckoutButton
+            appointmentId={a.id}
+            shopId={a.shop_id}
+            status={a.status}
+            size="xs"
+            label="会計"
+          />
+        </div>
+      ) : null}
     </li>
   );
 }
