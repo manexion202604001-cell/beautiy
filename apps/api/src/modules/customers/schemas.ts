@@ -54,11 +54,14 @@ export const searchCustomersSchema = z.object({
 });
 export type SearchCustomersInput = z.infer<typeof searchCustomersSchema>;
 
-export const memoSchema = z.object({
+const memoFields = {
   body: z.string().min(1).max(5000),
-  visibility: z.enum(['shared', 'private']).default('shared'),
+  visibility: z.enum(['shared', 'private']),
   pinned: z.boolean().optional(),
-});
+};
+export const memoSchema = z.object({ ...memoFields, visibility: memoFields.visibility.default('shared') });
+/** PATCH: no defaults (a default visibility would silently publish private memos) */
+export const updateMemoSchema = z.object(memoFields).partial();
 
 export const mergeSchema = z.object({
   sourceCustomerId: uuid,

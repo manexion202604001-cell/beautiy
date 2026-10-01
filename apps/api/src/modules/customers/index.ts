@@ -5,7 +5,7 @@ import { dismissDuplicate, findDuplicateCandidates, listDuplicatePairs } from '.
 import { assertCustomerAccess } from './access.js';
 import { listMergeLogs, mergeCustomers, undoMerge } from './merge.js';
 import * as svc from './service.js';
-import { createCustomerSchema, memoSchema, mergeSchema, searchCustomersSchema, updateCustomerSchema } from './schemas.js';
+import { createCustomerSchema, memoSchema, mergeSchema, searchCustomersSchema, updateCustomerSchema, updateMemoSchema } from './schemas.js';
 
 const tags = ['customers'];
 
@@ -68,7 +68,7 @@ const plugin: FastifyPluginAsyncZod = async (app) => {
     const memo = await req.tx((ctx) => svc.createMemo(ctx, req.params.id, req.body));
     return reply.status(201).send(memo);
   });
-  app.patch('/customer-memos/:id', { schema: { tags, params: idParam, body: memoSchema.partial() } }, (req) => req.tx((ctx) => svc.updateMemo(ctx, req.params.id, req.body)));
+  app.patch('/customer-memos/:id', { schema: { tags, params: idParam, body: updateMemoSchema } }, (req) => req.tx((ctx) => svc.updateMemo(ctx, req.params.id, req.body)));
   app.delete('/customer-memos/:id', { schema: { tags, params: idParam } }, async (req, reply) => {
     await req.tx((ctx) => svc.deleteMemo(ctx, req.params.id));
     return reply.status(204).send();

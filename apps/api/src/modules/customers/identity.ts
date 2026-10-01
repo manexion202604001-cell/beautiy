@@ -1,5 +1,5 @@
 import type { Ctx } from '../../auth/actor.js';
-import { normalizeEmail, normalizePhone } from '../../lib/normalize.js';
+import { normalizeEmail, normalizeKana, normalizeName, normalizePhone } from '../../lib/normalize.js';
 import { emit } from '../../lib/events.js';
 import { audit } from '../../lib/audit.js';
 
@@ -25,6 +25,12 @@ export interface ResolveCustomerInput {
   email?: string | null;
   shopId?: string | null;
   acquisitionSource?: string;
+  /**
+   * For unverified contact details (guest web booking): a phone/email match only links when the
+   * normalized name (kanji or kana) also matches; otherwise a new customer is created and staff can
+   * merge it via duplicate candidates.
+   */
+  contactMatchRequiresName?: boolean;
 }
 
 export interface ResolveResult {
@@ -55,17 +61,26 @@ export async function resolveCustomer(ctx: Ctx, input: ResolveCustomerInput): Pr
   const email = normalizeEmail(input.email);
   let matchedId: string | null = null;
   let matchedBy: ResolveResult['matchedBy'] = 'new';
+  const nameOk = (row: { last_name: string; first_name: string; last_name_kana: string; first_name_kana: string }) => {
+    if (!input.contactMatchRequiresName) return true;
+    const name = normalizeName(`${input.lastName ?? ''}${input.firstName ?? ''}`);
+    const kana = normalizeKana(`${input.lastNameKana ?? ''}${input.firstNameKana ?? ''}`);
+    return (!!name && name === normalizeName(row.last_name + row.first_name)) || (!!kana && kana === normalizeKana(row.last_name_kana + row.first_name_kana));
+  };
+  const cols = ['id', 'last_name', 'first_name', 'last_name_kana', 'first_name_kana'] as const;
   if (phone) {
-    const rows = await ctx.trx.selectFrom('customers').select('id').where('phone_normalized', '=', phone).where('status', '=', 'active').where('deleted_at', 'is', null).limit(2).execute();
-    if (rows.length === 1) {
-      matchedId = rows[0]!.id;
+    const rows = await ctx.trx.selectFrom('customers').select(cols).where('phone_normalized', '=', phone).where('status', '=', 'active').where('deleted_at', 'is', null).limit(5).execute();
+    const candidates = input.contactMatchRequiresName ? rows.filter(nameOk) : rows;
+    if (candidates.length === 1 && rows.length < 5) {
+      matchedId = candidates[0]!.id;
       matchedBy = 'phone';
     }
   }
   if (!matchedId && email) {
-    const rows = await ctx.trx.selectFrom('customers').select('id').where('email', '=', email).where('status', '=', 'active').where('deleted_at', 'is', null).limit(2).execute();
-    if (rows.length === 1) {
-      matchedId = rows[0]!.id;
+    const rows = await ctx.trx.selectFrom('customers').select(cols).where('email', '=', email).where('status', '=', 'active').where('deleted_at', 'is', null).limit(5).execute();
+    const candidates = input.contactMatchRequiresName ? rows.filter(nameOk) : rows;
+    if (candidates.length === 1 && rows.length < 5) {
+      matchedId = candidates[0]!.id;
       matchedBy = 'email';
     }
   }

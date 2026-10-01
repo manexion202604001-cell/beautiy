@@ -126,9 +126,10 @@ async function lineChannelFor(ctx: Ctx, shopId: string) {
 }
 
 export async function loginWithLine(shop: PublicShop, idToken: string, meta: RequestMeta) {
+  // verify with LINE outside any DB transaction (external latency must not hold a connection/locks)
+  const channel = await publicTx(shop, meta, (ctx) => lineChannelFor(ctx, shop.shopId));
+  const profile = await verifyLineIdToken(idToken, channel?.login_channel_id);
   return publicTx(shop, meta, async (ctx) => {
-    const channel = await lineChannelFor(ctx, shop.shopId);
-    const profile = await verifyLineIdToken(idToken, channel?.login_channel_id);
     const resolved = await resolveCustomer(ctx, {
       provider: 'line',
       providerAccountId: channel?.channel_id ?? 'default',
@@ -319,7 +320,8 @@ export async function createPublicBooking(ctx: Ctx, shop: PublicShop, input: Pub
   let cid = customerId;
   if (!cid) {
     if (!input.customer) throw Errors.validation('お客様情報を入力してください');
-    const resolved = await resolveCustomer(ctx, { ...input.customer, shopId: shop.shopId, acquisitionSource: input.channel ?? 'web' });
+    // guest contact details are unverified: only link to an existing record when the name matches too
+    const resolved = await resolveCustomer(ctx, { ...input.customer, shopId: shop.shopId, acquisitionSource: input.channel ?? 'web', contactMatchRequiresName: true });
     cid = resolved.customerId;
   } else if (input.customer) {
     // fill missing profile fields for LINE-first customers

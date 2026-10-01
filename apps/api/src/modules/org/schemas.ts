@@ -111,4 +111,10 @@ export const roleSchema = z.object({
   description: z.string().max(200).optional(),
   permissions: z.array(z.string()).default([]),
 });
+/** PATCH: no defaults (a default [] would wipe the role's permissions on rename) */
+export const updateRoleSchema = z.object({
+  name: z.string().min(1).max(50).optional(),
+  description: z.string().max(200).optional(),
+  permissions: z.array(z.string()).optional(),
+});
 

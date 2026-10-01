@@ -9,6 +9,7 @@ import {
   transferStaffSchema,
   updateOrganizationSchema,
   updateShopSchema,
+  updateRoleSchema,
   updateStaffSchema,
 } from './schemas.js';
 
@@ -69,7 +70,7 @@ const plugin: FastifyPluginAsyncZod = async (app) => {
   });
   app.patch(
     '/roles/:id',
-    { schema: { tags: ['org'], params: idParam, body: roleSchema.omit({ key: true }).partial() } },
+    { schema: { tags: ['org'], params: idParam, body: updateRoleSchema } },
     (req) => req.tx((ctx) => svc.updateRole(ctx, req.params.id, req.body)),
   );
   app.delete('/roles/:id', { schema: { tags: ['org'], params: idParam } }, async (req, reply) => {

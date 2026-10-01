@@ -163,7 +163,7 @@ describe('generative assistant (heuristic provider)', () => {
     expect(text).toContain('前回のご来店から50日');
     expect(text).toContain('前回のカット');
     expect(text).toContain('担当 美香');
-    for (const pii of ['山田', '090', 'hanako', '港区']) {
+    for (const pii of ['山田', '090-1111-2222', '09011112222', 'hanako', '港区']) {
       expect(text).not.toContain(pii);
       expect(JSON.stringify(res.body.input)).not.toContain(pii);
     }

@@ -208,7 +208,7 @@ describe('moderation, reply and public listing', () => {
     expect(pub.body.items[0]).toMatchObject({ id: r1.reviewId, nickname: 'はなこ', rating: 5, reply_body: 'ご来店ありがとうございました！', staff_name: '口コミ担当' });
     expect(pub.body.summary.count).toBe(1);
     const json = JSON.stringify(pub.body);
-    for (const pii of ['山田', 'hanako@example.com', '090', customer.id, 'customer_id']) expect(json).not.toContain(pii);
+    for (const pii of ['山田', 'hanako@example.com', '090-1111-2222', '+819011112222', customer.id, 'customer_id']) expect(json).not.toContain(pii);
     expect(json).not.toContain('待ち時間');
 
     // stylist public profile: whitelisted profile fields, rating summary, published reviews only

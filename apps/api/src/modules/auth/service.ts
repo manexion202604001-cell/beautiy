@@ -215,13 +215,17 @@ export async function acceptInvite(token: string, password: string, meta: LoginM
   const payload = verifySignedPayload<{ typ: string; uid: string; org: string; stf: string }>(token);
   if (!payload || payload.typ !== 'invite') throw Errors.unauthenticated('招待リンクが無効か期限切れです', 'INVALID_INVITE');
   return withSystem(async (trx) => {
-    const staff = await trx.selectFrom('staffs').select(['id', 'status', 'user_id']).where('id', '=', payload.stf).executeTakeFirst();
-    if (!staff || staff.user_id !== payload.uid || !['invited', 'active'].includes(staff.status)) {
-      throw Errors.unauthenticated('招待リンクが無効です', 'INVALID_INVITE');
+    const staff = await trx.selectFrom('staffs').select(['id', 'status', 'user_id']).where('id', '=', payload.stf).forUpdate().executeTakeFirst();
+    // single use: once accepted (status active) the link can no longer be used as a login
+    if (!staff || staff.user_id !== payload.uid || staff.status !== 'invited') {
+      throw Errors.unauthenticated('招待リンクが無効か、既に使用されています', 'INVALID_INVITE');
     }
     const user = await trx.selectFrom('users').select(['id', 'password_hash']).where('id', '=', payload.uid).executeTakeFirstOrThrow();
     if (!user.password_hash) {
       await trx.updateTable('users').set({ password_hash: await hashPassword(password) }).where('id', '=', user.id).execute();
+    } else if (!(await verifyPassword(password, user.password_hash))) {
+      // existing account invited to another organization: must prove ownership with its current password
+      throw Errors.unauthenticated('既存アカウントのパスワードを入力してください', 'INVALID_CREDENTIALS');
     }
     await trx.updateTable('staffs').set({ status: 'active' }).where('id', '=', staff.id).execute();
     invalidateActorCache(staff.id);
