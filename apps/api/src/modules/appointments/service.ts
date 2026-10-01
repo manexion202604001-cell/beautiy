@@ -241,7 +241,16 @@ export async function createAppointment(ctx: Ctx, input: CreateAppointmentInput,
     type: 'appointment.created',
     aggregateType: 'appointment',
     aggregateId: appt.id,
-    payload: { shopId: input.shopId, customerId: input.customerId ?? null, staffId: resolved.staffId, startAt: startAt.toISOString(), source: input.source, status },
+    payload: {
+      shopId: input.shopId,
+      customerId: input.customerId ?? null,
+      staffId: resolved.staffId,
+      startAt: startAt.toISOString(),
+      source: input.source,
+      sourceDetail: input.sourceDetail ?? {},
+      status,
+      version: 1,
+    },
   });
   return getAppointmentUnchecked(ctx, appt.id);
 }
@@ -463,6 +472,8 @@ export async function updateAppointment(ctx: Ctx, id: string, input: UpdateAppoi
       startAt: after.start_at.toISOString(),
       previousStartAt: before.start_at.toISOString(),
       previousStaffId: before.staff_id,
+      source: after.source,
+      version: after.version,
     },
   });
   return after;
@@ -526,7 +537,18 @@ export async function transitionAppointment(
     type: `appointment.${to === 'confirmed' && restoring ? 'restored' : to}`,
     aggregateType: 'appointment',
     aggregateId: id,
-    payload: { shopId: a.shop_id, customerId: a.customer_id, staffId: a.staff_id, startAt: a.start_at.toISOString(), from, to, reason: opts.reason ?? null, cancelledBy: patch.cancelled_by_type ?? null },
+    payload: {
+      shopId: a.shop_id,
+      customerId: a.customer_id,
+      staffId: a.staff_id,
+      startAt: a.start_at.toISOString(),
+      from,
+      to,
+      reason: opts.reason ?? null,
+      cancelledBy: patch.cancelled_by_type ?? null,
+      source: a.source,
+      version: a.version + 1,
+    },
   });
   return getAppointmentUnchecked(ctx, id);
 }

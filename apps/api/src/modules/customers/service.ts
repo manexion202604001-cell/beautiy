@@ -90,8 +90,9 @@ export async function searchCustomers(ctx: Ctx, input: SearchCustomersInput) {
   let sortKey: (r: Row) => string | number | Date | null;
   switch (input.sort) {
     case 'created':
-      if (cursor) q = q.where(sql`(customers.created_at, customers.id)`, '<', sql`(${cursor.v}::timestamptz, ${cursor.id}::uuid)`);
-      q = q.orderBy('customers.created_at', 'desc').orderBy('customers.id', 'desc');
+      // millisecond precision: JS Date cursors cannot represent timestamptz microseconds
+      if (cursor) q = q.where(sql`(date_trunc('milliseconds', customers.created_at), customers.id)`, '<', sql`(${cursor.v}::timestamptz, ${cursor.id}::uuid)`);
+      q = q.orderBy(sql`date_trunc('milliseconds', customers.created_at)`, 'desc').orderBy('customers.id', 'desc');
       sortKey = (r) => r.created_at;
       break;
     case 'name':
@@ -108,12 +109,12 @@ export async function searchCustomers(ctx: Ctx, input: SearchCustomersInput) {
       // NULL last visits sort last: coalesce to epoch
       if (cursor) {
         q = q.where(
-          sql`(coalesce(customers.last_visit_at, 'epoch'::timestamptz), customers.id)`,
+          sql`(date_trunc('milliseconds', coalesce(customers.last_visit_at, 'epoch'::timestamptz)), customers.id)`,
           '<',
           sql`(${cursor.v ?? '1970-01-01T00:00:00Z'}::timestamptz, ${cursor.id}::uuid)`,
         );
       }
-      q = q.orderBy(sql`coalesce(customers.last_visit_at, 'epoch'::timestamptz)`, 'desc').orderBy('customers.id', 'desc');
+      q = q.orderBy(sql`date_trunc('milliseconds', coalesce(customers.last_visit_at, 'epoch'::timestamptz))`, 'desc').orderBy('customers.id', 'desc');
       sortKey = (r) => r.last_visit_at ?? new Date(0);
   }
   const rows = await q.limit(input.limit + 1).execute();

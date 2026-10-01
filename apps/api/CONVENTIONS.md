@@ -60,7 +60,7 @@ src/
 | staff.created / staff.transferred | { shopIds } / transfer input | org |
 | customer.created / updated / deleted | { shopId? } | customers |
 | customer.merged / merge_undone | { sourceId, targetId, mergeLogId } | customers |
-| appointment.created | { shopId, customerId, staffId, startAt, source, status } | appointments |
+| appointment.created | { shopId, customerId, staffId, startAt, source, sourceDetail, status, version } | appointments |
 | appointment.rescheduled / updated | { shopId, customerId, staffId, startAt, previousStartAt, previousStaffId } | appointments |
 | appointment.confirmed / checked_in / in_service / completed / cancelled / no_show / restored | { shopId, customerId, staffId, startAt, from, to, reason, cancelledBy } | appointments |
 | payment.succeeded / failed / refunded | { paymentId, transactionId, orderId, amount, refundedAmount? } (オンライン決済の成否・全返金。店頭オフライン決済は succeeded を発行しない) | payments |
