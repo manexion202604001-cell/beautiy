@@ -51,9 +51,10 @@ import {
   formatTime,
   formatYen,
 } from '../../../lib/format';
+import { CustomerKartesTab, CustomerFormsTab } from '../kartes/CustomerKarteTabs';
 import { CustomerForm, toInitial } from './CustomerForm';
 
-type Tab = 'profile' | 'visits' | 'timeline' | 'memos' | 'tags' | 'duplicates';
+type Tab = 'profile' | 'visits' | 'timeline' | 'memos' | 'tags' | 'duplicates' | 'kartes' | 'forms';
 
 export default function CustomerDetail() {
   const { id = '' } = useParams();
@@ -255,6 +256,12 @@ export default function CustomerDetail() {
             { value: 'visits', label: '来店履歴' },
             { value: 'timeline', label: 'タイムライン' },
             { value: 'memos', label: 'メモ' },
+            ...(can('karte.read')
+              ? [
+                  { value: 'kartes' as const, label: 'カルテ' },
+                  { value: 'forms' as const, label: '書類' },
+                ]
+              : []),
             { value: 'tags', label: 'タグ' },
             {
               value: 'duplicates',
@@ -269,6 +276,10 @@ export default function CustomerDetail() {
             {tab === 'visits' ? <VisitsTab id={c.id} onOpen={setOpenAppt} /> : null}
             {tab === 'timeline' ? <TimelineTab id={c.id} onOpen={setOpenAppt} /> : null}
             {tab === 'memos' ? <MemosTab id={c.id} readOnly={merged} /> : null}
+            {tab === 'kartes' ? <CustomerKartesTab customerId={c.id} readOnly={merged} /> : null}
+            {tab === 'forms' ? (
+              <CustomerFormsTab customerId={c.id} customerName={c.display_name} readOnly={merged} />
+            ) : null}
             {tab === 'tags' ? <TagsTab c={c} /> : null}
             {tab === 'duplicates' ? <DuplicatesTab c={c} /> : null}
           </TabPanel>

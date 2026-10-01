@@ -31,6 +31,7 @@ import { customerSession, type CustomerSession } from '../../lib/session';
 import { addDays, todayIn, weekdayOf, zonedParts } from '../../lib/time';
 import { CustomerLogin } from './CustomerLogin';
 import { PublicShell, ShopHeader } from './PublicShell';
+import { ShopReviewsSummary } from './reviews/ReviewList';
 
 type Step = 'menu' | 'staff' | 'datetime' | 'info' | 'confirm' | 'done';
 type Menu = PublicShopInfo['menus'][number];
@@ -112,7 +113,10 @@ function BookingFlow({
   const [step, setStep] = useState<Step>('menu');
   const [menuIds, setMenuIds] = useState<string[]>([]);
   const [category, setCategory] = useState<string>('all');
-  const [staffId, setStaffId] = useState<string | null>(null);
+  const [staffId, setStaffId] = useState<string | null>(() => {
+    const q = new URLSearchParams(window.location.search).get('staff');
+    return q && info.staff.some((x) => x.id === q) ? q : null;
+  });
   const [date, setDate] = useState(today);
   const [windowStart, setWindowStart] = useState(today);
   const [slot, setSlot] = useState<AvailabilitySlot | null>(null);
@@ -441,6 +445,7 @@ function BookingFlow({
         </div>
       }
     >
+      {step === 'menu' ? <ShopReviewsSummary slug={slug} /> : null}
       {info.shop.description && step === 'menu' ? (
         <p className="mb-4 text-[13px] leading-relaxed text-muted">{info.shop.description}</p>
       ) : null}
@@ -503,17 +508,24 @@ function BookingFlow({
             title="空いているスタッフが担当します"
           />
           {eligibleStaff.map((s) => (
-            <StaffCard
-              key={s.id}
-              selected={staffId === s.id}
-              onSelect={() => setStaffId(s.id)}
-              name={s.display_name}
-              title={s.title}
-              fee={s.nomination_fee}
-              bio={s.public_profile?.bio}
-              specialties={s.public_profile?.specialties}
-              years={s.public_profile?.yearsOfExperience}
-            />
+            <div key={s.id}>
+              <StaffCard
+                selected={staffId === s.id}
+                onSelect={() => setStaffId(s.id)}
+                name={s.display_name}
+                title={s.title}
+                fee={s.nomination_fee}
+                bio={s.public_profile?.bio}
+                specialties={s.public_profile?.specialties}
+                years={s.public_profile?.yearsOfExperience}
+              />
+              <Link
+                to={`/book/${slug}/staff/${s.id}`}
+                className="ml-4 mt-1 inline-block text-xs font-medium text-primary hover:underline"
+              >
+                {s.display_name}のプロフィール・口コミ ›
+              </Link>
+            </div>
           ))}
           {eligibleStaff.length < info.staff.length ? (
             <p className="text-xs text-muted">

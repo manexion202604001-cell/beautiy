@@ -41,12 +41,22 @@ export const NAV: NavSection[] = [
   {
     label: '近日公開',
     items: [
-      { to: '/app/soon/pos', label: '会計', icon: 'receipt', soon: true },
-      { to: '/app/soon/kartes', label: 'カルテ', icon: 'file', soon: true },
+      { to: '/app/pos', label: '会計', icon: 'receipt', permissions: ['pos.read'] },
+      { to: '/app/kartes', label: 'カルテ', icon: 'file', permissions: ['karte.read'] },
       { to: '/app/soon/messages', label: 'メッセージ', icon: 'message', soon: true },
       { to: '/app/soon/campaigns', label: '配信', icon: 'send', soon: true },
-      { to: '/app/soon/reviews', label: '口コミ', icon: 'star', soon: true },
-      { to: '/app/soon/commerce', label: '商品・EC', icon: 'bag', soon: true },
+      {
+        to: '/app/reviews',
+        label: '口コミ',
+        icon: 'star',
+        permissions: ['review.manage', 'analytics.read', 'analytics.read_own'],
+      },
+      {
+        to: '/app/commerce',
+        label: '商品・EC',
+        icon: 'bag',
+        permissions: ['product.manage', 'order.manage'],
+      },
       { to: '/app/soon/analytics', label: '分析', icon: 'chart', soon: true },
       { to: '/app/soon/integrations', label: '外部連携', icon: 'plug', soon: true },
       { to: '/app/soon/ops', label: '運用・監査', icon: 'shield', soon: true },

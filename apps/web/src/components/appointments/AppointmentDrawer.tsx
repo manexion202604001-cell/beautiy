@@ -28,6 +28,7 @@ import {
 } from '../../lib/format';
 import { useRevealOnChange } from '../../lib/hooks';
 import { zonedParts, zonedToIso } from '../../lib/time';
+import { AppointmentQuickActions } from '../../routes/app/pos/AppointmentQuickActions';
 import {
   Alert,
   Badge,
@@ -172,6 +173,7 @@ export function AppointmentDrawer({
               ))}
             </div>
           ) : null}
+          <AppointmentQuickActions a={a} onNavigate={onClose} />
 
           <Tabs
             idBase="appt"
