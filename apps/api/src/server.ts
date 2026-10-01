@@ -89,6 +89,22 @@ export async function buildApp(opts: { logger?: FastifyServerOptions['logger'] }
     return { status: 'ready' };
   });
 
+  // Dev-only: record successful API responses (used to build the static web demo). Never enabled in production.
+  const recordFile = process.env.RECORD_FIXTURES;
+  if (recordFile && config.NODE_ENV !== 'production') {
+    const { appendFileSync } = await import('node:fs');
+    const recordable = /^\/v1\/(auth\/(login|refresh)|public\/shops\/[^/]+\/auth\/line|public\/auth\/otp\/verify)$/;
+    app.addHook('onSend', async (req, reply, payload) => {
+      const path = req.url.split('?')[0]!;
+      const ok = reply.statusCode >= 200 && reply.statusCode < 300;
+      const json = String(reply.getHeader('content-type') ?? '').includes('json');
+      if (ok && json && typeof payload === 'string' && (req.method === 'GET' || recordable.test(path))) {
+        appendFileSync(recordFile, JSON.stringify({ method: req.method, url: req.url, status: reply.statusCode, body: payload }) + '\n');
+      }
+      return payload;
+    });
+  }
+
   await app.register(registerModules, { prefix: '/v1' });
 
   return app;

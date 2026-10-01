@@ -17,8 +17,9 @@ export default function Login() {
   const [params] = useSearchParams();
   const next = params.get('next');
   const [step, setStep] = useState<Step>({ kind: 'credentials' });
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const demo = Boolean(import.meta.env.VITE_DEMO);
+  const [email, setEmail] = useState(demo ? 'owner@example.com' : '');
+  const [password, setPassword] = useState(demo ? 'password-1234' : '');
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);

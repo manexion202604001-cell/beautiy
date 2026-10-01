@@ -1,5 +1,5 @@
 import { lazy, Suspense, type ReactNode } from 'react';
-import { createBrowserRouter, Navigate, useRouteError } from 'react-router';
+import { createBrowserRouter, createHashRouter, Navigate, useRouteError } from 'react-router';
 import { AppLayout } from './components/layout/AppLayout';
 import { RequireAuth } from './components/layout/RequireAuth';
 import { ErrorState, PageSpinner } from './components/ui';
@@ -67,7 +67,10 @@ function RouteError() {
   );
 }
 
-export const router = createBrowserRouter([
+// The static web demo is served from a single page without server-side routing → hash URLs
+const createRouter = import.meta.env.VITE_DEMO ? createHashRouter : createBrowserRouter;
+
+export const router = createRouter([
   { path: '/', element: <Navigate to="/app" replace /> },
   { path: '/login', element: s(<Login />), errorElement: <RouteError /> },
   { path: '/signup', element: s(<Signup />), errorElement: <RouteError /> },

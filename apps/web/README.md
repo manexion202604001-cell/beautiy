@@ -237,3 +237,18 @@ e2e/                          Playwright
 | `e2e/analytics.spec.ts` | 売上分析のタイル・折れ線/棒グラフ・ツールチップ・表表示 |
 | `e2e/pass2b-screens.spec.ts` / `e2e/pass2b-flows.spec.ts` | `SCREENSHOTS=1` のときのみ。全タブのスクリーンショット（デスクトップ/スマホ/ダーク）、ダイアログ・公開ページ・スタイリスト権限の操作確認（`E2E_UNSUB_URL` 指定で配信停止ページも確認） |
 | `src/routes/app/campaigns/segment-dsl.test.ts` | セグメントビルダー ⇄ DSL 変換・検証の単体テスト |
+
+
+## 静的Webデモ（閲覧専用）
+
+サーバーなしで画面を確認できるデモビルドです。実APIをデモデータで動かして記録したレスポンスを、ブラウザ内で返します（書き込みは「閲覧専用」として拒否）。日付は記録日に固定され、URLはハッシュ形式（`#/app/...`）です。
+
+```bash
+# 1. 記録: シード済みAPIを RECORD_FIXTURES 付きで起動し、全画面を巡回
+RECORD_FIXTURES=/tmp/fixtures.jsonl DATABASE_URL=... PORT=4100 DEV_EXPOSE_OTP=true pnpm --filter @salon/api dev
+DEMO_CRAWL=1 pnpm --filter @salon/web exec playwright test e2e/demo-crawl.spec.ts
+# 2. フィクスチャ生成（src/demo/fixtures.json）
+python3 apps/web/scripts/build-demo-fixtures.py /tmp/fixtures.jsonl 2026-10-01
+# 3. ビルド（dist-demo/）
+pnpm --filter @salon/web build:demo
+```

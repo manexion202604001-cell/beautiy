@@ -5,6 +5,21 @@ import { defineConfig, loadEnv } from 'vite';
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   const apiProxy = env.VITE_API_PROXY || 'http://localhost:4100';
+  if (mode === 'demo') {
+    // static web demo: single page, relative asset paths, recorded API (src/demo/install.ts)
+    return {
+      base: './',
+      plugins: [react(), tailwindcss()],
+      define: { 'import.meta.env.VITE_DEMO': JSON.stringify('1') },
+      build: {
+        target: 'es2022',
+        outDir: 'dist-demo',
+        sourcemap: false,
+        chunkSizeWarningLimit: 2000,
+        rollupOptions: { input: 'demo.html' },
+      },
+    };
+  }
   return {
     plugins: [react(), tailwindcss()],
     server: {

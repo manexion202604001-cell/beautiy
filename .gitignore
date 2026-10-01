@@ -10,3 +10,4 @@ test-results/
 .DS_Store
 apps/api/storage-test/
 .claude/worktrees/
+dist-demo/
