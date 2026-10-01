@@ -170,3 +170,150 @@ export async function createCustomer(tenant: Tenant, overrides: Record<string, u
   if (res.status !== 201) throw new Error(`customer create failed ${JSON.stringify(res.body)}`);
   return res.body.customer as { id: string };
 }
+
+// ---------------------------------------------------------------- analytics / AI test data (direct inserts)
+
+export interface TestTxItem {
+  itemType: 'service' | 'product' | 'nomination_fee' | 'discount' | 'coupon' | 'adjustment';
+  menuId?: string | null;
+  name?: string;
+  quantity?: number;
+  /** tax-inclusive unit price (negative for discount/coupon rows) */
+  unitPrice: number;
+  lineDiscount?: number;
+  taxRateBp?: number;
+  staff?: { staffId: string; role?: 'main' | 'assistant' | 'referral'; shareBp?: number; isNominated?: boolean }[];
+}
+
+export interface TestTxInput {
+  shopId: string;
+  customerId?: string | null;
+  appointmentId?: string | null;
+  completedAt: string | Date;
+  status?: 'completed' | 'partially_refunded' | 'refunded' | 'voided';
+  isNewCustomer?: boolean | null;
+  refundedTotal?: number;
+  /** defaults: discount = Σ(−discount/coupon rows) + Σ line discounts; tax = floor(total × 10/110) */
+  discountTotal?: number;
+  taxTotal?: number;
+  items: TestTxItem[];
+}
+
+/**
+ * Insert a finished POS transaction (items + staff allocations) directly as the system actor —
+ * analytics/AI tests must not depend on the POS module's API. Emits no events.
+ */
+export async function insertTransaction(organizationId: string, input: TestTxInput): Promise<{ id: string; total: number }> {
+  return asSystem(organizationId, async (ctx) => {
+    const lines = input.items.map((it) => {
+      const qty = it.quantity ?? 1;
+      return { ...it, qty, amount: it.unitPrice * qty - (it.lineDiscount ?? 0) };
+    });
+    const total = lines.reduce((s, l) => s + l.amount, 0);
+    const subtotal = lines.filter((l) => l.amount > 0).reduce((s, l) => s + l.unitPrice * l.qty, 0);
+    const discount =
+      input.discountTotal ??
+      -lines.filter((l) => l.itemType === 'discount' || l.itemType === 'coupon').reduce((s, l) => s + l.amount, 0) +
+        lines.reduce((s, l) => s + (l.lineDiscount ?? 0), 0);
+    const status = input.status ?? 'completed';
+    const completedAt = new Date(input.completedAt);
+    const tx = await ctx.trx
+      .insertInto('transactions')
+      .values({
+        organization_id: organizationId,
+        shop_id: input.shopId,
+        customer_id: input.customerId ?? null,
+        appointment_id: input.appointmentId ?? null,
+        transaction_number: `T-${randomUUID().slice(0, 12)}`,
+        status,
+        subtotal,
+        discount_total: discount,
+        tax_total: input.taxTotal ?? Math.floor((total * 10) / 110),
+        total,
+        paid_total: total,
+        refunded_total: input.refundedTotal ?? (status === 'refunded' ? total : 0),
+        is_new_customer: input.isNewCustomer === undefined ? null : input.isNewCustomer,
+        completed_at: completedAt,
+        voided_at: status === 'voided' ? completedAt : null,
+      })
+      .returning('id')
+      .executeTakeFirstOrThrow();
+    for (const [i, l] of lines.entries()) {
+      const item = await ctx.trx
+        .insertInto('transaction_items')
+        .values({
+          organization_id: organizationId,
+          transaction_id: tx.id,
+          item_type: l.itemType,
+          menu_id: l.menuId ?? null,
+          name: l.name ?? l.itemType,
+          quantity: l.qty,
+          unit_price: l.unitPrice,
+          line_discount: l.lineDiscount ?? 0,
+          tax_rate_bp: l.taxRateBp ?? 1000,
+          amount: l.amount,
+          sort_order: i,
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+      for (const s of l.staff ?? []) {
+        const share = s.shareBp ?? 10000;
+        await ctx.trx
+          .insertInto('transaction_item_staff')
+          .values({
+            organization_id: organizationId,
+            transaction_item_id: item.id,
+            staff_id: s.staffId,
+            role: s.role ?? 'main',
+            share_bp: share,
+            is_nominated: s.isNominated ?? false,
+            allocated_amount: Math.floor((l.amount * share) / 10000),
+          })
+          .execute();
+      }
+    }
+    return { id: tx.id, total };
+  });
+}
+
+export interface TestAppointmentInput {
+  shopId: string;
+  customerId?: string | null;
+  staffId?: string | null;
+  startAt: string | Date;
+  durationMin?: number;
+  status?: 'tentative' | 'confirmed' | 'checked_in' | 'in_service' | 'completed' | 'cancelled' | 'no_show';
+  source?: 'web' | 'line' | 'external' | 'phone' | 'walk_in' | 'staff';
+  isNominated?: boolean;
+  estimatedTotal?: number;
+}
+
+/** Insert an appointment row directly (past dates allowed, no availability checks, no events) */
+export async function insertAppointment(organizationId: string, input: TestAppointmentInput): Promise<{ id: string }> {
+  return asSystem(organizationId, async (ctx) => {
+    const start = new Date(input.startAt);
+    const end = new Date(start.getTime() + (input.durationMin ?? 60) * 60_000);
+    const status = input.status ?? 'confirmed';
+    return ctx.trx
+      .insertInto('appointments')
+      .values({
+        organization_id: organizationId,
+        shop_id: input.shopId,
+        customer_id: input.customerId ?? null,
+        staff_id: input.staffId ?? null,
+        is_nominated: input.isNominated ?? false,
+        booking_reference: `R${randomUUID().slice(0, 10)}`,
+        start_at: start,
+        end_at: end,
+        occupied_start_at: start,
+        occupied_end_at: end,
+        status,
+        source: input.source ?? 'staff',
+        estimated_total: input.estimatedTotal ?? 0,
+        cancelled_at: status === 'cancelled' ? start : null,
+        completed_at: status === 'completed' ? end : null,
+      })
+      .returning('id')
+      .executeTakeFirstOrThrow();
+  });
+}
