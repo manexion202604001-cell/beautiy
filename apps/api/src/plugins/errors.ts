@@ -1,6 +1,7 @@
 import type { FastifyError, FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 import { hasZodFastifySchemaValidationErrors, isResponseSerializationError } from 'fastify-type-provider-zod';
+import { ZodError } from 'zod';
 import { AppError, fromPgError } from '../lib/errors.js';
 
 async function errorPlugin(app: FastifyInstance) {
@@ -10,6 +11,11 @@ async function errorPlugin(app: FastifyInstance) {
 
     if (err instanceof AppError) {
       appErr = err;
+    } else if (err instanceof ZodError) {
+      // validation raised inside services (e.g. settings merge)
+      appErr = new AppError('validation', 'VALIDATION_ERROR', '入力内容に誤りがあります', {
+        issues: err.issues.map((i) => ({ path: i.path.join('.'), message: i.message, code: i.code })),
+      });
     } else if (hasZodFastifySchemaValidationErrors(err)) {
       appErr = new AppError('validation', 'VALIDATION_ERROR', '入力内容に誤りがあります', {
         issues: err.validation.map((v) => ({
