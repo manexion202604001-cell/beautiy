@@ -288,6 +288,31 @@ stateDiagram-v2
   disabled --> active: 再有効化
 ```
 
+### 6.4 公開APIのない予約媒体（ホットペッパー / LiME）— ADR 0010
+
+```mermaid
+sequenceDiagram
+  participant M as 媒体(SALON BOARD / LiME)
+  participant R as メール受信サービス
+  participant A as API /v1/webhooks/inbound_email/:token
+  participant W as Worker
+  participant S as スタッフ
+  M->>R: 予約通知メール（店舗が転送）
+  R->>A: POST (JSON / form / multipart)
+  A->>A: token → 連携アカウント、Message-ID で重複排除、webhook_events 保存 → 200
+  A->>W: webhook.process
+  W->>W: parseBookingMail → resolveMappings → processExternalBooking
+  Note over W: 予約作成/変更/取消 → appointment.* イベント
+  W->>W: integration.push (他の媒体アカウント)
+  W->>S: pushMode=manual: external_slot_blocks(manual, action_required) + 通知メール
+  S->>M: 管理画面で枠を止める
+  S->>A: POST /integrations/manual-blocks/:id/done → pushed
+```
+
+- 実装: `modules/integrations/mail/`（`parser.ts` ラベル解析・`inbound.ts` 受信形式の正規化・`service.ts` 取り込み/CSV/依頼一覧・`manual.ts` 枠止め依頼の収束・`adapter.ts` Adapter と Webhook プロバイダ登録）。
+- 枠止め依頼の状態: `action_required`（止める）→ 対応済みで `pushed`、予約の取消・移動で `remove_required`（再開する）→ 対応済みで `removed`。未対応のまま取り消された依頼はそのまま `removed`。
+- 受信URLのトークンは連携作成時に生成し `config.mail.inboundToken` に保存（設定更新でも保持）。不明トークンは 401 で `webhook_events(signature_valid=false)` に記録。
+
 ## 7. ストレージ
 
 ```mermaid

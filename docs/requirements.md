@@ -412,6 +412,7 @@ flowchart TB
 | 再試行/DLQ | ジョブ指数バックオフ（5秒基点・最大1時間・±20%ジッタ）、上限超過で `dead` | DLQ から手動再実行できる | 設計（キュー基盤実装済） |
 | 競合/重複 | 競合ポリシー `manual`（既定）/ `external_wins` / `internal_wins`。`sync_conflicts`（overlap / duplicate / unknown_staff / unknown_menu / unknown_customer / stale_update / push_failed） | 手動キューで「内部優先 / 外部採用 / 統合 / 手動」を選べる | 設計 |
 | 縮退運転 | 連続3回失敗で `status='degraded'`、`integration.degraded` イベント、自動同期停止・通知。復旧確認後 `integration.recovered` | 縮退中も内部予約・会計は通常どおり動作 | 設計 |
+| ホットペッパー / LiME 連動（ADR 0010） | 公開APIがないため、予約通知メールを連携ごとの受信URL `POST /webhooks/inbound_email/:token` へ転送 → ラベル解析 → 同期エンジンで取り込み（新規・変更・キャンセル）。スタッフ/メニューは対応表 → 名前の自動一致 → 既定メニュー。内部→媒体は `pushMode='manual'` の枠止め依頼（`external_slot_blocks.manual`、`action_required` / `remove_required` → 対応済み）+ 通知メール。既存予約はCSV取り込み（ドライラン既定）、解析テスト画面あり | 通知メール到着から数十秒以内に台帳へ反映。他経路の予約で「媒体の枠止め」依頼が出て、発生元の媒体には出ない | 実装済 |
 
 ### FR-07 口コミ・集客
 

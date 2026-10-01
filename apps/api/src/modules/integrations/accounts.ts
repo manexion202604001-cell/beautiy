@@ -2,7 +2,7 @@ import { accessibleShopIds, auditUserId, hasShopAccess, requirePermission, type 
 import { config as appConfig } from '../../config.js';
 import type { Tx } from '../../db/tenant.js';
 import { audit, diff } from '../../lib/audit.js';
-import { decryptJson, encryptJson } from '../../lib/crypto.js';
+import { decryptJson, encryptJson, randomToken } from '../../lib/crypto.js';
 import { Errors } from '../../lib/errors.js';
 import { getAdapter } from './adapters/registry.js';
 import type { AdapterAccount, IntegrationConfig } from './adapters/types.js';
@@ -54,11 +54,18 @@ export function parseIntegrationConfig(raw: unknown): IntegrationConfig {
 /** API representation: credentials are never returned */
 export function toPublicAccount(row: AccountRow) {
   const { encrypted_credentials, organization_id: _o, ...rest } = row;
+  const config = parseIntegrationConfig(row.config);
+  const adapter = getAdapter(row.provider);
+  const inboundToken = adapter?.inboundEmail ? config.mail?.inboundToken : undefined;
   return {
     ...rest,
-    config: parseIntegrationConfig(row.config),
+    config,
     hasCredentials: !!encrypted_credentials,
-    webhookUrl: `${appConfig.API_BASE_URL}/v1/webhooks/${row.provider}/${row.id}`,
+    pushMode: adapter?.pushMode ?? 'api',
+    webhookUrl: inboundToken
+      ? `${appConfig.API_BASE_URL}/v1/webhooks/inbound_email/${inboundToken}`
+      : `${appConfig.API_BASE_URL}/v1/webhooks/${row.provider}/${row.id}`,
+    inboundEmail: adapter?.inboundEmail ? { webhookUrl: `${appConfig.API_BASE_URL}/v1/webhooks/inbound_email/${inboundToken}` } : null,
   };
 }
 
@@ -126,6 +133,9 @@ export async function createIntegration(ctx: Ctx, input: CreateIntegrationInput)
   await validateMappings(ctx, input.shopId, input.config);
   const dup = await ctx.trx.selectFrom('integration_accounts').select('id').where('provider', '=', input.provider).where('shop_id', '=', input.shopId).executeTakeFirst();
   if (dup) throw Errors.conflict('INTEGRATION_EXISTS', 'この店舗には同じ連携先が既に登録されています', { integrationAccountId: dup.id });
+  const config = getAdapter(input.provider)!.inboundEmail
+    ? { ...input.config, mail: { ...(input.config.mail ?? {}), inboundToken: input.config.mail?.inboundToken ?? randomToken(24) } }
+    : input.config;
   const row = await ctx.trx
     .insertInto('integration_accounts')
     .values({
@@ -134,7 +144,7 @@ export async function createIntegration(ctx: Ctx, input: CreateIntegrationInput)
       provider: input.provider,
       display_name: input.displayName,
       encrypted_credentials: input.credentials ? encryptJson(input.credentials) : null,
-      config: JSON.stringify(input.config),
+      config: JSON.stringify(config),
       created_by: auditUserId(ctx.actor),
     })
     .returning('id')
@@ -153,7 +163,9 @@ export async function updateIntegration(ctx: Ctx, id: string, input: UpdateInteg
   requirePermission(ctx.actor, 'integration.manage');
   const before = await getVisibleAccount(ctx, id, { forUpdate: true });
   const beforeConfig = parseIntegrationConfig(before.config);
-  const nextConfig = input.config ? integrationConfigSchema.parse({ ...beforeConfig, ...input.config }) : beforeConfig;
+  // mail settings merge field-by-field so a partial update never drops the inbound token
+  const mergedMail = input.config?.mail ? { ...(beforeConfig.mail ?? {}), ...input.config.mail } : beforeConfig.mail;
+  const nextConfig = input.config ? integrationConfigSchema.parse({ ...beforeConfig, ...input.config, mail: mergedMail }) : beforeConfig;
   if (input.config) await validateMappings(ctx, before.shop_id, input.config);
   const patch: Record<string, unknown> = {
     display_name: input.displayName,

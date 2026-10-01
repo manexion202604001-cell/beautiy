@@ -1,9 +1,12 @@
-import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
+import type { FastifyPluginAsyncZod, ZodTypeProvider } from 'fastify-type-provider-zod';
+import multipart from '@fastify/multipart';
 import { z } from 'zod';
 import { idParam, uuid } from '../../lib/schemas.js';
 import * as accounts from './accounts.js';
 import './adapters/mock-booking.js';
 import * as conflicts from './conflicts.js';
+import './mail/adapter.js';
+import * as mail from './mail/service.js';
 import './push.js';
 import { createIntegrationSchema, listConflictsSchema, resolveConflictSchema, resyncSchema, syncJobsQuery, updateIntegrationSchema } from './schemas.js';
 import './sync.js';
@@ -58,8 +61,52 @@ const plugin: FastifyPluginAsyncZod = async (app) => {
     bodyLimit: WEBHOOK_BODY_LIMIT,
     schema: { tags: ['webhooks'], summary: '外部Webhook受信(署名検証→保存→非同期処理)', params: webhookParams },
   };
-  app.post('/webhooks/:provider', webhookOpts, (req, reply) => receiveWebhook(req, reply));
-  app.post('/webhooks/:provider/:key', webhookOpts, (req, reply) => receiveWebhook(req, reply));
+  await app.register(async (scope) => {
+    const hooks = scope.withTypeProvider<ZodTypeProvider>();
+    // inbound-mail services post forms (Mailgun: urlencoded / multipart, SendGrid Inbound Parse: multipart)
+    hooks.addContentTypeParser('application/x-www-form-urlencoded', { parseAs: 'string' }, (req, body, done) => {
+      (req as unknown as { rawBody: string }).rawBody = body as string;
+      done(null, Object.fromEntries(new URLSearchParams(body as string)));
+    });
+    await hooks.register(multipart, { attachFieldsToBody: 'keyValues', limits: { fileSize: 2 * 1024 * 1024, files: 10 } });
+    hooks.post('/webhooks/:provider', webhookOpts, (req, reply) => receiveWebhook(req, reply));
+    hooks.post('/webhooks/:provider/:key', webhookOpts, (req, reply) => receiveWebhook(req, reply));
+  });
+
+  // ---- e-mail connectors (Hot Pepper / LiME booking-notification mails)
+  app.post(
+    '/integrations/:id/parse-test',
+    {
+      schema: {
+        tags,
+        summary: '予約通知メールの解析テスト(貼り付けたメールの読み取り結果と対応付けを確認)',
+        params: idParam,
+        body: z.object({ subject: z.string().max(500), text: z.string().max(100_000).optional(), html: z.string().max(500_000).optional() }),
+      },
+    },
+    (req) => req.tx((ctx) => mail.parseTest(ctx, req.params.id, req.body)),
+  );
+  app.post(
+    '/integrations/:id/import-csv',
+    {
+      bodyLimit: 5 * 1024 * 1024,
+      schema: {
+        tags,
+        summary: '既存予約のCSV取り込み(dryRunで確認→本取り込み)',
+        params: idParam,
+        body: z.object({ csv: z.string().min(1).max(5_000_000), dryRun: z.boolean().default(true) }),
+      },
+    },
+    (req) => req.tx((ctx) => mail.importCsv(ctx, req.params.id, req.body)),
+  );
+  app.get(
+    '/integrations/manual-blocks',
+    { schema: { tags, summary: '手動ブロック依頼(媒体側で枠を止める/再開する作業)', querystring: z.object({ shopId: uuid.optional(), state: z.enum(['open', 'all']).default('open') }) } },
+    (req) => req.tx((ctx) => mail.listManualBlocks(ctx, req.query)),
+  );
+  app.post('/integrations/manual-blocks/:id/done', { schema: { tags, summary: '手動ブロック依頼を対応済みにする', params: idParam } }, (req) =>
+    req.tx((ctx) => mail.completeManualBlock(ctx, req.params.id)),
+  );
 };
 
 export default plugin;

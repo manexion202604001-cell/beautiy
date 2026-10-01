@@ -233,6 +233,17 @@ O-04 / `GET /sync-conflicts?state=open` → `POST /sync-conflicts/:id/resolve`:
 
 いずれも監査 `sync_conflict.resolve` が残る。
 
+### 9.4 ホットペッパー / LiME（メール連携）の運用
+
+| 状況 | 手順 |
+|---|---|
+| 新規導入 | 外部連携 → 連携を追加 →「ホットペッパービューティー（予約通知メール連携）」/「LiME（予約通知メール連携）」。表示される受信URLをメール受信サービスの転送先に登録し、媒体の通知メールをその受信アドレスへ自動転送する。届いたメールを「解析テスト」に貼り付けて確認 |
+| 既存予約の移行 | 媒体の予約一覧をCSVで書き出し →「CSV取り込み」→ 内容を確認（ドライラン）→ 取り込む。監査 `integration.csv_import` |
+| 予約が台帳に反映されない | 1) 運用 → Webhook で `provider=inbound_email` のイベントを確認（401 = URLのトークン誤り、`ignored` = 件名フィルタ不一致/予約メールでない、`dead` = 日時を読み取れない）2) 解析テストで同じメールを確認し、表記ゆれは `config.mail.labels` に追加 3) Webhook を再処理 |
+| スタッフ/メニュー未対応 | 競合キュー（unknown_staff / unknown_menu）→ 対応表または既定メニューを設定 → 競合を解決 |
+| 「媒体の枠止め」依頼 | ダッシュボード・外部連携の「媒体の枠止め」タブと通知メール（`config.mail.notifyEmails`、未設定は店舗メール）に表示。媒体の管理画面で枠を止めて/再開して「対応済み」。`SELECT * FROM external_slot_blocks WHERE manual AND state IN ('action_required','remove_required')` |
+| 受信URLの漏えい | 連携を無効化して作り直し（新しいトークンを発行）、転送先を更新 |
+
 ## 10. インシデント対応
 
 ### 10.1 重大度

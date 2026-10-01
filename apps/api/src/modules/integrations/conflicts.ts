@@ -223,6 +223,16 @@ export async function syncStatus(ctx: Ctx, shopId?: string) {
   if (shopId) q = q.where('ia.shop_id', '=', shopId);
   const accounts = await q.execute();
   const ids = accounts.map((a) => a.id);
+  const manualOpen = ids.length
+    ? await ctx.trx
+        .selectFrom('external_slot_blocks')
+        .select(['integration_account_id', sql<number>`count(*)::int`.as('n')])
+        .where('integration_account_id', 'in', ids)
+        .where('manual', '=', true)
+        .where('state', 'in', ['action_required', 'remove_required'])
+        .groupBy('integration_account_id')
+        .execute()
+    : [];
   const [conflicts, blocks, lastJobs] = ids.length
     ? await Promise.all([
         ctx.trx
@@ -271,6 +281,7 @@ export async function syncStatus(ctx: Ctx, shopId?: string) {
       consecutiveFailures: a.consecutive_failures,
       openConflicts: open,
       unsyncedBlocks: blocks.find((b) => b.integration_account_id === a.id)?.n ?? 0,
+      manualActionRequired: manualOpen.find((b) => b.integration_account_id === a.id)?.n ?? 0,
       lastJob: job ? { state: job.state, mode: job.mode, triggeredBy: job.triggered_by, stats: job.stats, error: job.error, finishedAt: job.finished_at, createdAt: job.created_at } : null,
     });
     entry.degraded ||= a.status === 'degraded';

@@ -5,7 +5,9 @@ import {
   PROVIDERS,
   integrationKeys,
   integrationsApi,
+  isMailProvider,
   useIntegrations,
+  useSyncStatus,
   useSyncJobs,
   type ConflictPolicy,
   type Integration,
@@ -37,6 +39,7 @@ import {
 import { newIdempotencyKey } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth';
 import { formatAgo, formatDateTime } from '../../../lib/format';
+import { CsvImportDialog, MailSetupDialog, MailSetupGuide, ParseTestDialog } from './MailTools';
 
 export const STATUS_LABEL: Record<string, string> = {
   active: '正常',
@@ -66,6 +69,12 @@ export function AccountsTab() {
   const [jobsFor, setJobsFor] = useState<Integration | null>(null);
   const [fullFor, setFullFor] = useState<Integration | null>(null);
   const [disabling, setDisabling] = useState<Integration | null>(null);
+  const [setupFor, setSetupFor] = useState<Integration | null>(null);
+  const [parseFor, setParseFor] = useState<Integration | null>(null);
+  const [csvFor, setCsvFor] = useState<Integration | null>(null);
+  const status = useSyncStatus();
+  const manualOpen = (id: string) =>
+    status.data?.shops.flatMap((s) => s.accounts).find((x) => x.integrationAccountId === id)?.manualActionRequired ?? 0;
   const shopName = (id: string | null) => shops.find((s) => s.id === id)?.name ?? '—';
 
   const refresh = () => {
@@ -115,7 +124,10 @@ export function AccountsTab() {
         <EmptyState icon="plug" title="外部連携はまだありません" description="予約媒体と接続すると、外部の予約を自動で取り込み、空き枠を反映できます。" />
       ) : null}
       <div className="grid gap-4 lg:grid-cols-2">
-        {(q.data ?? []).map((a) => (
+        {(q.data ?? []).map((a) => {
+          const mail = isMailProvider(a.provider);
+          const pending = mail ? manualOpen(a.id) : 0;
+          return (
           <Card key={a.id} className="flex flex-col gap-3" as="article">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
@@ -132,7 +144,15 @@ export function AccountsTab() {
               items={[
                 { label: '最終成功', value: a.last_success_at ? `${formatDateTime(a.last_success_at, tz)}（${formatAgo(a.last_success_at)}）` : '—' },
                 { label: '競合ルール', value: POLICY_LABEL[a.config.conflictPolicy]?.label ?? a.config.conflictPolicy },
-                { label: '枠の反映', value: a.config.pushBlocks ? '外部へ反映する' : '反映しない' },
+                ...(mail ? [{ label: '取り込み', value: '予約通知メール（新規・変更・キャンセル）' }] : []),
+                {
+                  label: '枠の反映',
+                  value: !a.config.pushBlocks
+                    ? '反映しない'
+                    : a.pushMode === 'manual'
+                      ? `スタッフへ枠止めを依頼${pending ? `（未対応 ${pending}件）` : ''}`
+                      : '外部へ反映する',
+                },
                 {
                   label: '対応表',
                   value: `スタッフ ${Object.keys(a.config.staffMap).length}件 ・メニュー ${Object.keys(a.config.menuMap).length}件`,
@@ -145,6 +165,33 @@ export function AccountsTab() {
                 {a.last_error_at ? <span className="ml-1 text-xs text-muted">{formatDateTime(a.last_error_at, tz)}</span> : null}
               </Alert>
             ) : null}
+            {pending ? (
+              <Alert tone="warning" title={`媒体で止める・再開する枠が ${pending} 件あります`}>
+                「媒体の枠止め」タブで確認し、{a.provider === 'lime_mail' ? 'LiME' : 'SALON BOARD'} で操作後に「対応済み」を押してください。
+              </Alert>
+            ) : null}
+            {mail ? (
+              <div className="mt-auto flex flex-wrap gap-2 border-t border-border pt-3">
+                <Button size="sm" icon="info" onClick={() => setSetupFor(a)}>
+                  設定手順・受信URL
+                </Button>
+                <Button size="sm" icon="mail" onClick={() => setParseFor(a)} disabled={a.status === 'disabled'}>
+                  解析テスト
+                </Button>
+                <Button size="sm" variant="ghost" icon="download" onClick={() => setCsvFor(a)} disabled={a.status === 'disabled'}>
+                  CSV取り込み
+                </Button>
+                <span className="flex-1" />
+                <IconButton icon="edit" label="設定を編集" size="sm" variant="secondary" onClick={() => setEditing(a)} />
+                {a.status === 'disabled' ? (
+                  <Button size="sm" variant="soft" onClick={() => setStatus.mutate({ id: a.id, status: 'active' })}>
+                    有効にする
+                  </Button>
+                ) : (
+                  <IconButton icon="x" label="無効にする" size="sm" variant="secondary" onClick={() => setDisabling(a)} />
+                )}
+              </div>
+            ) : (
             <div className="mt-auto flex flex-wrap gap-2 border-t border-border pt-3">
               <Button size="sm" icon="plug" onClick={() => test.mutate(a.id)} loading={test.isPending && test.variables === a.id} disabled={a.status === 'disabled'}>
                 接続テスト
@@ -174,10 +221,21 @@ export function AccountsTab() {
                 <IconButton icon="x" label="無効にする" size="sm" variant="secondary" onClick={() => setDisabling(a)} />
               )}
             </div>
+            )}
           </Card>
-        ))}
+          );
+        })}
       </div>
-      {editing ? <IntegrationDialog integration={editing === 'new' ? null : editing} onClose={() => setEditing(null)} /> : null}
+      {editing ? (
+        <IntegrationDialog
+          integration={editing === 'new' ? null : editing}
+          onClose={() => setEditing(null)}
+          onCreated={(created) => (isMailProvider(created.provider) ? setSetupFor(created) : undefined)}
+        />
+      ) : null}
+      <MailSetupDialog integration={setupFor} onClose={() => setSetupFor(null)} />
+      <ParseTestDialog integration={parseFor} onClose={() => setParseFor(null)} />
+      <CsvImportDialog integration={csvFor} onClose={() => setCsvFor(null)} />
       <SyncJobsDrawer integration={jobsFor} onClose={() => setJobsFor(null)} />
       <ConfirmDialog
         open={!!fullFor}
@@ -254,7 +312,15 @@ const toRows = (m: Record<string, string>): MapRow[] => Object.entries(m).map(([
 const toMap = (rows: MapRow[]) =>
   Object.fromEntries(rows.filter((r) => r.key.trim() && r.value).map((r) => [r.key.trim(), r.value]));
 
-function IntegrationDialog({ integration, onClose }: { integration: Integration | null; onClose: () => void }) {
+function IntegrationDialog({
+  integration,
+  onClose,
+  onCreated,
+}: {
+  integration: Integration | null;
+  onClose: () => void;
+  onCreated?: (created: Integration) => void;
+}) {
   const qc = useQueryClient();
   const toast = useToast();
   const { shops, currentShopId } = useAuth();
@@ -264,6 +330,19 @@ function IntegrationDialog({ integration, onClose }: { integration: Integration 
   const [credentials, setCredentials] = useState('');
   const [policy, setPolicy] = useState<ConflictPolicy>(integration?.config.conflictPolicy ?? 'manual');
   const [pushBlocks, setPushBlocks] = useState(integration?.config.pushBlocks ?? false);
+  const [pushTouched, setPushTouched] = useState(!!integration);
+  const mail = isMailProvider(provider);
+  const mailCfg = integration?.config.mail;
+  const [defaultMenuId, setDefaultMenuId] = useState(mailCfg?.defaultMenuId ?? '');
+  const [autoMatch, setAutoMatch] = useState(mailCfg?.autoMatchNames ?? true);
+  const [notifyEmails, setNotifyEmails] = useState((mailCfg?.notifyEmails ?? []).join(', '));
+  const [subjectIncludes, setSubjectIncludes] = useState((mailCfg?.subjectIncludes ?? []).join(', '));
+  const splitList = (v: string) =>
+    v
+      .split(/[,、\s]+/)
+      .map((x) => x.trim())
+      .filter(Boolean);
+  const emailsInvalid = splitList(notifyEmails).some((e) => !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e));
   const [staffRows, setStaffRows] = useState<MapRow[]>(toRows(integration?.config.staffMap ?? {}));
   const [menuRows, setMenuRows] = useState<MapRow[]>(toRows(integration?.config.menuMap ?? {}));
   const [credError, setCredError] = useState<string | null>(null);
@@ -286,15 +365,31 @@ function IntegrationDialog({ integration, onClose }: { integration: Integration 
 
   const save = useMutation({
     mutationFn: (creds: Record<string, unknown> | undefined) => {
-      const config = { conflictPolicy: policy, pushBlocks, staffMap: toMap(staffRows), menuMap: toMap(menuRows) };
+      const config = {
+        conflictPolicy: policy,
+        pushBlocks,
+        staffMap: toMap(staffRows),
+        menuMap: toMap(menuRows),
+        ...(mail
+          ? {
+              mail: {
+                ...(defaultMenuId ? { defaultMenuId } : {}),
+                autoMatchNames: autoMatch,
+                notifyEmails: splitList(notifyEmails),
+                subjectIncludes: splitList(subjectIncludes),
+              },
+            }
+          : {}),
+      };
       return integration
         ? integrationsApi.update(integration.id, { displayName: displayName.trim(), config, ...(creds ? { credentials: creds } : {}) })
         : integrationsApi.create({ provider, shopId, displayName: displayName.trim(), config, ...(creds ? { credentials: creds } : {}) }, key);
     },
-    onSuccess: () => {
+    onSuccess: (saved) => {
       void qc.invalidateQueries({ queryKey: integrationKeys.all });
       toast.success(integration ? '連携設定を更新しました' : '連携を追加しました');
       onClose();
+      if (!integration) onCreated?.(saved);
     },
     onError: (e) => toast.error(e),
   });
@@ -314,7 +409,7 @@ function IntegrationDialog({ integration, onClose }: { integration: Integration 
           <Button
             variant="primary"
             loading={save.isPending}
-            disabled={!displayName.trim() || !shopId}
+            disabled={!displayName.trim() || !shopId || (mail && emailsInvalid)}
             onClick={() => {
               const c = parseCreds();
               if (c !== null) save.mutate(c);
@@ -328,7 +423,15 @@ function IntegrationDialog({ integration, onClose }: { integration: Integration 
       <div className="space-y-5">
         <div className="grid gap-3 sm:grid-cols-3">
           <Field label="連携先" hint={integration ? '作成後は変更できません' : PROVIDERS.find((p) => p.value === provider)?.description}>
-            <Select value={provider} onChange={(e) => setProvider(e.target.value)} disabled={!!integration}>
+            <Select
+              value={provider}
+              onChange={(e) => {
+                setProvider(e.target.value);
+                // e-mail connectors exist to prevent double booking: blocking requests on by default
+                if (!pushTouched) setPushBlocks(isMailProvider(e.target.value));
+              }}
+              disabled={!!integration}
+            >
               {PROVIDERS.map((p) => (
                 <option key={p.value} value={p.value}>
                   {p.label}
@@ -350,6 +453,7 @@ function IntegrationDialog({ integration, onClose }: { integration: Integration 
             <Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} maxLength={100} placeholder="例: 予約媒体A（渋谷）" />
           </Field>
         </div>
+        {mail ? null : (
         <Field
           label="認証情報（JSON）"
           optional
@@ -373,6 +477,7 @@ function IntegrationDialog({ integration, onClose }: { integration: Integration 
             autoComplete="off"
           />
         </Field>
+        )}
         <fieldset className="space-y-2">
           <legend className="mb-1 text-[13px] font-medium">競合時のルール</legend>
           {(Object.keys(POLICY_LABEL) as ConflictPolicy[]).map((p) => (
@@ -385,26 +490,62 @@ function IntegrationDialog({ integration, onClose }: { integration: Integration 
             </label>
           ))}
         </fieldset>
-        <Switch checked={pushBlocks} onChange={setPushBlocks} label="自社の予約で埋まった枠を外部へ反映する" description="ダブルブッキングを防ぐため、自社予約の時間を外部媒体側でブロックします。" />
+        <Switch
+          checked={pushBlocks}
+          onChange={(v) => {
+            setPushBlocks(v);
+            setPushTouched(true);
+          }}
+          label={mail ? '他の経路で入った予約の枠止めを依頼する' : '自社の予約で埋まった枠を外部へ反映する'}
+          description={
+            mail
+              ? '自社Web・LINE・電話・他媒体の予約が入ると、この媒体で止める枠を「媒体の枠止め」と通知メールでお知らせします（媒体に公開APIがないため操作はスタッフが行います）。'
+              : 'ダブルブッキングを防ぐため、自社予約の時間を外部媒体側でブロックします。'
+          }
+        />
+        {mail ? (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="既定メニュー" optional hint="メール記載のメニュー名を特定できないときに使います。未設定なら競合キューで確認します。">
+              <Select value={defaultMenuId} onChange={(e) => setDefaultMenuId(e.target.value)}>
+                <option value="">設定しない</option>
+                {(menus.data ?? []).map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="枠止め依頼の通知先" optional hint="カンマ区切り・最大5件。空欄なら店舗のメールアドレスへ送ります。" error={emailsInvalid ? 'メールアドレスの形式を確認してください' : null}>
+              <Input value={notifyEmails} onChange={(e) => setNotifyEmails(e.target.value)} placeholder="front@example.com" />
+            </Field>
+            <Field label="件名フィルタ" optional hint="この語を件名に含むメールだけ取り込みます（カンマ区切り）。空欄なら予約メールを自動判定。">
+              <Input value={subjectIncludes} onChange={(e) => setSubjectIncludes(e.target.value)} placeholder="SALON BOARD" />
+            </Field>
+            <div className="self-end">
+              <Switch checked={autoMatch} onChange={setAutoMatch} label="スタッフ・メニューを名前で自動判定" description="対応表にない名前は、自社の名前と一意に一致すれば自動で対応付けます。" />
+            </div>
+          </div>
+        ) : null}
         <div className="grid gap-5 lg:grid-cols-2">
           <MapEditor
             title="スタッフ対応表"
-            description="外部のスタイリストコード → 自社スタッフ"
+            description={mail ? 'メールに記載のスタッフ名 → 自社スタッフ（名前が違う場合のみ）' : '外部のスタイリストコード → 自社スタッフ'}
             rows={staffRows}
             onChange={setStaffRows}
             options={(staff.data ?? []).map((s) => ({ id: s.id, label: s.display_name }))}
-            placeholder="例: ST001"
+            placeholder={mail ? '例: SAKI' : '例: ST001'}
           />
           <MapEditor
             title="メニュー対応表"
-            description="外部のメニューコード → 自社メニュー"
+            description={mail ? 'メールに記載のメニュー名 → 自社メニュー（名前が違う場合のみ）' : '外部のメニューコード → 自社メニュー'}
             rows={menuRows}
             onChange={setMenuRows}
             options={(menus.data ?? []).map((m) => ({ id: m.id, label: m.name }))}
-            placeholder="例: MN-CUT"
+            placeholder={mail ? '例: 【平日限定】カット' : '例: MN-CUT'}
           />
         </div>
-        {integration ? (
+        {integration && mail ? <MailSetupGuide integration={integration} /> : null}
+        {integration && !mail ? (
           <div className="rounded-xl bg-surface-2 p-3 text-[13px]">
             <p className="text-xs text-muted">Webhook URL（連携先の管理画面に登録）</p>
             <div className="mt-1 flex items-center gap-2">

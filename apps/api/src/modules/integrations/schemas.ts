@@ -3,11 +3,32 @@ import { uuid } from '../../lib/schemas.js';
 
 const externalKey = z.string().min(1).max(100);
 
+/** e-mail ingestion connectors (Hot Pepper / LiME booking-notification mails) */
+export const MAIL_LABEL_FIELDS = ['reservationNo', 'datetime', 'date', 'time', 'end', 'duration', 'name', 'kana', 'phone', 'email', 'staff', 'menu', 'amount', 'note'] as const;
+export const mailConfigSchema = z.object({
+  /** secret part of the inbound webhook URL (generated on create) */
+  inboundToken: z.string().min(16).max(100).optional(),
+  /** extra label spellings per field, tried before the defaults */
+  labels: z.partialRecord(z.enum(MAIL_LABEL_FIELDS), z.array(z.string().min(1).max(40)).max(10)).optional(),
+  /** only mails whose subject contains one of these are processed (empty = all booking-like mails) */
+  subjectIncludes: z.array(z.string().min(1).max(60)).max(10).optional(),
+  /** used when a menu name in the mail is not in menuMap and cannot be matched by name */
+  defaultMenuId: uuid.optional(),
+  /** match staff / menu names to Salon OS names automatically when not in the maps (default true) */
+  autoMatchNames: z.boolean().optional(),
+  /** where "block this slot on the medium" requests are e-mailed (default: shop e-mail) */
+  notifyEmails: z.array(z.string().email()).max(5).optional(),
+  /** Mailgun webhook signing key (optional extra verification) */
+  mailgunSigningKey: z.string().max(200).optional(),
+});
+export type MailConfig = z.infer<typeof mailConfigSchema>;
+
 const configFields = {
   staffMap: z.record(externalKey, uuid),
   menuMap: z.record(externalKey, uuid),
   conflictPolicy: z.enum(['manual', 'external_wins', 'internal_wins']),
   pushBlocks: z.boolean(),
+  mail: mailConfigSchema,
 };
 
 /** full config with defaults (stored shape) */
@@ -16,6 +37,7 @@ export const integrationConfigSchema = z.object({
   menuMap: configFields.menuMap.default({}),
   conflictPolicy: configFields.conflictPolicy.default('manual'),
   pushBlocks: configFields.pushBlocks.default(false),
+  mail: configFields.mail.optional(),
 });
 
 export const createIntegrationSchema = z.object({

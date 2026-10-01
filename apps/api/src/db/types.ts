@@ -514,10 +514,14 @@ export interface ExternalSlotBlocks {
   block_end_at: Timestamp | null;
   block_start_at: Timestamp | null;
   created_at: Generated<Timestamp>;
+  done_at: Timestamp | null;
+  done_by: string | null;
   external_block_id: string | null;
   id: Generated<string>;
   integration_account_id: string;
   last_error: string | null;
+  manual: Generated<boolean>;
+  notified_at: Timestamp | null;
   organization_id: string;
   pushed_at: Timestamp | null;
   staff_external_id: string | null;

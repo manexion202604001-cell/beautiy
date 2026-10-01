@@ -639,7 +639,9 @@ export async function fanOutDeltaSync(now = new Date()): Promise<number> {
     const accounts = await trx.selectFrom('integration_accounts').select(['id', 'organization_id', 'provider']).where('status', '!=', 'disabled').where('shop_id', 'is not', null).execute();
     let n = 0;
     for (const a of accounts) {
-      if (!getAdapter(a.provider)) continue;
+      const adapter = getAdapter(a.provider);
+      // e-mail connectors are push-only (inbound webhook); nothing to poll
+      if (!adapter || adapter.inboundEmail) continue;
       if (!(await isFeatureEnabledFor(trx, a.organization_id, 'external_sync', true))) continue;
       const id = await enqueueSync(trx, { id: a.id, organizationId: a.organization_id }, 'delta', 'schedule', `intg-sync:${a.id}:delta:${bucket}`);
       if (id) n++;

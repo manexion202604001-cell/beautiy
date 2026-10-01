@@ -5,6 +5,7 @@ import { ACTIVE_STATUSES } from '../appointments/service.js';
 import { loadAccountRow, parseIntegrationConfig, toAdapterAccount } from './accounts.js';
 import { getAdapter } from './adapters/registry.js';
 import { recordConflict } from './conflict-store.js';
+import { reconcileManualBlock } from './mail/manual.js';
 
 /**
  * Push (internal → external): reflect internal bookings to booking media as blocked slots so the
@@ -109,6 +110,11 @@ registerJob<PushPayload>(PUSH_JOB, async (p, jc) => {
   const staffExternalId = appt.staff_id ? (Object.entries(cfg.staffMap).find(([, v]) => v === appt.staff_id)?.[0] ?? null) : null;
   const present = !!block?.external_block_id;
 
+  if (adapter.pushMode === 'manual') {
+    // no write API on this medium (e.g. SALON BOARD / LiME): staff task instead of an API call
+    await reconcileManualBlock(jc, acc, appt, block, want);
+    return;
+  }
   if (want && !staffExternalId && !present) {
     await jc.tx((ctx) => upsertBlock(ctx, key, { state: 'error', last_error: 'スタッフ対応表に未登録のスタッフのため外部枠へ反映できません' }));
     return;

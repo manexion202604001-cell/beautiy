@@ -12,6 +12,18 @@ export interface IntegrationConfig {
   menuMap: Record<string, string>;
   conflictPolicy: ConflictPolicy;
   pushBlocks: boolean;
+  mail?: MailConfig;
+}
+
+/** e-mail connectors (Hot Pepper / LiME booking-notification mails) */
+export interface MailConfig {
+  inboundToken?: string;
+  labels?: Partial<Record<string, string[]>>;
+  subjectIncludes?: string[];
+  defaultMenuId?: string;
+  autoMatchNames?: boolean;
+  notifyEmails?: string[];
+  mailgunSigningKey?: string;
 }
 
 export interface Integration {
@@ -31,6 +43,9 @@ export interface Integration {
   updated_at: string;
   hasCredentials: boolean;
   webhookUrl: string;
+  /** 'manual' = the medium has no write API; slot blocks become staff tasks */
+  pushMode: 'api' | 'manual';
+  inboundEmail: { webhookUrl: string } | null;
 }
 
 export interface IntegrationInput {
@@ -72,6 +87,7 @@ export interface SyncStatusAccount {
   consecutiveFailures: number;
   openConflicts: number;
   unsyncedBlocks: number;
+  manualActionRequired?: number;
   lastJob: {
     state: string;
     mode: string;
@@ -152,8 +168,105 @@ export interface SyncConflict {
   shop_id: string | null;
 }
 
+/** null = could not be matched */
+export type MatchVia = 'map' | 'auto' | 'default' | null;
+export const MATCH_VIA_LABEL: Record<NonNullable<MatchVia> | 'none', string> = {
+  map: '対応表',
+  auto: '名前で自動判定',
+  default: '既定メニュー',
+  none: '未対応',
+};
+
+export interface MailParseResult {
+  kind: 'booked' | 'changed' | 'cancelled' | 'unknown';
+  externalId: string;
+  start: string | null;
+  end: string | null;
+  durationMin: number | null;
+  customer: { name: string | null; kana: string | null; phone: string | null; email: string | null };
+  staff: { name: string | null; staffId: string | null; staffName: string | null; via: MatchVia };
+  menus: { name: string; menuId: string | null; menuName: string | null; via: MatchVia }[];
+  amount: number | null;
+  note: string | null;
+  fields: Record<string, string>;
+  warnings: string[];
+  ready: boolean;
+}
+
+export const MAIL_KIND_LABEL: Record<MailParseResult['kind'], string> = {
+  booked: '新規予約',
+  changed: '予約変更',
+  cancelled: 'キャンセル',
+  unknown: '予約メールではない',
+};
+
+export interface CsvImportRow {
+  row: number;
+  externalId: string;
+  status: 'booked' | 'cancelled' | 'error';
+  start: string | null;
+  customerName: string | null;
+  staff: MailParseResult['staff'] | null;
+  menus: MailParseResult['menus'];
+  outcome?: string;
+  error?: string;
+}
+
+export interface CsvImportResult {
+  dryRun: boolean;
+  total: number;
+  summary: Record<string, number>;
+  results: CsvImportRow[];
+}
+
+export const OUTCOME_LABEL: Record<string, string> = {
+  preview: '取り込み予定',
+  created: '作成',
+  updated: '更新',
+  cancelled: '取消',
+  linked: '紐付け',
+  conflict: '競合キューへ',
+  skipped: 'スキップ（変更なし）',
+  error: 'エラー',
+};
+
+export interface ManualBlock {
+  id: string;
+  state: 'action_required' | 'remove_required' | 'pushed' | 'removed' | string;
+  block_start_at: string;
+  block_end_at: string;
+  message: string | null;
+  notified_at: string | null;
+  done_at: string | null;
+  created_at: string;
+  updated_at: string;
+  integration_account_id: string;
+  provider: string;
+  providerLabel: string;
+  integration_name: string;
+  shop_id: string | null;
+  appointment_id: string;
+  booking_reference: string | null;
+  source: string;
+  appointment_status: string;
+  staff_name: string | null;
+  customer_name: string;
+}
+
 /** Providers the API registers adapters for (no listing endpoint — see README) */
 export const PROVIDERS: { value: string; label: string; description: string }[] = [
+  {
+    value: 'hotpepper_mail',
+    label: 'ホットペッパービューティー（予約通知メール連携）',
+    description:
+      'SALON BOARD の予約通知メールを専用アドレスへ転送すると、数秒〜数十秒で予約台帳へ反映します。自社側の予約は「媒体で枠を止める」依頼として通知します。',
+  },
+  {
+    value: 'lime_mail',
+    label: 'LiME（予約通知メール連携）',
+    description:
+      'LiME の予約通知メールを専用アドレスへ転送すると、予約台帳へ反映します。既存の予約はCSVで一括取り込みできます。',
+  },
   {
     value: 'mock_booking',
     label: '予約媒体（モック）',
@@ -185,6 +298,14 @@ export const integrationsApi = {
     integrationAccountId?: string;
     cursor?: string;
   }) => api.get<Page<SyncConflict>>('/sync-conflicts', { ...q, limit: 30 }),
+  parseTest: (id: string, input: { subject: string; text?: string; html?: string }) =>
+    api.post<MailParseResult>(`/integrations/${id}/parse-test`, input),
+  importCsv: (id: string, input: { csv: string; dryRun: boolean }, idempotencyKey?: string) =>
+    api.post<CsvImportResult>(`/integrations/${id}/import-csv`, input, idempotencyKey ? { idempotencyKey } : undefined),
+  manualBlocks: (q: { shopId?: string; state?: 'open' | 'all' }) =>
+    api.get<ManualBlock[]>('/integrations/manual-blocks', q),
+  completeManualBlock: (id: string) =>
+    api.post<{ id: string; state: string }>(`/integrations/manual-blocks/${id}/done`),
   resolve: (
     id: string,
     input: { resolution: Resolution; note?: string; appointmentId?: string },
@@ -198,7 +319,21 @@ export const integrationKeys = {
   status: ['integrations', 'status'] as const,
   jobs: (id: string) => ['integrations', 'jobs', id] as const,
   conflicts: (q: object) => ['integrations', 'conflicts', q] as const,
+  manualBlocks: (q: object) => ['integrations', 'manual-blocks', q] as const,
 };
+
+export function isMailProvider(provider: string) {
+  return provider === 'hotpepper_mail' || provider === 'lime_mail';
+}
+
+export function useManualBlocks(q: { shopId?: string; state?: 'open' | 'all' }, enabled = true) {
+  return useQuery({
+    queryKey: integrationKeys.manualBlocks(q),
+    queryFn: () => integrationsApi.manualBlocks(q),
+    enabled,
+    refetchInterval: 30_000,
+  });
+}
 
 export function useIntegrations(enabled = true) {
   return useQuery({ queryKey: integrationKeys.list, queryFn: integrationsApi.list, enabled });

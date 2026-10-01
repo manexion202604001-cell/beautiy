@@ -84,7 +84,8 @@ src/
 - オンライン決済・返金は `modules/payments/api.ts` の `startOnlinePayment()` / `settleOnlinePayment()` / `refundPayment()`。
 - 予約の作成/変更/状態遷移は `modules/appointments/service.ts` の `createAppointment` / `updateAppointment` / `transitionAppointment` (外部・公開チャネルは `{ trusted: true }`)。
 - 顧客の名寄せは `modules/customers/identity.ts` の `resolveCustomer()`、統計再計算は `customers/stats.ts` の `recomputeCustomerStats()`。
-- Webhook は `lib/webhooks.ts` の `registerWebhookProvider(name, { verify, process })`。ルート `/v1/webhooks/:provider` は integrations モジュールが提供。
+- Webhook は `lib/webhooks.ts` の `registerWebhookProvider(name, { verify, process })`。ルート `/v1/webhooks/:provider` / `/v1/webhooks/:provider/:key` は integrations モジュールが提供（JSON / urlencoded / multipart を受け付ける）。
+- 公開APIのない予約媒体は `pushMode: 'manual'` / `inboundEmail: true` の Adapter にする（予約通知メールで取り込み、枠止めはスタッフ作業。ADR 0010）。
 - 署名付き一時リンクは `lib/access-tokens.ts`。ファイルは `lib/storage.ts` (DBにはメタデータのみ)。
 
 ## 6. API 規約 (要件 8.1)

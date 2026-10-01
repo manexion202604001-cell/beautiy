@@ -39,6 +39,7 @@ import { useNow } from '../../lib/hooks';
 import { todayIn, zonedParts } from '../../lib/time';
 import { StartCheckoutButton } from './pos/StartCheckoutButton';
 import { DashboardInsights } from './analytics/DashboardInsights';
+import { ManualBlocksCard } from './integrations/MailTools';
 
 export default function Dashboard() {
   const { me, currentShop, currentShopId: shopId, timezone: tz, can } = useAuth();
@@ -126,6 +127,8 @@ export default function Dashboard() {
           tone="success"
         />
       </div>
+
+      {shopId ? <ManualBlocksCard shopId={shopId} /> : null}
 
       <DashboardInsights />
 

@@ -15,6 +15,8 @@ export interface IntegrationConfig {
   conflictPolicy: ConflictPolicy;
   /** reflect internal bookings to the provider as blocked slots */
   pushBlocks: boolean;
+  /** e-mail ingestion connectors only */
+  mail?: import('../schemas.js').MailConfig;
 }
 
 /** What an adapter receives: the account with decrypted credentials (never leaves the server) */
@@ -71,6 +73,13 @@ export interface HealthResult {
 
 export interface BookingProviderAdapter {
   readonly name: string;
+  /**
+   * 'api' (default): pushBlock/removeBlock call the provider.
+   * 'manual': the provider has no write API — blocks become staff tasks ("block this slot on the medium").
+   */
+  readonly pushMode?: 'api' | 'manual';
+  /** bookings arrive as forwarded notification e-mails (inbound e-mail webhook) */
+  readonly inboundEmail?: boolean;
   /** changes since cursor (null = from the beginning of the change feed) */
   fetchChanges(account: AdapterAccount, cursor: string | null): Promise<FetchResult>;
   /** every booking whose start falls in range (全件再同期) */
