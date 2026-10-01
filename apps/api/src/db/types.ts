@@ -535,6 +535,8 @@ export interface Files {
   content_type: string;
   created_at: Generated<Timestamp>;
   deleted_at: Timestamp | null;
+  deleted_by: string | null;
+  file_name: string | null;
   id: Generated<string>;
   object_key: string;
   organization_id: string;
@@ -556,30 +558,38 @@ export interface FormResponses {
   ip: string | null;
   karte_id: string | null;
   organization_id: string;
+  shop_id: string | null;
   signature_file_id: string | null;
   signed_at: Timestamp | null;
   signer_name: string | null;
   status: Generated<string>;
+  submitted_at: Timestamp | null;
   submitted_via: string | null;
   template_id: string;
   template_snapshot: Json;
   template_version: number;
   updated_at: Generated<Timestamp>;
   user_agent: string | null;
+  void_reason: string | null;
+  voided_at: Timestamp | null;
+  voided_by: string | null;
 }
 
 export interface FormTemplates {
   body_markdown: string | null;
   created_at: Generated<Timestamp>;
+  created_by: string | null;
   fields: Generated<Json>;
   id: Generated<string>;
   kind: string;
+  lineage_id: string;
   name: string;
   organization_id: string;
   requires_signature: Generated<boolean>;
   shop_id: string | null;
   status: Generated<string>;
   updated_at: Generated<Timestamp>;
+  updated_by: string | null;
   version: Generated<number>;
 }
 
