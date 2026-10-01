@@ -1,0 +1,11 @@
+node_modules/
+dist/
+coverage/
+.env
+.env.local
+*.log
+apps/api/storage/
+playwright-report/
+test-results/
+.DS_Store
+apps/api/storage-test/

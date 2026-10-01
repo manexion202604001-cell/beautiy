@@ -1,0 +1,22 @@
+{
+  "name": "salon-os",
+  "private": true,
+  "version": "0.1.0",
+  "description": "LiME型 美容サロンOS — 集客→予約→顧客→施術→カルテ→会計→口コミ→再来店を一気通貫で管理するマルチテナントSaaS",
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm -r --parallel dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint",
+    "test": "pnpm -r test",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "prettier": "^3.3.3"
+  }
+}
