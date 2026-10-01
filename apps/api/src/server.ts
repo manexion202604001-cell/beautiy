@@ -27,6 +27,8 @@ export async function buildApp(opts: { logger?: FastifyServerOptions['logger'] }
     genReqId: (req) => newRequestId(req as { headers: Record<string, unknown> }),
     trustProxy: trustProxySetting(),
     bodyLimit: 5 * 1024 * 1024,
+    // signed access tokens in path params exceed the default 100 chars
+    maxParamLength: 2048,
     ajv: { customOptions: { coerceTypes: 'array' } },
   }).withTypeProvider<ZodTypeProvider>();
 
