@@ -23,12 +23,14 @@ function redact(value: unknown): unknown {
   return out;
 }
 
+const DIFF_IGNORE = new Set(['updated_at', 'version', 'updated_by', 'trace_id', 'search_text', 'created_by']);
+
 /** Only keep changed keys for update diffs */
 export function diff(before: Record<string, unknown>, after: Record<string, unknown>) {
   const b: Record<string, unknown> = {};
   const a: Record<string, unknown> = {};
   for (const key of new Set([...Object.keys(before), ...Object.keys(after)])) {
-    if (key === 'updated_at' || key === 'version') continue;
+    if (DIFF_IGNORE.has(key)) continue;
     const bv = before[key] instanceof Date ? (before[key] as Date).toISOString() : before[key];
     const av = after[key] instanceof Date ? (after[key] as Date).toISOString() : after[key];
     if (JSON.stringify(bv) !== JSON.stringify(av)) {

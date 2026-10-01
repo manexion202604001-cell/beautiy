@@ -144,3 +144,29 @@ export function jstDate(offsetDays = 0): string {
   const d = new Date(Date.now() + offsetDays * 86_400_000);
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tokyo' }).format(d);
 }
+
+/** Next local (JST) date with the given weekday (0=Sun) at least minDays ahead */
+export function nextWeekday(weekday: number, minDays = 3): string {
+  for (let i = minDays; i < minDays + 8; i++) {
+    const d = jstDate(i);
+    if (new Date(`${d}T12:00:00+09:00`).getUTCDay() === weekday) return d;
+  }
+  throw new Error('unreachable');
+}
+
+/** ISO timestamp for a JST local date/time */
+export function jst(date: string, time: string): string {
+  return new Date(`${date}T${time}:00+09:00`).toISOString();
+}
+
+export async function createMenu(tenant: Tenant, overrides: Record<string, unknown> = {}) {
+  const res = await tenant.owner.post('/v1/menus', { name: 'カット', durationMin: 60, price: 5500, ...overrides });
+  if (res.status !== 201) throw new Error(`menu create failed ${JSON.stringify(res.body)}`);
+  return res.body as { id: string; name: string };
+}
+
+export async function createCustomer(tenant: Tenant, overrides: Record<string, unknown> = {}) {
+  const res = await tenant.owner.post('/v1/customers', { lastName: '顧客', firstName: randomUUID().slice(0, 4), ...overrides });
+  if (res.status !== 201) throw new Error(`customer create failed ${JSON.stringify(res.body)}`);
+  return res.body.customer as { id: string };
+}

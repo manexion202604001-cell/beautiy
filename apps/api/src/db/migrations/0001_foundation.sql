@@ -28,8 +28,17 @@ BEGIN
   RETURN NEW;
 END $$;
 
--- Immutable wrapper so we can index normalized kana/name text
+-- Hiragana -> Katakana (so ひらがな/カタカナ queries match each other)
+CREATE OR REPLACE FUNCTION to_katakana(t text) RETURNS text
+LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
+  SELECT translate(coalesce(t, ''),
+    'ぁあぃいぅうぇえぉおかがきぎくぐけげこごさざしじすずせぜそぞただちぢっつづてでとどなにぬねのはばぱひびぴふぶぷへべぺほぼぽまみむめもゃやゅゆょよらりるれろゎわゐゑをんゔ',
+    'ァアィイゥウェエォオカガキギクグケゲコゴサザシジスズセゼソゾタダチヂッツヅテデトドナニヌネノハバパヒビピフブプヘベペホボポマミムメモャヤュユョヨラリルレロヮワヰヱヲンヴ')
+$$;
+
+-- Normalized search text: NFKC (全角英数→半角, 半角カナ→全角), katakana, lowercase, no whitespace.
+-- Must stay consistent with normalizeKana() in src/lib/normalize.ts
 CREATE OR REPLACE FUNCTION normalize_search_text(t text) RETURNS text
 LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
-  SELECT lower(regexp_replace(coalesce(t, ''), '[\s　]+', '', 'g'))
+  SELECT lower(to_katakana(regexp_replace(normalize(coalesce(t, ''), NFKC), '[\s　]+', '', 'g')))
 $$;
