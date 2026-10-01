@@ -134,7 +134,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 async function refreshOnce(): Promise<string | null> {
   // another tab may have rotated the token meanwhile → always use the latest stored one
   session.syncFromStorage();
-  const rt = session.getRefreshToken();
+  let rt = session.getRefreshToken();
   if (!rt) {
     lastRefreshFailure = 'auth';
     return null;
@@ -165,6 +165,15 @@ async function refreshOnce(): Promise<string | null> {
           ? Math.min(retryAfter, 10) * 1000
           : 1000 * 2 ** attempt,
       );
+      continue;
+    }
+    if (res.status === 409) {
+      // REFRESH_IN_PROGRESS: another tab/request rotated this token seconds ago (server grace window).
+      // Pick up the newer token from storage instead of treating it as a logout.
+      await sleep(300 * (attempt + 1));
+      session.syncFromStorage();
+      const latest = session.getRefreshToken();
+      if (latest) rt = latest;
       continue;
     }
     if (res.status === 401 || res.status === 403 || res.status === 400) {
