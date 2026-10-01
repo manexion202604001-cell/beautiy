@@ -1,0 +1,74 @@
+/*
+ * Chart tokens (dataviz method). Categorical slots validated with the dataviz validator against the
+ * app surfaces (#ffffff light / #1b1a18 dark): adjacent CVD ΔE ≥ 8.4, normal-vision ΔE ≥ 19.3.
+ * Light slots 3–5 sit below 3:1 on white → every chart ships a table view (relief rule).
+ */
+.viz {
+  --viz-1: #2a78d6;
+  --viz-2: #eb6834;
+  --viz-3: #1baf7a;
+  --viz-4: #eda100;
+  --viz-5: #e87ba4;
+  --viz-6: #008300;
+  --viz-other: #a8a69f;
+  --viz-muted-series: #b4b2aa;
+  --viz-band: rgb(42 120 214 / 0.14);
+  --viz-area: rgb(42 120 214 / 0.1);
+  --viz-grid: #ecebe6;
+  --viz-axis: #c3c2b7;
+  --viz-tick: #898781;
+  --viz-surface: var(--surface);
+  --viz-up: #006300;
+  --viz-down: #c02a2a;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .viz {
+    --viz-1: #3987e5;
+    --viz-2: #d95926;
+    --viz-3: #199e70;
+    --viz-4: #c98500;
+    --viz-5: #d55181;
+    --viz-6: #008300;
+    --viz-other: #6b6a64;
+    --viz-muted-series: #6f6d66;
+    --viz-band: rgb(57 135 229 / 0.2);
+    --viz-area: rgb(57 135 229 / 0.12);
+    --viz-grid: #2c2c2a;
+    --viz-axis: #45443f;
+    --viz-tick: #918f88;
+    --viz-up: #3fbf3f;
+    --viz-down: #f07878;
+  }
+}
+
+:root[data-theme='dark'] .viz {
+  --viz-1: #3987e5;
+  --viz-2: #d95926;
+  --viz-3: #199e70;
+  --viz-4: #c98500;
+  --viz-5: #d55181;
+  --viz-6: #008300;
+  --viz-other: #6b6a64;
+  --viz-muted-series: #6f6d66;
+  --viz-band: rgb(57 135 229 / 0.2);
+  --viz-area: rgb(57 135 229 / 0.12);
+  --viz-grid: #2c2c2a;
+  --viz-axis: #45443f;
+  --viz-tick: #918f88;
+  --viz-up: #3fbf3f;
+  --viz-down: #f07878;
+}
+
+.viz-mark {
+  transition: opacity 120ms ease-out;
+}
+.viz-mark[data-dim='true'] {
+  opacity: 0.45;
+}
+
+@media (forced-colors: active) {
+  .viz-mark {
+    forced-color-adjust: none;
+  }
+}

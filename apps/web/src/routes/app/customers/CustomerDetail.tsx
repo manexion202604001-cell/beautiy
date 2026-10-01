@@ -51,9 +51,10 @@ import {
   formatTime,
   formatYen,
 } from '../../../lib/format';
+import { CustomerMessagesTab } from '../messages/CustomerMessagesTab';
 import { CustomerForm, toInitial } from './CustomerForm';
 
-type Tab = 'profile' | 'visits' | 'timeline' | 'memos' | 'tags' | 'duplicates';
+type Tab = 'profile' | 'visits' | 'timeline' | 'memos' | 'tags' | 'duplicates' | 'messages';
 
 export default function CustomerDetail() {
   const { id = '' } = useParams();
@@ -256,6 +257,7 @@ export default function CustomerDetail() {
             { value: 'timeline', label: 'タイムライン' },
             { value: 'memos', label: 'メモ' },
             { value: 'tags', label: 'タグ' },
+            { value: 'messages', label: 'メッセージ' },
             {
               value: 'duplicates',
               label: '重複候補・統合',
@@ -271,6 +273,7 @@ export default function CustomerDetail() {
             {tab === 'memos' ? <MemosTab id={c.id} readOnly={merged} /> : null}
             {tab === 'tags' ? <TagsTab c={c} /> : null}
             {tab === 'duplicates' ? <DuplicatesTab c={c} /> : null}
+            {tab === 'messages' ? <CustomerMessagesTab customerId={c.id} customerName={c.display_name} /> : null}
           </TabPanel>
         </div>
       </div>

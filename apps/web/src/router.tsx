@@ -25,6 +25,15 @@ const ComingSoon = lazy(() => import('./routes/app/ComingSoon'));
 const Book = lazy(() => import('./routes/public/Book'));
 const Manage = lazy(() => import('./routes/public/Manage'));
 const My = lazy(() => import('./routes/public/My'));
+// pass2-b: messaging / campaigns / analytics / integrations / ops + public link pages
+const Messages = lazy(() => import('./routes/app/messages/Messages'));
+const Campaigns = lazy(() => import('./routes/app/campaigns/Campaigns'));
+const Analytics = lazy(() => import('./routes/app/analytics/Analytics'));
+const Integrations = lazy(() => import('./routes/app/integrations/Integrations'));
+const Ops = lazy(() => import('./routes/app/ops/Ops'));
+const Unsubscribe = lazy(() => import('./routes/public/Unsubscribe'));
+const LineLink = lazy(() => import('./routes/public/LineLink'));
+const ShortLink = lazy(() => import('./routes/public/ShortLink'));
 
 const s = (el: ReactNode) => <Suspense fallback={<PageSpinner />}>{el}</Suspense>;
 
@@ -46,6 +55,10 @@ export const router = createBrowserRouter([
   { path: '/b/manage/:token', element: s(<Manage />), errorElement: <RouteError /> },
   { path: '/my', element: s(<My />), errorElement: <RouteError /> },
   { path: '/my/:shopSlug', element: s(<My />), errorElement: <RouteError /> },
+  // pass2-b
+  { path: '/unsubscribe', element: s(<Unsubscribe />), errorElement: <RouteError /> },
+  { path: '/line/link', element: s(<LineLink />), errorElement: <RouteError /> },
+  { path: '/s/:shopSlug/*', element: s(<ShortLink />), errorElement: <RouteError /> },
   {
     path: '/app',
     element: (
@@ -68,6 +81,12 @@ export const router = createBrowserRouter([
       { path: 'shifts', element: s(<Shifts />) },
       { path: 'settings', element: s(<Settings />) },
       { path: 'soon/:feature', element: s(<ComingSoon />) },
+      // pass2-b
+      { path: 'messages', element: s(<Messages />) },
+      { path: 'campaigns', element: s(<Campaigns />) },
+      { path: 'analytics', element: s(<Analytics />) },
+      { path: 'integrations', element: s(<Integrations />) },
+      { path: 'ops', element: s(<Ops />) },
       { path: '*', element: <NotFound inApp /> },
     ],
   },

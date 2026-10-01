@@ -37,6 +37,7 @@ import {
 } from '../../lib/format';
 import { useNow } from '../../lib/hooks';
 import { todayIn, zonedParts } from '../../lib/time';
+import { DashboardInsights } from './analytics/DashboardInsights';
 
 export default function Dashboard() {
   const { me, currentShop, currentShopId: shopId, timezone: tz, can } = useAuth();
@@ -124,6 +125,8 @@ export default function Dashboard() {
           tone="success"
         />
       </div>
+
+      <DashboardInsights />
 
       <div className="grid gap-6 xl:grid-cols-[1.6fr_1fr]">
         <Card padded={false} className="min-w-0">
