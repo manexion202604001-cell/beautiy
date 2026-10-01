@@ -1,0 +1,220 @@
+@import 'tailwindcss';
+
+/* -----------------------------------------------------------------------------
+ * Salon OS design tokens (original palette: deep teal + warm stone neutrals)
+ * Light/dark via CSS variables. data-theme="light|dark" overrides the OS setting.
+ * -------------------------------------------------------------------------- */
+:root {
+  color-scheme: light;
+  --bg: #f6f5f2;
+  --surface: #ffffff;
+  --surface-2: #f2f0eb;
+  --surface-3: #e8e5de;
+  --border: #e3dfd7;
+  --border-strong: #cdc7bb;
+  --fg: #1c1917;
+  --muted: #6b645b;
+  --subtle: #958d81;
+  --primary: #0f766e;
+  --primary-hover: #115e59;
+  --primary-soft: #e2f1ee;
+  --primary-fg: #ffffff;
+  --accent: #c2410c;
+  --danger: #dc2626;
+  --danger-soft: #fdecec;
+  --warning: #b45309;
+  --warning-soft: #fdf3dc;
+  --success: #15803d;
+  --success-soft: #e6f5eb;
+  --info: #2563eb;
+  --info-soft: #e8eefe;
+  --ring: #14b8a6;
+  --shadow: 0 1px 2px rgb(28 25 23 / 0.06), 0 4px 16px rgb(28 25 23 / 0.06);
+  --overlay: rgb(28 25 23 / 0.45);
+  --grid-line: #ece9e3;
+  --closed: repeating-linear-gradient(135deg, #efece6 0 6px, #e8e4dc 6px 12px);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --bg: #121211;
+    --surface: #1b1a18;
+    --surface-2: #242320;
+    --surface-3: #2f2d29;
+    --border: #35322d;
+    --border-strong: #4b463e;
+    --fg: #f3f0ea;
+    --muted: #aaa398;
+    --subtle: #7f786d;
+    --primary: #2dd4bf;
+    --primary-hover: #5eead4;
+    --primary-soft: #11332f;
+    --primary-fg: #04201d;
+    --accent: #fb923c;
+    --danger: #f87171;
+    --danger-soft: #3a1717;
+    --warning: #fbbf24;
+    --warning-soft: #352a10;
+    --success: #4ade80;
+    --success-soft: #11301c;
+    --info: #60a5fa;
+    --info-soft: #14233f;
+    --ring: #2dd4bf;
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 6px 20px rgb(0 0 0 / 0.35);
+    --overlay: rgb(0 0 0 / 0.6);
+    --grid-line: #262420;
+    --closed: repeating-linear-gradient(135deg, #1f1e1b 0 6px, #191816 6px 12px);
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #121211;
+  --surface: #1b1a18;
+  --surface-2: #242320;
+  --surface-3: #2f2d29;
+  --border: #35322d;
+  --border-strong: #4b463e;
+  --fg: #f3f0ea;
+  --muted: #aaa398;
+  --subtle: #7f786d;
+  --primary: #2dd4bf;
+  --primary-hover: #5eead4;
+  --primary-soft: #11332f;
+  --primary-fg: #04201d;
+  --accent: #fb923c;
+  --danger: #f87171;
+  --danger-soft: #3a1717;
+  --warning: #fbbf24;
+  --warning-soft: #352a10;
+  --success: #4ade80;
+  --success-soft: #11301c;
+  --info: #60a5fa;
+  --info-soft: #14233f;
+  --ring: #2dd4bf;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 6px 20px rgb(0 0 0 / 0.35);
+  --overlay: rgb(0 0 0 / 0.6);
+  --grid-line: #262420;
+  --closed: repeating-linear-gradient(135deg, #1f1e1b 0 6px, #191816 6px 12px);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-subtle: var(--subtle);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-soft: var(--primary-soft);
+  --color-primary-fg: var(--primary-fg);
+  --color-accent: var(--accent);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-ring: var(--ring);
+  --shadow-card: var(--shadow);
+  --font-sans:
+    'Inter', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', 'Yu Gothic UI', 'Meiryo',
+    system-ui, sans-serif;
+}
+
+/* base styles live in the base layer so Tailwind utilities (outline-none, bg-*) can override them */
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    font-feature-settings: 'palt' 1;
+  }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* keyboard focus ring everywhere, never for mouse clicks */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: var(--primary-soft);
+  }
+}
+
+@layer utilities {
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .bg-closed {
+    background: var(--closed);
+  }
+
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+}
+
+@keyframes toast-in {
+  from {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+.animate-toast-in {
+  animation: toast-in 160ms ease-out;
+}
+
+@keyframes drawer-in {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+.animate-drawer-in {
+  animation: drawer-in 180ms ease-out;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.animate-fade-in {
+  animation: fade-in 140ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-toast-in,
+  .animate-drawer-in,
+  .animate-fade-in {
+    animation: none;
+  }
+}
