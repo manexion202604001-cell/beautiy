@@ -49,9 +49,19 @@ pnpm --filter @salon/api dev:worker       # ジョブワーカー + 定期実行
 pnpm --filter @salon/web dev              # http://localhost:5173
 ```
 
-- スタッフ管理画面: `http://localhost:5173/app`
-- 顧客向け予約: `http://localhost:5173/book/<店舗slug>`
+- スタッフ管理画面: `http://localhost:5173/app`（デモ: `owner@example.com` / `password-1234`）
+- 顧客向け予約: `http://localhost:5173/book/shibuya`（シード店舗）/ EC: `/store/shibuya` / マイページ: `/my`
 - 外部サービスは既定でモック（`LINE_DRIVER=mock` など）。LINE ログインは開発時 `mock:<userId>:<表示名>` トークンで動作します。
+
+## 品質状況
+
+| 項目 | 内容 |
+|---|---|
+| API 統合テスト | 264件（実PostgreSQL・RLS・同時予約・Webhook署名・税計算・名寄せ/マージ・権限境界 など） |
+| Web 単体テスト | 57件（税/金額表示・カート・セグメントDSL変換・チャート・日時変換 など） |
+| E2E (Playwright) | 10シナリオ（ゲスト予約 / スタッフ予約作成 / 来店会計 / 店販・分割決済・返金・取消・レジ締め / カルテ・同意書署名・事前問診 / 口コミ依頼〜返信 / EC購入〜発送 / 1対1メッセージ / セグメント作成 / 売上分析） |
+| API | 245 エンドポイント（`docs/openapi.json`、起動時は `/docs` で Swagger UI） |
+| DB | 88テーブル + マイグレーション21本（RLS・EXCLUDE制約・監査ログ追記専用トリガ） |
 
 ## テスト
 
@@ -62,7 +72,11 @@ pnpm --filter @salon/api typecheck && pnpm --filter @salon/api lint
 
 # Web
 pnpm --filter @salon/web test && pnpm --filter @salon/web build
-pnpm --filter @salon/web test:e2e        # Playwright（API・Webを起動した状態で）
+# E2E: シード済みAPI(:4100)とワーカーを起動した状態で実行（Viteは自動起動）
+DATABASE_URL=... pnpm --filter @salon/api db:reset && DATABASE_URL=... pnpm --filter @salon/api db:seed
+DATABASE_URL=... PORT=4100 DEV_EXPOSE_OTP=true pnpm --filter @salon/api dev
+DATABASE_URL=... pnpm --filter @salon/api dev:worker
+pnpm --filter @salon/web test:e2e
 ```
 
 ## 設計の要点

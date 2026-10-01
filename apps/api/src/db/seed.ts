@@ -24,6 +24,8 @@ import {
 } from '../modules/catalog/service.js';
 import { createCustomer, createTag } from '../modules/customers/service.js';
 import { recomputeCustomerStats } from '../modules/customers/stats.js';
+import { rebuildDay } from '../modules/analytics/aggregate.js';
+import { scoreOrganization } from '../modules/ai/scoring.js';
 import {
   createShop,
   createStaff,
@@ -655,28 +657,75 @@ async function main() {
   async function complete(apptId: string) {
     await tx(orgId, async (ctx) => {
       const a = await transitionAppointment(ctx, apptId, 'completed');
-      // demo sales: minimal completed transaction so 累計売上 / 来店回数 are realistic (POS module creates these in production)
-      const total = a.estimated_total + (a.is_nominated ? 550 : 0);
-      await ctx.trx
+      // demo sales: completed transaction with line items + staff allocation (POS module creates these in production)
+      const services = await ctx.trx
+        .selectFrom('appointment_services')
+        .select(['menu_id', 'name', 'price', 'tax_rate_bp'])
+        .where('appointment_id', '=', a.id)
+        .orderBy('sort_order')
+        .execute();
+      const nominationFee = a.is_nominated ? 550 : 0;
+      const total = services.reduce((sum, x) => sum + x.price, 0) + nominationFee;
+      const tax = Math.floor((total * 10) / 110);
+      const prior = a.customer_id
+        ? await ctx.trx.selectFrom('transactions').select('id').where('customer_id', '=', a.customer_id).where('status', '=', 'completed').executeTakeFirst()
+        : undefined;
+      const txRow = await ctx.trx
         .insertInto('transactions')
         .values({
           organization_id: orgId,
           shop_id: a.shop_id,
           appointment_id: a.id,
           customer_id: a.customer_id,
+          staff_id: a.staff_id,
+          is_nominated: a.is_nominated,
+          is_new_customer: a.customer_id ? !prior : null,
           transaction_number: `D${String(txSeq++).padStart(6, '0')}`,
           status: 'completed',
           subtotal: total,
           total,
           paid_total: total,
-          tax_total: Math.floor((total * 10) / 110),
-          tax_breakdown: JSON.stringify({
-            '1000': { taxable: total, tax: Math.floor((total * 10) / 110) },
-          }),
+          tax_total: tax,
+          tax_breakdown: JSON.stringify({ '1000': { taxable: total, tax } }),
           completed_at: a.end_at,
           completed_by: a.staff_id,
           trace_id: 'seed',
         })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+      const lines = [
+        ...services.map((x) => ({ item_type: 'service', menu_id: x.menu_id, name: x.name, price: x.price, rate: x.tax_rate_bp })),
+        ...(nominationFee ? [{ item_type: 'nomination_fee', menu_id: null, name: '指名料', price: nominationFee, rate: 1000 }] : []),
+      ];
+      for (const [i, l] of lines.entries()) {
+        const item = await ctx.trx
+          .insertInto('transaction_items')
+          .values({
+            organization_id: orgId,
+            transaction_id: txRow.id,
+            item_type: l.item_type,
+            menu_id: l.menu_id,
+            name: l.name,
+            quantity: 1,
+            unit_price: l.price,
+            tax_rate_bp: l.rate,
+            amount: l.price,
+            net_amount: l.price,
+            tax_amount: Math.floor((l.price * l.rate) / (10000 + l.rate)),
+            sort_order: i,
+          })
+          .returning('id')
+          .executeTakeFirstOrThrow();
+        if (a.staff_id) {
+          await ctx.trx
+            .insertInto('transaction_item_staff')
+            .values({ organization_id: orgId, transaction_item_id: item.id, staff_id: a.staff_id, role: 'main', share_bp: 10000, is_nominated: a.is_nominated, allocated_amount: l.price })
+            .execute();
+        }
+      }
+      await ctx.trx
+        .insertInto('payments')
+        .values({ organization_id: orgId, transaction_id: txRow.id, method: chance(0.6) ? 'card' : 'cash', amount: total, status: 'succeeded', idempotency_key: `seed:${txRow.id}`, succeeded_at: a.end_at, trace_id: 'seed' })
         .execute();
       // pretend the visit happened at its scheduled time
       await ctx.trx
@@ -736,6 +785,14 @@ async function main() {
     if (id) upcomingCount++;
   }
 
+  // analytics aggregates (last 100 days) + AI scores so dashboards have data immediately
+  const shopRows = await tx(orgId, (ctx) => ctx.trx.selectFrom('shops').select('id').execute());
+  for (const shop of shopRows) {
+    for (let off = -100; off <= 0; off++) {
+      await tx(orgId, (ctx) => rebuildDay(ctx, shop.id, jstToday(off)));
+    }
+  }
+  await tx(orgId, (ctx) => scoreOrganization(ctx));
   await withSystem((trx) => sql`ANALYZE`.execute(trx)).catch(() => undefined);
   console.log(
     `  shops: 2, staff: 6, menus: ${Object.keys(menus).length}, customers: ${customers.length + 4}`,

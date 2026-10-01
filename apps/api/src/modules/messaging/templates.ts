@@ -313,7 +313,7 @@ export async function previewTemplate(
         previousStart: formatStart(new Date(sampleStart.getTime() - 86_400_000), tz),
       },
       cancel: { reason: '', byCustomer: true },
-      review: { url: `${config.WEB_BASE_URL}/r/sample` },
+      review: { url: `${config.WEB_BASE_URL}/review/sample` },
       unsubscribeUrl: `${config.WEB_BASE_URL}/unsubscribe?token=sample`,
     },
     input.vars,

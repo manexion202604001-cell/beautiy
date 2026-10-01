@@ -399,7 +399,7 @@ export async function nextActions(ctx: Ctx, input: NextActionsQuery) {
     .limit(input.limit)
     .execute();
 
-  const items = [
+  const all = [
     ...risky.map((c) => ({
       type: 'churn_risk' as const,
       priority: 1,
@@ -431,6 +431,14 @@ export async function nextActions(ctx: Ctx, input: NextActionsQuery) {
       lastVisitAt: c.last_visit_at,
     })),
   ];
+  // one action per customer: keep the highest-priority reason, list the others as secondary
+  const byCustomer = new Map<string, (typeof all)[number] & { otherReasons: string[] }>();
+  for (const a of all) {
+    const existing = byCustomer.get(a.customerId);
+    if (existing) existing.otherReasons.push(a.type);
+    else byCustomer.set(a.customerId, { ...a, otherReasons: [] });
+  }
+  const items = [...byCustomer.values()];
   return {
     date: today,
     shopId: shopId ?? null,

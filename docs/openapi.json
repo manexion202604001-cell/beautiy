@@ -1399,7 +1399,6 @@
                     "maxLength": 200
                   },
                   "permissions": {
-                    "default": [],
                     "type": "array",
                     "items": {
                       "type": "string"
@@ -2584,7 +2583,6 @@
                     "maxLength": 5000
                   },
                   "visibility": {
-                    "default": "shared",
                     "type": "string",
                     "enum": [
                       "shared",
@@ -4818,6 +4816,16 @@
             "in": "query",
             "name": "to",
             "required": true
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "in": "query",
+            "name": "excludeAppointmentId",
+            "required": false
           }
         ],
         "responses": {
@@ -9698,6 +9706,48 @@
                   "failureReason": {
                     "type": "string",
                     "maxLength": 500
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/v1/public/me/orders/{id}/mock-pay": {
+      "post": {
+        "summary": "[dev] 顧客側モック決済(ホスト型決済ページの代替)",
+        "tags": [
+          "payments"
+        ],
+        "description": "PAYMENT_PROVIDER=mock かつ本番以外のみ。自分の注文の未完了決済を確定する",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "success": {
+                    "default": true,
+                    "type": "boolean"
                   }
                 }
               }
@@ -16856,6 +16906,16 @@
             "in": "query",
             "name": "to",
             "required": true
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "in": "query",
+            "name": "excludeAppointmentId",
+            "required": false
           },
           {
             "schema": {
