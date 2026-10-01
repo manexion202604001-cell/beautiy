@@ -170,3 +170,22 @@ export async function createCustomer(tenant: Tenant, overrides: Record<string, u
   if (res.status !== 201) throw new Error(`customer create failed ${JSON.stringify(res.body)}`);
   return res.body.customer as { id: string };
 }
+
+/** Minimal bytes with a valid PNG signature (enough for magic-byte sniffing) */
+export const TEST_PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from('salon-os-test-png-payload')]);
+
+/** presign → PUT to the signed (local driver) URL → complete. Returns the uploaded file id */
+export async function uploadTestFile(
+  client: Api,
+  opts: { purpose?: string; contentType?: string; body?: Buffer; fileName?: string } = {},
+): Promise<{ fileId: string }> {
+  const body = opts.body ?? TEST_PNG;
+  const contentType = opts.contentType ?? 'image/png';
+  const pre = await client.post('/v1/files/presign', { purpose: opts.purpose ?? 'karte_photo', contentType, sizeBytes: body.length, fileName: opts.fileName });
+  if (pre.status !== 201) throw new Error(`presign failed: ${pre.status} ${JSON.stringify(pre.body)}`);
+  const put = await api().put(new URL(pre.body.upload.url).pathname, body, { 'content-type': contentType });
+  if (put.status !== 204) throw new Error(`blob put failed: ${put.status} ${JSON.stringify(put.body)}`);
+  const done = await client.post(`/v1/files/${pre.body.fileId}/complete`, {});
+  if (done.status !== 200) throw new Error(`complete failed: ${done.status} ${JSON.stringify(done.body)}`);
+  return { fileId: pre.body.fileId as string };
+}
