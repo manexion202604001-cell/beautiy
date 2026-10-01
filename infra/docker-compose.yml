@@ -52,6 +52,14 @@ services:
       NODE_ENV: production
     depends_on: { postgres: { condition: service_healthy } }
 
+  web:
+    profiles: ["full"]
+    build: { context: .., dockerfile: apps/web/Dockerfile }
+    environment:
+      API_UPSTREAM: http://api:4000
+    depends_on: [api]
+    ports: ["8080:80"]
+
 volumes:
   pgdata:
   miniodata:

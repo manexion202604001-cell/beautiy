@@ -1,0 +1,5 @@
+node_modules
+dist
+e2e/screenshots
+playwright-report
+test-results
