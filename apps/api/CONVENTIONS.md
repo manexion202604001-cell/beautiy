@@ -63,8 +63,8 @@ src/
 | appointment.created | { shopId, customerId, staffId, startAt, source, status } | appointments |
 | appointment.rescheduled / updated | { shopId, customerId, staffId, startAt, previousStartAt, previousStaffId } | appointments |
 | appointment.confirmed / checked_in / in_service / completed / cancelled / no_show / restored | { shopId, customerId, staffId, startAt, from, to, reason, cancelledBy } | appointments |
-| payment.succeeded / failed / refunded | { paymentId, transactionId, orderId, amount, refundedAmount? } | payments |
-| transaction.completed / voided / refunded | { transactionId, shopId, customerId, appointmentId, total, completedAt } | pos |
+| payment.succeeded / failed / refunded | { paymentId, transactionId, orderId, amount, refundedAmount? } (オンライン決済の成否・全返金。店頭オフライン決済は succeeded を発行しない) | payments |
+| transaction.completed / voided / refunded | { transactionId, shopId, customerId, appointmentId, total, completedAt } + completed: { staffId, transactionNumber } / voided: { reason } / refunded: { refundedAmount, refundedTotal, status } | pos |
 | message.sent / message.failed | { messageId, customerId, channel } | messaging |
 | karte.created / karte.shared | { karteId, customerId, shopId } | kartes |
 | review.submitted | { reviewId, shopId, staffId, rating } | reviews |
