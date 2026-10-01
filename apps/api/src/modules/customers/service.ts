@@ -53,7 +53,7 @@ export async function searchCustomers(ctx: Ctx, input: SearchCustomersInput) {
   if (filter) q = q.where(filter);
 
   if (input.q) {
-    const term = input.q.replace(/[\s　]+/g, '').toLowerCase();
+    const term = normalizeKana(input.q);
     const phone = normalizePhone(input.q);
     q = q.where((eb) =>
       eb.or([

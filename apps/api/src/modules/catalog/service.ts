@@ -511,7 +511,7 @@ export async function evaluateCoupon(
     }
   }
 
-  let discount = 0;
+  let discount: number;
   if (c.discount_type === 'amount') discount = Math.min(c.discount_value, base);
   else if (c.discount_type === 'percent') discount = percentOf(base, c.discount_value);
   else discount = Math.max(0, base - c.discount_value);

@@ -31,13 +31,13 @@ export function normalizeKana(input: string | null | undefined): string {
   if (!input) return '';
   return input
     .normalize('NFKC')
-    .replace(/[ぁ-ゖ]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 0x60))
-    .replace(/[\s　]+/g, '')
+    .replace(/[\u3041-\u3096]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 0x60))
+    .replace(/\s+/g, '')
     .toLowerCase();
 }
 
 export function normalizeName(input: string | null | undefined): string {
-  return (input ?? '').normalize('NFKC').replace(/[\s　]+/g, '').toLowerCase();
+  return (input ?? '').normalize('NFKC').replace(/\s+/g, '').toLowerCase();
 }
 
 /** Levenshtein-based similarity in [0,1] */

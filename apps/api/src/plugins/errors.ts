@@ -7,7 +7,7 @@ import { AppError, fromPgError } from '../lib/errors.js';
 async function errorPlugin(app: FastifyInstance) {
   app.setErrorHandler((err: FastifyError | AppError | Error, req, reply) => {
     const requestId = req.id;
-    let appErr: AppError | null = null;
+    let appErr: AppError | null;
 
     if (err instanceof AppError) {
       appErr = err;

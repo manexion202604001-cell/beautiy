@@ -8,7 +8,7 @@
     "dev:worker": "tsx watch src/worker.ts",
     "start": "node dist/index.js",
     "start:worker": "node dist/worker.js",
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && node -e \"require('fs').cpSync('src/db/migrations','dist/db/migrations',{recursive:true})\"",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
     "test": "vitest run",
@@ -17,7 +17,8 @@
     "db:codegen": "kysely-codegen --dialect postgres --out-file src/db/types.ts --exclude-pattern schema_migrations --date-parser string --numeric-parser number --type-mapping \"{\\\"int8\\\":\\\"number\\\"}\"",
     "db:seed": "tsx src/db/seed.ts",
     "openapi": "tsx src/scripts/openapi.ts",
-    "db:reset": "tsx src/db/reset.ts"
+    "db:reset": "tsx src/db/reset.ts",
+    "db:migrate:prod": "node dist/db/migrate.js"
   },
   "dependencies": {
     "@fastify/cors": "^11.3.0",
