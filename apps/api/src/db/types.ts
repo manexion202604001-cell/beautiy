@@ -509,6 +509,9 @@ export interface ExternalBookings {
 
 export interface ExternalSlotBlocks {
   appointment_id: string;
+  attempts: Generated<number>;
+  block_end_at: Timestamp | null;
+  block_start_at: Timestamp | null;
   created_at: Generated<Timestamp>;
   external_block_id: string | null;
   id: Generated<string>;
@@ -516,6 +519,7 @@ export interface ExternalSlotBlocks {
   last_error: string | null;
   organization_id: string;
   pushed_at: Timestamp | null;
+  staff_external_id: string | null;
   state: Generated<string>;
   updated_at: Generated<Timestamp>;
 }
@@ -812,6 +816,35 @@ export interface MessageTemplates {
   shop_id: string | null;
   status: Generated<string>;
   subject: string | null;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface MockProviderBlocks {
+  created_at: Generated<Timestamp>;
+  id: string;
+  integration_account_id: string;
+  organization_id: string;
+  payload: Json;
+  removed_at: Timestamp | null;
+}
+
+export interface MockProviderBookings {
+  change_seq: Generated<number>;
+  created_at: Generated<Timestamp>;
+  id: Generated<string>;
+  integration_account_id: string;
+  organization_id: string;
+  payload: Json;
+  reserve_id: string;
+  start_at: Timestamp;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface MockProviderState {
+  fail_fetch: Generated<number>;
+  fail_push: Generated<number>;
+  integration_account_id: string;
+  organization_id: string;
   updated_at: Generated<Timestamp>;
 }
 
@@ -1485,6 +1518,9 @@ export interface DB {
   menus: Menus;
   message_templates: MessageTemplates;
   messages: Messages;
+  mock_provider_blocks: MockProviderBlocks;
+  mock_provider_bookings: MockProviderBookings;
+  mock_provider_state: MockProviderState;
   order_items: OrderItems;
   orders: Orders;
   organizations: Organizations;

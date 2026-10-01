@@ -69,7 +69,8 @@ src/
 | karte.created / karte.shared | { karteId, customerId, shopId } | kartes |
 | review.submitted | { reviewId, shopId, staffId, rating } | reviews |
 | order.paid / order.shipped / order.cancelled | { orderId, customerId, total } | commerce |
-| integration.degraded / integration.recovered | { integrationAccountId, provider } | integrations |
+| integration.degraded / integration.recovered | { integrationAccountId, provider, shopId, consecutiveFailures?, lastError? } | integrations |
+| export.completed | { exportId, kind, rowCount, requestedBy } | ops |
 
 新しいイベントを追加したら本表に追記すること。
 
