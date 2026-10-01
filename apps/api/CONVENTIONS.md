@@ -68,9 +68,11 @@ src/
 | message.sent / message.failed | { messageId, customerId, channel } | messaging |
 | karte.created / karte.shared | { karteId, customerId, shopId } | kartes |
 | form.submitted | { responseId, templateId, kind, customerId, appointmentId, karteId, shopId, via } | kartes |
-| review.submitted | { reviewId, shopId, staffId, rating } | reviews |
-| order.paid / order.shipped / order.cancelled | { orderId, customerId, total } | commerce |
-| integration.degraded / integration.recovered | { integrationAccountId, provider, shopId, consecutiveFailures?, lastError? } | integrations |
+| review.submitted | { reviewId, shopId, staffId, rating } (内部口コミ投稿時のみ。Google取込では発行しない) | reviews |
+| order.paid | { orderId, customerId, total, shopId, referralLinkId, attributedStaffId } | commerce |
+| order.shipped | { orderId, customerId, total, carrier, trackingNumber } | commerce |
+| order.cancelled | { orderId, customerId, total, refundedAmount, reason } | commerce |
+| integration.degraded / integration.recovered | { integrationAccountId, provider, shopId, consecutiveFailures?, lastError? } | integrations, reviews (Google Business Profile) |
 | export.completed | { exportId, kind, rowCount, requestedBy } | ops |
 
 新しいイベントを追加したら本表に追記すること。
@@ -83,6 +85,7 @@ src/
 - 顧客の名寄せは `modules/customers/identity.ts` の `resolveCustomer()`、統計再計算は `customers/stats.ts` の `recomputeCustomerStats()`。
 - Webhook は `lib/webhooks.ts` の `registerWebhookProvider(name, { verify, process })`。ルート `/v1/webhooks/:provider` は integrations モジュールが提供。
 - 署名付き一時リンクは `lib/access-tokens.ts`。ファイルは `lib/storage.ts` (DBにはメタデータのみ)。
+
 ## 6. API 規約 (要件 8.1)
 
 - パスは `/v1/...` (プラグインは prefix '/v1' 配下で絶対パスを書く: `app.get('/customers', ...)`)。
