@@ -81,6 +81,7 @@ export interface AnalyticsDailyShop {
   nominated_count: Generated<number>;
   organization_id: string;
   product_sales: Generated<number>;
+  refund_total: Generated<number>;
   repeat_customer_count: Generated<number>;
   sales_total: Generated<number>;
   service_sales: Generated<number>;
