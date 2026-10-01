@@ -20,6 +20,8 @@ const schema = z.object({
   /** Public base URL of the web app (customer-facing links) */
   WEB_BASE_URL: z.string().default('http://localhost:5173'),
   CORS_ORIGINS: z.string().default('http://localhost:5173'),
+  /** Trust X-Forwarded-* headers: false | true | hop count | comma-separated proxy IPs/CIDRs (set behind a load balancer) */
+  TRUST_PROXY: z.string().default('false'),
   JWT_SECRET: z.string().min(32).default('dev-only-jwt-secret-change-me-0123456789abcdef'),
   JWT_ACCESS_TTL_SEC: z.coerce.number().int().default(900),
   JWT_REFRESH_TTL_SEC: z.coerce.number().int().default(60 * 60 * 24 * 30),
@@ -67,3 +69,14 @@ function load(): Config {
 }
 
 export const config = load();
+
+export function trustProxySetting(): boolean | string | ((address: string, hop: number) => boolean) {
+  const v = config.TRUST_PROXY.trim();
+  if (v === 'true') return true;
+  if (v === 'false' || v === '') return false;
+  if (/^\d+$/.test(v)) {
+    const hops = Number(v);
+    return (_address, hop) => hop < hops;
+  }
+  return v;
+}

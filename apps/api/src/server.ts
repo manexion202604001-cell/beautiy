@@ -6,7 +6,7 @@ import swaggerUi from '@fastify/swagger-ui';
 import Fastify, { type FastifyServerOptions } from 'fastify';
 import { jsonSchemaTransform, serializerCompiler, validatorCompiler, type ZodTypeProvider } from 'fastify-type-provider-zod';
 import { sql } from 'kysely';
-import { config } from './config.js';
+import { config, trustProxySetting } from './config.js';
 import { db } from './db/client.js';
 import { registerModules } from './modules/index.js';
 import contextPlugin, { newRequestId } from './plugins/context.js';
@@ -25,7 +25,7 @@ export async function buildApp(opts: { logger?: FastifyServerOptions['logger'] }
             ...(config.NODE_ENV === 'development' ? { transport: { target: 'pino-pretty' } } : {}),
           }),
     genReqId: (req) => newRequestId(req as { headers: Record<string, unknown> }),
-    trustProxy: true,
+    trustProxy: trustProxySetting(),
     bodyLimit: 5 * 1024 * 1024,
     ajv: { customOptions: { coerceTypes: 'array' } },
   }).withTypeProvider<ZodTypeProvider>();
