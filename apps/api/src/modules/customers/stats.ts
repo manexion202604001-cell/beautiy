@@ -10,12 +10,13 @@ export async function recomputeCustomerStats(ctx: Ctx, customerId: string): Prom
     .selectFrom('transactions')
     .select(['completed_at', 'total', 'refunded_total'])
     .where('customer_id', '=', customerId)
-    .where('status', 'in', ['completed', 'partially_refunded', 'refunded'])
+    .where('status', 'in', ['completed', 'partially_refunded'])
     .where('completed_at', 'is not', null)
     .orderBy('completed_at')
     .execute();
 
   const visitDates = visits.map((v) => v.completed_at!);
+  // fully refunded transactions are not visits (consistent with analytics KPI definitions)
   const totalSales = visits.reduce((sum, v) => sum + v.total - v.refunded_total, 0);
   let avgCycle: number | null = null;
   if (visitDates.length >= 2) {

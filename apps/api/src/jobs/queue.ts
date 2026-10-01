@@ -8,7 +8,8 @@ import type { Database } from '../db/client.js';
  * Durable job queue on Postgres (FOR UPDATE SKIP LOCKED).
  *  - enqueue() inside a business transaction => job exists iff the business change committed (outbox)
  *  - exponential backoff with jitter; after max_attempts the job moves to 'dead' (DLQ, see ops module)
- *  - dedupe_key prevents duplicate queued/running jobs (e.g. reminders per appointment)
+ *  - dedupe_key prevents duplicate QUEUED jobs (a change committed while the same job is running
+ *    enqueues a fresh run instead of being lost)
  */
 export interface JobSpec {
   type: string;
@@ -83,7 +84,7 @@ export async function enqueue(trxOrCtx: Tx | Ctx, spec: JobSpec): Promise<string
     .onConflict((oc) =>
       oc
         .column('dedupe_key')
-        .where(sql<boolean>`dedupe_key IS NOT NULL AND state IN ('queued', 'running')`)
+        .where(sql<boolean>`dedupe_key IS NOT NULL AND state = 'queued'`)
         .doNothing(),
     )
     .returning('id')
