@@ -1,0 +1,104 @@
+# Render Blueprint — Salon OS 本番構成（docs/deploy.md）
+#
+#   salon-os-web     nginx (SPA) — 公開URL。/v1 を API へプライベートネットワークで中継
+#   salon-os-api     Fastify API（デプロイ前にマイグレーションを実行）
+#   salon-os-worker  ジョブワーカー + 定期実行（メール取り込み・枠止め依頼・配信・集計）
+#   salon-os-db      PostgreSQL 16
+#
+# 公開URLは salon-os-web の1つだけ。ホットペッパー / LiME の受信URLもこのドメインになる:
+#   https://<salon-os-web のURL>/v1/webhooks/inbound_email/<連携ごとのトークン>
+# プラン・リージョンは作成画面で変更できる（API の preDeployCommand と worker は有料プランが必要）。
+
+databases:
+  - name: salon-os-db
+    databaseName: salon
+    user: salon
+    postgresMajorVersion: "16"
+    region: singapore
+    plan: basic-256mb
+
+envVarGroups:
+  - name: salon-os-shared
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true
+      - key: TOKEN_SECRET
+        generateValue: true
+      # base64 の 256bit 値（AES-256-GCM の鍵）。作成後に変更すると保存済みの認証情報が読めなくなる
+      - key: ENCRYPTION_KEY
+        generateValue: true
+      # 公開URL = salon-os-web の URL（独自ドメインならそれ）。初回デプロイ後、実際のURLと
+      # 違っていたら環境グループで3つとも書き換えて再デプロイ（docs/deploy.md 手順4）
+      - key: API_BASE_URL
+        value: https://salon-os-web.onrender.com
+      - key: WEB_BASE_URL
+        value: https://salon-os-web.onrender.com
+      - key: CORS_ORIGINS
+        value: https://salon-os-web.onrender.com
+      # Render のロードバランサ → nginx → API の2段
+      - key: TRUST_PROXY
+        value: "2"
+      # 外部サービスは接続設定が済むまで mock（docs/deploy.md「本番化チェックリスト」）
+      - key: EMAIL_DRIVER
+        value: mock
+      - key: LINE_DRIVER
+        value: mock
+      - key: SMS_DRIVER
+        value: mock
+      - key: PAYMENT_PROVIDER
+        value: mock
+      # 写真・CSV出力は S3 互換ストレージ推奨（local はデプロイのたびに消える）
+      - key: STORAGE_DRIVER
+        value: local
+
+services:
+  - type: web
+    name: salon-os-api
+    runtime: docker
+    dockerContext: .
+    dockerfilePath: ./apps/api/Dockerfile
+    region: singapore
+    plan: starter
+    healthCheckPath: /healthz
+    preDeployCommand: node dist/db/migrate.js
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: salon-os-db
+          property: connectionString
+      - fromGroup: salon-os-shared
+
+  - type: worker
+    name: salon-os-worker
+    runtime: docker
+    dockerContext: .
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerCommand: node dist/worker.js
+    region: singapore
+    plan: starter
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: salon-os-db
+          property: connectionString
+      - fromGroup: salon-os-shared
+
+  - type: web
+    name: salon-os-web
+    runtime: docker
+    dockerContext: .
+    dockerfilePath: ./apps/web/Dockerfile
+    region: singapore
+    plan: starter
+    healthCheckPath: /
+    envVars:
+      - key: PORT
+        value: "80"
+      # API のプライベートアドレス（host:port）→ nginx の /v1 中継先
+      - key: API_HOSTPORT
+        fromService:
+          type: web
+          name: salon-os-api
+          property: hostport

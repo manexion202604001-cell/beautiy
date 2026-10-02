@@ -34,6 +34,8 @@ import {
   updateShop,
   updateStaff,
 } from '../modules/org/service.js';
+import { createIntegration } from '../modules/integrations/accounts.js';
+import { applyInboundMail } from '../modules/integrations/mail/service.js';
 import { replaceWeeklySchedule, upsertShifts } from '../modules/schedules/service.js';
 import { db } from './client.js';
 import { withSystem, withTenant } from './tenant.js';
@@ -783,6 +785,57 @@ async function main() {
     if (weekdayOf(date) === 2) continue; // 定休日(火)
     const id = await book(c, date, { past: false });
     if (id) upcomingCount++;
+  }
+
+  // Hot Pepper / LiME e-mail connectors (ADR 0010) with a few forwarded notification mails, so the
+  // imported bookings and the "媒体の枠止め" requests (created once the worker runs) are visible
+  const mailAccounts = await tx(orgId, async (ctx) => {
+    const base = { staffMap: {}, menuMap: {}, conflictPolicy: 'manual' as const, pushBlocks: true };
+    const hp = await createIntegration(ctx, {
+      provider: 'hotpepper_mail',
+      shopId: shibuya,
+      displayName: 'ホットペッパービューティー（渋谷）',
+      config: base,
+    });
+    const lime = await createIntegration(ctx, {
+      provider: 'lime_mail',
+      shopId: shibuya,
+      displayName: 'LiME（渋谷）',
+      config: base,
+    });
+    return { hp: hp.id, lime: lime.id };
+  });
+  const mailDays = Array.from({ length: 8 }, (_, i) => jstToday(i + 2)).filter((d) => weekdayOf(d) !== 2);
+  const sampleMails = [
+    { account: mailAccounts.hp, no: 'BE90000001', day: mailDays[0]!, time: '19:00', name: '小林 さくら', kana: 'コバヤシ サクラ', staff: '鈴木 健太', menu: '【全員】カット ¥5,500', from: 'SALON BOARD' },
+    { account: mailAccounts.hp, no: 'BE90000002', day: mailDays[1]!, time: '19:00', name: '加藤 美月', kana: 'カトウ ミヅキ', staff: '指名なし', menu: '【新規】髪質改善トリートメント', from: 'SALON BOARD' },
+    { account: mailAccounts.lime, no: 'LM-70000001', day: mailDays[2]!, time: '19:00', name: '吉田 結衣', kana: 'ヨシダ ユイ', staff: '高橋 あおい', menu: 'カット＋カラー', from: 'LiME' },
+  ];
+  for (const m of sampleMails) {
+    const [y, mo, d] = m.day.split('-').map(Number);
+    const text = [
+      '下記の内容で予約が入りました。',
+      `予約番号：${m.no}`,
+      `来店日時：${y}年${mo}月${d}日 ${m.time}`,
+      `お客様名：${m.name} 様`,
+      `フリガナ：${m.kana}`,
+      `電話番号：080-${String(int(1000, 9999))}-${String(int(1000, 9999))}`,
+      `指名スタッフ：${m.staff}`,
+      'メニュー：',
+      m.menu,
+    ].join('\n');
+    const r = await tx(orgId, (ctx) =>
+      applyInboundMail(ctx, m.account, {
+        from: m.from === 'LiME' ? 'info@limehair.jp' : 'yoyaku@salonboard.com',
+        to: 'yoyaku@in.example.jp',
+        subject: m.from === 'LiME' ? '【LiME】ご予約が入りました' : '【SALON BOARD】予約連絡',
+        text,
+        html: null,
+        messageId: `<${m.no}@seed.example>`,
+        receivedAt: new Date(),
+      }),
+    );
+    console.log(`  mail ${m.no}: ${r.outcome}${'reason' in r && r.reason ? ` (${r.reason})` : ''}`);
   }
 
   // analytics aggregates (last 100 days) + AI scores so dashboards have data immediately

@@ -91,4 +91,6 @@ pnpm --filter @salon/web test:e2e
 
 ## デプロイ
 
+**Render へのワンクリック構成**: リポジトリ直下の `render.yaml`（DB・API・ワーカー・Web）。手順は [docs/deploy.md](docs/deploy.md)（ホットペッパー / LiME の受信URLの発行まで）。
+
 `apps/api/Dockerfile` で API とワーカーを同一イメージでビルド（`node dist/index.js` / `node dist/worker.js` / `node dist/db/migrate.js`）。Web は静的ビルドを CDN/nginx で配信。詳細は [docs/operations.md](docs/operations.md)。

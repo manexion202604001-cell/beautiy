@@ -358,7 +358,7 @@ export function CsvImportDialog({
     const buf = await file.arrayBuffer();
     // exports from Japanese admin screens are often Shift_JIS
     let content = new TextDecoder('utf-8', { fatal: false }).decode(buf);
-    if (content.includes('�')) content = new TextDecoder('shift_jis').decode(buf);
+    if (/\uFFFD/.test(content)) content = new TextDecoder('shift_jis').decode(buf);
     setCsv(content);
     setFileName(file.name);
     preview.reset();

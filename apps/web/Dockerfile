@@ -13,6 +13,8 @@ RUN pnpm --filter @salon/web build
 
 FROM nginx:1.27-alpine
 COPY apps/web/nginx.conf /etc/nginx/templates/default.conf.template
+COPY --chmod=755 apps/web/docker/15-api-upstream.envsh /docker-entrypoint.d/15-api-upstream.envsh
 COPY --from=build /repo/apps/web/dist /usr/share/nginx/html
 ENV API_UPSTREAM=http://api:4000
+# or API_HOSTPORT=host:port (Render private network) — see docker/15-api-upstream.envsh
 EXPOSE 80
