@@ -1,0 +1,23 @@
+{
+  "name": "api",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev --config wrangler.dev.toml --remote",
+    "publish:dev": "wrangler deploy --config wrangler.dev.toml",
+    "publish": "wrangler deploy",
+    "db:migrate:dev": "wrangler d1 execute salon-db-dev --remote --file=./src/db/schema.sql",
+    "db:migrate": "wrangler d1 execute salon-db --remote --file=./src/db/schema.sql",
+    "db:seed:dev": "wrangler d1 execute salon-db-dev --remote --file=./src/db/seed.sql",
+    "db:seed": "wrangler d1 execute salon-db --remote --file=./src/db/seed.sql"
+  },
+  "dependencies": {
+    "hono": "^4.6.12",
+    "jose": "^5.9.6"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241205.0",
+    "typescript": "^5.7.2",
+    "wrangler": "^4.111.0"
+  }
+}

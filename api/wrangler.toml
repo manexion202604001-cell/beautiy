@@ -1,0 +1,41 @@
+name = "salon-api"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+account_id = "CF_ACCOUNT_ID_PLACEHOLDER"
+
+# Custom domain (requires example.com zone in Cloudflare)
+routes = [
+  { pattern = "api.example.com", custom_domain = true }
+]
+
+workers_dev = true
+
+[dev]
+port = 8787
+
+[vars]
+CUSTOMER_APP_URL = "https://example.com"
+ADMIN_APP_URL = "https://admin.example.com"
+STAFF_APP_URL = "https://staff.example.com"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "salon-db"
+database_id = "D1_DATABASE_ID_PLACEHOLDER"
+
+[[r2_buckets]]
+binding = "IMAGES"
+bucket_name = "salon-images"
+
+[ai]
+binding = "AI"
+
+[triggers]
+crons = [
+  "0 0 * * *",
+  "0 9 * * *"
+]
+
+[observability]
+enabled = true

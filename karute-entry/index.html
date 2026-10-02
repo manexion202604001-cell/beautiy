@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>カルテ入力</title>
+  <meta name="description" content="サロン カルテ入力フォーム">
+  <meta name="theme-color" content="#50B5FF">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background-color: #f9fafb;
+      min-height: 100vh;
+      padding: 24px 16px;
+    }
+
+    .container {
+      max-width: 500px;
+      margin: 0 auto;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    .header h1 {
+      font-size: 1.25rem;
+      font-weight: bold;
+      color: #111827;
+    }
+
+    .header p {
+      font-size: 0.875rem;
+      color: #6b7280;
+      margin-top: 4px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 12px;
+      border: 1px solid #e5e7eb;
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+
+    .card-header {
+      padding: 16px;
+      border-bottom: 1px solid #f3f4f6;
+    }
+
+    .card-header h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #111827;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card-content {
+      padding: 16px;
+    }
+
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+    }
+
+    .info-row .label {
+      color: #6b7280;
+      font-size: 0.875rem;
+    }
+
+    .info-row .value {
+      font-weight: 500;
+      font-size: 0.875rem;
+    }
+
+    .tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+      background: #f3f4f6;
+      padding: 4px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+    }
+
+    .tab {
+      padding: 8px 16px;
+      border: none;
+      background: transparent;
+      border-radius: 6px;
+      font-size: 0.875rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      color: #6b7280;
+    }
+
+    .tab.active {
+      background: white;
+      color: #111827;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+
+    .form-group {
+      margin-bottom: 12px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: #374151;
+      margin-bottom: 6px;
+    }
+
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 1rem;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+      outline: none;
+      border-color: #50B5FF;
+      box-shadow: 0 0 0 3px rgba(80, 181, 255, 0.15);
+    }
+
+    .form-group textarea {
+      resize: vertical;
+      min-height: 60px;
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .form-row-3 {
+      display: grid;
+      grid-template-columns: 1fr 2fr;
+      gap: 12px;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 14px 24px;
+      background: #50B5FF;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+      margin-top: 8px;
+    }
+
+    .btn:hover {
+      background: #3aa3f0;
+    }
+
+    .btn:disabled {
+      background: #9ca3af;
+      cursor: not-allowed;
+    }
+
+    .footer-note {
+      text-align: center;
+      font-size: 0.75rem;
+      color: #9ca3af;
+      margin-top: 16px;
+    }
+
+    .loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 50vh;
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid #f3f4f6;
+      border-top-color: #50B5FF;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .error-state,
+    .success-state {
+      text-align: center;
+      padding: 40px 20px;
+    }
+
+    .error-icon,
+    .success-icon {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 16px;
+    }
+
+    .error-icon {
+      background: #fee2e2;
+      color: #dc2626;
+    }
+
+    .success-icon {
+      background: #dcfce7;
+      color: #16a34a;
+    }
+
+    .error-message {
+      background: #fee2e2;
+      color: #dc2626;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 0.875rem;
+      margin-bottom: 16px;
+      display: none;
+    }
+
+    .error-message.visible {
+      display: block;
+    }
+
+    .new-customer-fields {
+      display: none;
+    }
+
+    .new-customer-fields.visible {
+      display: block;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .icon {
+      width: 16px;
+      height: 16px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Loading State -->
+    <div id="loadingState" class="loading">
+      <div class="spinner"></div>
+      <p style="margin-top: 16px; color: #6b7280;">読み込み中...</p>
+    </div>
+
+    <!-- Error State -->
+    <div id="errorState" class="card hidden">
+      <div class="error-state">
+        <div class="error-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+        </div>
+        <h2 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 8px;">エラー</h2>
+        <p id="errorText" style="color: #6b7280;"></p>
+      </div>
+    </div>
+
+    <!-- Success State -->
+    <div id="successState" class="card hidden">
+      <div class="success-state">
+        <div class="success-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+        </div>
+        <h2 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 8px;">送信完了</h2>
+        <p style="color: #6b7280;">カルテ情報を送信しました。<br>ご来店ありがとうございます。</p>
+      </div>
+    </div>
+
+    <!-- Main Form -->
+    <div id="mainContent" class="hidden">
+      <div class="header">
+        <h1 id="storeName">サロン</h1>
+        <p>カルテ入力</p>
+      </div>
+
+      <!-- Reservation Info -->
+      <div class="card">
+        <div class="card-header">
+          <h2>
+            <svg class="icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+              <line x1="16" y1="2" x2="16" y2="6"></line>
+              <line x1="8" y1="2" x2="8" y2="6"></line>
+              <line x1="3" y1="10" x2="21" y2="10"></line>
+            </svg>
+            ご予約情報
+          </h2>
+        </div>
+        <div class="card-content">
+          <div class="info-row">
+            <span class="label">日時</span>
+            <span class="value" id="reservationDate"></span>
+          </div>
+          <div class="info-row">
+            <span class="label">メニュー</span>
+            <span class="value" id="menuName"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Customer Info -->
+      <div class="card">
+        <div class="card-header">
+          <h2>
+            <svg class="icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+              <circle cx="12" cy="7" r="4"></circle>
+            </svg>
+            お客様情報
+          </h2>
+        </div>
+        <div class="card-content">
+          <div class="tabs">
+            <button class="tab active" id="tabExisting" onclick="setCustomerType('existing')">リピーター</button>
+            <button class="tab" id="tabNew" onclick="setCustomerType('new')">初めての方</button>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>お名前 *</label>
+              <input type="text" id="customerName" placeholder="山田 花子">
+            </div>
+            <div class="form-group">
+              <label>フリガナ</label>
+              <input type="text" id="customerKana" placeholder="ヤマダ ハナコ">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>電話番号</label>
+            <input type="tel" id="customerPhone" placeholder="090-1234-5678">
+          </div>
+
+          <div id="newCustomerFields" class="new-customer-fields">
+            <div class="form-row">
+              <div class="form-group">
+                <label>性別</label>
+                <select id="customerGender">
+                  <option value="">選択</option>
+                  <option value="female">女性</option>
+                  <option value="male">男性</option>
+                  <option value="other">その他</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>生年月日</label>
+                <input type="date" id="customerBirthday">
+              </div>
+            </div>
+
+            <div class="form-row-3">
+              <div class="form-group">
+                <label>郵便番号</label>
+                <input type="text" id="customerPostalCode" placeholder="123-4567" oninput="lookupAddress()">
+              </div>
+              <div class="form-group">
+                <label>住所</label>
+                <input type="text" id="customerAddress" placeholder="東京都渋谷区...">
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Karute Form -->
+      <div class="card">
+        <div class="card-header">
+          <h2>
+            <svg class="icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="6" cy="6" r="3"></circle>
+              <circle cx="6" cy="18" r="3"></circle>
+              <line x1="20" y1="4" x2="8.12" y2="15.88"></line>
+              <line x1="14.47" y1="14.48" x2="20" y2="20"></line>
+              <line x1="8.12" y1="8.12" x2="12" y2="12"></line>
+            </svg>
+            施術情報
+          </h2>
+        </div>
+        <div class="card-content">
+          <div class="form-group">
+            <label>施術内容</label>
+            <textarea id="menuContent" placeholder="カット、カラーなど" rows="2"></textarea>
+          </div>
+
+          <div class="form-group">
+            <label>髪の状態・悩み</label>
+            <textarea id="hairCondition" placeholder="パサつき、くせ毛など" rows="2"></textarea>
+          </div>
+
+          <div class="form-group">
+            <label>希望のスタイル</label>
+            <textarea id="stylingNotes" placeholder="希望のヘアスタイル、参考画像の説明など" rows="2"></textarea>
+          </div>
+
+          <div class="form-group">
+            <label>その他ご要望</label>
+            <textarea id="customerFeedback" placeholder="アレルギー、気になること等" rows="2"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <div id="submitError" class="error-message"></div>
+
+      <button class="btn" id="submitBtn" onclick="submitForm()">送信する</button>
+
+      <p class="footer-note">送信いただいた情報は施術のために使用させていただきます</p>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE_URL = 'https://salon-api.example.workers.dev';
+    let reservationId = '';
+    let customerType = 'existing';
+
+    // Get reservation ID from URL path
+    function getReservationId() {
+      const pathParts = window.location.pathname.split('/');
+      // Remove empty strings
+      const parts = pathParts.filter(p => p);
+      // ID should be the last part
+      return parts[parts.length - 1] || '';
+    }
+
+    // Get token from URL query parameter
+    function getToken() {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('token') || '';
+    }
+
+    let publicToken = '';
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', async () => {
+      reservationId = getReservationId();
+      publicToken = getToken();
+
+      if (!reservationId) {
+        showError('予約IDが見つかりません');
+        return;
+      }
+
+      await loadReservation();
+    });
+
+    async function loadReservation() {
+      try {
+        const tokenParam = publicToken ? `?token=${publicToken}` : '';
+        const response = await fetch(`${API_BASE_URL}/api/public/karute/reservation/${reservationId}${tokenParam}`);
+
+        if (!response.ok) {
+          if (response.status === 404) {
+            showError('予約が見つかりません');
+          } else {
+            showError('予約情報の取得に失敗しました');
+          }
+          return;
+        }
+
+        const data = await response.json();
+        const r = data.reservation;
+
+        // Set store name
+        document.getElementById('storeName').textContent = r.store_name || 'サロン';
+
+        // Set reservation info
+        const date = new Date(r.start_at);
+        const dateStr = `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日 ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+        document.getElementById('reservationDate').textContent = dateStr;
+        document.getElementById('menuName').textContent = r.menu_name;
+
+        // Pre-fill customer info
+        document.getElementById('customerName').value = r.customer_name || '';
+        document.getElementById('customerKana').value = r.name_kana || '';
+        document.getElementById('customerPhone').value = r.phone || '';
+        document.getElementById('customerGender').value = r.gender || '';
+        document.getElementById('customerBirthday').value = r.birthday || '';
+        document.getElementById('customerPostalCode').value = r.postal_code || '';
+        document.getElementById('customerAddress').value = r.address || '';
+
+        // Determine customer type
+        if (!r.phone && !r.birthday) {
+          setCustomerType('new');
+        }
+
+        // Show main content
+        document.getElementById('loadingState').classList.add('hidden');
+        document.getElementById('mainContent').classList.remove('hidden');
+
+      } catch (e) {
+        console.error('Error:', e);
+        showError('予約情報の取得に失敗しました');
+      }
+    }
+
+    function showError(message) {
+      document.getElementById('loadingState').classList.add('hidden');
+      document.getElementById('errorText').textContent = message;
+      document.getElementById('errorState').classList.remove('hidden');
+    }
+
+    function setCustomerType(type) {
+      customerType = type;
+
+      document.getElementById('tabExisting').classList.toggle('active', type === 'existing');
+      document.getElementById('tabNew').classList.toggle('active', type === 'new');
+      document.getElementById('newCustomerFields').classList.toggle('visible', type === 'new');
+    }
+
+    async function lookupAddress() {
+      const postalCode = document.getElementById('customerPostalCode').value;
+      const cleaned = postalCode.replace(/-/g, '');
+
+      if (cleaned.length !== 7) return;
+
+      try {
+        const response = await fetch(`https://zipcloud.ibsnet.co.jp/api/search?zipcode=${cleaned}`);
+        const data = await response.json();
+
+        if (data.results && data.results.length > 0) {
+          const result = data.results[0];
+          document.getElementById('customerAddress').value =
+            `${result.address1}${result.address2}${result.address3}`;
+        }
+      } catch (e) {
+        console.error('Address lookup failed:', e);
+      }
+    }
+
+    async function submitForm() {
+      const name = document.getElementById('customerName').value;
+
+      if (!name) {
+        document.getElementById('submitError').textContent = 'お名前を入力してください';
+        document.getElementById('submitError').classList.add('visible');
+        return;
+      }
+
+      const btn = document.getElementById('submitBtn');
+      btn.disabled = true;
+      btn.textContent = '送信中...';
+      document.getElementById('submitError').classList.remove('visible');
+
+      try {
+        // Update customer info
+        const customerData = {
+          name: name,
+          name_kana: document.getElementById('customerKana').value || null,
+          phone: document.getElementById('customerPhone').value || null,
+        };
+
+        if (customerType === 'new') {
+          customerData.gender = document.getElementById('customerGender').value || null;
+          customerData.birthday = document.getElementById('customerBirthday').value || null;
+          customerData.postal_code = document.getElementById('customerPostalCode').value || null;
+          customerData.address = document.getElementById('customerAddress').value || null;
+        }
+
+        const customerResponse = await fetch(
+          `${API_BASE_URL}/api/public/karute/reservation/${reservationId}/customer${tokenParam}`,
+          {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(customerData),
+          }
+        );
+
+        if (!customerResponse.ok) {
+          throw new Error('お客様情報の更新に失敗しました');
+        }
+
+        // Create karute
+        const karuteData = {
+          menu_content: document.getElementById('menuContent').value || null,
+          hair_condition: document.getElementById('hairCondition').value || null,
+          styling_notes: document.getElementById('stylingNotes').value || null,
+          customer_feedback: document.getElementById('customerFeedback').value || null,
+        };
+
+        const karuteResponse = await fetch(
+          `${API_BASE_URL}/api/public/karute/reservation/${reservationId}/karute${tokenParam}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(karuteData),
+          }
+        );
+
+        if (!karuteResponse.ok) {
+          const errorData = await karuteResponse.json();
+          if (errorData.karuteId) {
+            // Karute exists, update it
+            const updateResponse = await fetch(
+              `${API_BASE_URL}/api/public/karute/reservation/${reservationId}/karute${tokenParam}`,
+              {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(karuteData),
+              }
+            );
+
+            if (!updateResponse.ok) {
+              throw new Error('カルテの更新に失敗しました');
+            }
+          } else {
+            throw new Error('カルテの作成に失敗しました');
+          }
+        }
+
+        // Show success
+        document.getElementById('mainContent').classList.add('hidden');
+        document.getElementById('successState').classList.remove('hidden');
+
+      } catch (e) {
+        console.error('Submit error:', e);
+        document.getElementById('submitError').textContent = e.message || '送信に失敗しました';
+        document.getElementById('submitError').classList.add('visible');
+        btn.disabled = false;
+        btn.textContent = '送信する';
+      }
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+{
+  "name": "beeeapp",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm -r --parallel run dev",
+    "dev:api": "pnpm --filter api dev",
+    "dev:admin": "pnpm --filter admin dev",
+    "dev:customer": "pnpm --filter customer dev",
+    "dev:staff": "pnpm --filter staff dev",
+    "dev:system": "pnpm --filter system dev",
+    "dev:manual": "pnpm --filter manual dev",
+    "build": "pnpm -r run build",
+    "lint": "pnpm -r run lint",
+    "db:migrate": "pnpm --filter api db:migrate",
+    "db:seed": "pnpm --filter api db:seed",
+    "deploy:staff:dev": "./scripts/deploy.sh staff dev",
+    "deploy:staff": "./scripts/deploy.sh staff prod",
+    "deploy:admin:dev": "./scripts/deploy.sh admin dev",
+    "deploy:admin": "./scripts/deploy.sh admin prod",
+    "deploy:customer:dev": "./scripts/deploy.sh customer dev",
+    "deploy:customer": "./scripts/deploy.sh customer prod"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "packageManager": "pnpm@9.15.0"
+}

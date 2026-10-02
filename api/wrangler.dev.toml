@@ -1,0 +1,32 @@
+name = "salon-api-dev"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+account_id = "CF_ACCOUNT_ID_PLACEHOLDER"
+
+# Custom domain for dev
+routes = [
+  { pattern = "dev-api.example.com", custom_domain = true }
+]
+
+workers_dev = true
+
+[vars]
+CUSTOMER_APP_URL = "https://dev.example.com"
+ADMIN_APP_URL = "https://dev-admin.example.com"
+STAFF_APP_URL = "https://dev-staff.example.com"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "salon-db-dev"
+database_id = "D1_DEV_DATABASE_ID_PLACEHOLDER"
+
+[[r2_buckets]]
+binding = "IMAGES"
+bucket_name = "salon-images"
+
+[ai]
+binding = "AI"
+
+[triggers]
+crons = []

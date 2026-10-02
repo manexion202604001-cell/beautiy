@@ -1,0 +1,8 @@
+packages:
+  - 'api'
+  - 'admin'
+  - 'customer'
+  - 'staff'
+  - 'system'
+  - 'manual'
+  - 'packages/*'

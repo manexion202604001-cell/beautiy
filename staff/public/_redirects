@@ -1,0 +1,21 @@
+# Reservation edit: must be before :id rule
+/reservations/:id/edit /reservations/placeholder/edit/ 200
+/reservations/:id/edit/ /reservations/placeholder/edit/ 200
+
+# Reservation detail: rewrite to serve placeholder page content while keeping original URL
+/reservations/:id /reservations/placeholder/ 200
+/reservations/:id/ /reservations/placeholder/ 200
+
+# Karute detail: rewrite to serve placeholder page content while keeping original URL
+/customers/karutes/:id /customers/karutes/placeholder/ 200
+/customers/karutes/:id/ /customers/karutes/placeholder/ 200
+
+# Menu categories: serve actual page (must be before :id rules)
+/menu-management/categories /menu-management/categories/index.html 200
+/menu-management/categories/ /menu-management/categories/index.html 200
+
+# Menu management edit: rewrite to serve placeholder page while keeping original URL
+/menu-management/new /menu-management/placeholder/ 200
+/menu-management/new/ /menu-management/placeholder/ 200
+/menu-management/:id /menu-management/placeholder/ 200
+/menu-management/:id/ /menu-management/placeholder/ 200

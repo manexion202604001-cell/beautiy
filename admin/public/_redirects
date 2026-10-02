@@ -1,0 +1,21 @@
+# Karute detail: rewrite to serve placeholder page content while keeping original URL
+/karutes/:id /karutes/placeholder/ 200
+/karutes/:id/ /karutes/placeholder/ 200
+
+# Customer karute detail: rewrite to serve placeholder page content
+/customers/karutes/:id /customers/karutes/placeholder/ 200
+/customers/karutes/:id/ /customers/karutes/placeholder/ 200
+
+# Reservation detail: rewrite to serve placeholder page content while keeping original URL
+/reservations/:id /reservations/placeholder/ 200
+/reservations/:id/ /reservations/placeholder/ 200
+
+# Menu categories: serve actual page (must be before :id rules)
+/menus/categories /menus/categories/index.html 200
+/menus/categories/ /menus/categories/index.html 200
+
+# Menu edit: rewrite to serve placeholder page while keeping original URL
+/menus/new /menus/placeholder/ 200
+/menus/new/ /menus/placeholder/ 200
+/menus/:id /menus/placeholder/ 200
+/menus/:id/ /menus/placeholder/ 200
