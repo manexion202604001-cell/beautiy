@@ -176,7 +176,7 @@ equipmentRoutes.put('/:id', requireRole('system_admin', 'owner', 'manager'), asy
   }
 
   updates.push("updated_at = datetime('now')");
-  values.push(id);
+  values.push(id!);
 
   try {
     await c.env.DB.prepare(`UPDATE equipment SET ${updates.join(', ')} WHERE id = ?`)

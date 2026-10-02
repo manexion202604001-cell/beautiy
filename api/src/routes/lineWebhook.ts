@@ -1,6 +1,5 @@
 import { Hono } from 'hono';
 import type { Bindings, Variables, Customer, Menu, MenuCategory, Staff, Reservation, Store } from '../types';
-import { createHmac } from 'node:crypto';
 import { LineNotifyService, StaffLineNotificationService, getStoreLineAccessToken, buildWeeklyCalendarFlexMessage, buildMenuSelectionFlexMessage, buildStaffSelectionFlexMessage, TimeSlotStatus } from '../services/lineService';
 import { generatePublicToken } from '../utils/publicToken';
 import { isJapaneseHoliday } from '../services/japaneseHolidays';
@@ -81,16 +80,22 @@ async function setSession(db: D1Database, lineUserId: string, session: LineSessi
 
 // Verify LINE signature
 async function verifySignature(body: string, signature: string, channelSecret: string): Promise<boolean> {
-  const hmac = createHmac('sha256', channelSecret);
-  hmac.update(body);
-  const expectedSignature = hmac.digest('base64');
+  // Web Crypto rejects zero-length HMAC keys; an empty secret can never be a valid match
+  if (!channelSecret) return false;
+  const key = await crypto.subtle.importKey(
+    'raw', new TextEncoder().encode(channelSecret),
+    { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+  );
+  const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(body));
+  const expectedSignature = btoa(String.fromCharCode(...new Uint8Array(sig)));
   return signature === expectedSignature;
 }
 
-// Derive the API base URL from CUSTOMER_APP_URL
+// API base URL: API_URL if set, otherwise derived from CUSTOMER_APP_URL
 // Production: https://example.com → https://api.example.com
 // Dev: https://dev.example.com → https://dev-api.example.com
 export function getApiBaseUrl(env: Bindings): string {
+  if (env.API_URL) return env.API_URL.replace(/\/$/, '');
   const customerUrl = env.CUSTOMER_APP_URL || '';
   try {
     const url = new URL(customerUrl);

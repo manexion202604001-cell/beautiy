@@ -983,6 +983,7 @@ export type Message = {
   customer_id: string;
   staff_id: string | null;
   staff_name?: string | null;
+  sent_by_staff_name?: string | null;
   direction: "incoming" | "outgoing" | "system";
   message_type: string;
   content: string | null;

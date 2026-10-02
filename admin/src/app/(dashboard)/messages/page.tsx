@@ -359,8 +359,8 @@ export default function MessagesPage() {
                             )}
                           >
                             {formatDate(message.sent_at, "time")}
-                            {message.direction === "outgoing" && ((message as any).sent_by_staff_name || message.staff_name) && (
-                              <span className="ml-1">{(message as any).sent_by_staff_name || message.staff_name}</span>
+                            {message.direction === "outgoing" && (message.sent_by_staff_name || message.staff_name) && (
+                              <span className="ml-1">{message.sent_by_staff_name || message.staff_name}</span>
                             )}
                             {message.source === "line" && (
                               <Badge variant="outline" className="text-xs h-4 px-1">

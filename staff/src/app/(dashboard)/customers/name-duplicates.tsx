@@ -117,9 +117,9 @@ export default function NameDuplicates() {
         }
         return updated;
       });
-    } catch (error: any) {
+    } catch (error) {
       console.error("Failed to merge:", error);
-      const msg = error?.message || "統合に失敗しました";
+      const msg = (error instanceof Error && error.message) || "統合に失敗しました";
       setMergeError(msg);
     } finally {
       setProcessing(false);
@@ -192,9 +192,8 @@ export default function NameDuplicates() {
               </div>
               <div className="space-y-2">
                 {group.customers.map((customer, idx) => {
-                  const cAny = customer as any;
-                  const reasons: string[] = cAny.match_reasons || [];
-                  const resCount: number = cAny.reservation_count || 0;
+                  const reasons: string[] = customer.match_reasons || [];
+                  const resCount: number = customer.reservation_count || 0;
                   return (
                   <div
                     key={customer.id}
@@ -222,11 +221,11 @@ export default function NameDuplicates() {
                         ) : (
                           <span className="text-yellow-600">電話番号なし</span>
                         )}
-                        {cAny.line_user_id && (
+                        {customer.line_user_id && (
                           <span className="flex items-center gap-0.5 text-green-600"><MessageCircle className="h-3 w-3" />LINE</span>
                         )}
-                        {cAny.store_name && <span>{cAny.store_name}</span>}
-                        {cAny.staff_name && <span>担当:{cAny.staff_name}</span>}
+                        {customer.store_name && <span>{customer.store_name}</span>}
+                        {customer.staff_name && <span>担当:{customer.staff_name}</span>}
                         <span>来店{customer.visit_count || 0}回</span>
                         {customer.member_no && <span className="font-mono">{customer.member_no}</span>}
                         {resCount > 0 ? (
@@ -279,10 +278,10 @@ export default function NameDuplicates() {
             <AlertDialogTitle>顧客情報を統合しますか？</AlertDialogTitle>
             <AlertDialogDescription>
               「{mergeTarget?.merge.name}」
-              {(mergeTarget?.merge as any)?.store_name && `（${(mergeTarget?.merge as any).store_name}）`}
+              {mergeTarget?.merge.store_name && `（${mergeTarget.merge.store_name}）`}
               の予約・カルテ・メッセージを
               「{mergeTarget?.keep.name}」
-              {(mergeTarget?.keep as any)?.store_name && `（${(mergeTarget?.keep as any).store_name}）`}
+              {mergeTarget?.keep.store_name && `（${mergeTarget.keep.store_name}）`}
               に統合し、重複レコードを削除します。
               <br /><br />
               この操作は取り消せません。

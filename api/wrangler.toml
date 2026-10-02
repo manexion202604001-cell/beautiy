@@ -18,6 +18,14 @@ port = 8787
 CUSTOMER_APP_URL = "https://example.com"
 ADMIN_APP_URL = "https://admin.example.com"
 STAFF_APP_URL = "https://staff.example.com"
+# Auth cookie domain shared by the apps (unset = host-only cookie)
+COOKIE_DOMAIN = ".example.com"
+# Public API origin used in LINE/LIFF links (derived from CUSTOMER_APP_URL when unset)
+API_URL = "https://api.example.com"
+# Transactional email sender (Resend verified domain)
+EMAIL_FROM = "SALOGIC <noreply@example.com>"
+# Extra CORS origins, comma-separated
+CORS_ORIGINS = ""
 
 [[d1_databases]]
 binding = "DB"

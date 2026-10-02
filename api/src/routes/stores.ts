@@ -577,7 +577,7 @@ storesRoutes.put('/:id', requireRole('system_admin', 'owner', 'manager'), async 
   }
 
   updates.push("updated_at = datetime('now')");
-  values.push(id);
+  values.push(id!);
 
   await c.env.DB.prepare(`UPDATE stores SET ${updates.join(', ')} WHERE id = ?`)
     .bind(...values)
@@ -737,7 +737,7 @@ storesRoutes.put('/:id/reservation-settings', requireRole('system_admin', 'owner
   }
 
   updates.push('updated_at = datetime(\'now\')');
-  params.push(id);
+  params.push(id!);
 
   await c.env.DB.prepare(
     `UPDATE stores SET ${updates.join(', ')} WHERE id = ?`

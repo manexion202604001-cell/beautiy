@@ -1115,6 +1115,7 @@ customerRoutes.post('/reservations/guest', async (c) => {
       menuName: allMenuNames,
       date: new Date(body.start_at),
       source: 'web',
+      staffAppUrl: c.env.STAFF_APP_URL,
     });
   } catch (error) {
     console.error('Failed to send LINE notification:', error);
@@ -1874,6 +1875,7 @@ protectedRoutes.post('/reservations', async (c) => {
       menuName: allMenuNames,
       date: new Date(body.start_at),
       source: 'web',
+      staffAppUrl: c.env.STAFF_APP_URL,
     });
   } catch (error) {
     console.error('Failed to send LINE notification:', error);
@@ -2031,6 +2033,25 @@ protectedRoutes.get('/history', async (c) => {
   return c.json({ history: result.results });
 });
 
+// List shared karutes — no treatment notes, photos are fetched per karute
+protectedRoutes.get('/karutes', async (c) => {
+  const customer = c.get('customer')!;
+
+  const result = await c.env.DB.prepare(
+    `SELECT k.id, k.visit_date, k.shared_at,
+            COALESCE(s.nickname, s.name) as staff_name, s.avatar_url as staff_avatar_url,
+            (SELECT COUNT(*) FROM karute_images ki WHERE ki.karute_id = k.id) as image_count
+     FROM karutes k
+     LEFT JOIN staff s ON k.staff_id = s.id
+     WHERE k.customer_id = ? AND k.is_shared_to_customer = 1
+     ORDER BY k.visit_date DESC, k.created_at DESC`
+  )
+    .bind(customer.id)
+    .all();
+
+  return c.json({ karutes: result.results });
+});
+
 // Get karute detail (only if shared) — photos only
 protectedRoutes.get('/karutes/:id', async (c) => {
   const customer = c.get('customer')!;
@@ -2038,7 +2059,7 @@ protectedRoutes.get('/karutes/:id', async (c) => {
 
   const karute = await c.env.DB.prepare(
     `SELECT k.id, k.visit_date, k.is_shared_to_customer, k.shared_at,
-            COALESCE(s.nickname, s.name) as staff_name
+            COALESCE(s.nickname, s.name) as staff_name, s.avatar_url as staff_avatar_url
      FROM karutes k
      LEFT JOIN staff s ON k.staff_id = s.id
      WHERE k.id = ? AND k.customer_id = ? AND k.is_shared_to_customer = 1`
@@ -2263,6 +2284,23 @@ protectedRoutes.post('/messages/read', async (c) => {
 });
 
 // Update profile
+// Get profile
+protectedRoutes.get('/profile', async (c) => {
+  const customer = c.get('customer')!;
+
+  return c.json({
+    customer: {
+      id: customer.id,
+      name: customer.name,
+      name_kana: customer.name_kana,
+      email: customer.email,
+      phone: customer.phone,
+      gender: customer.gender,
+      birthday: customer.birthday,
+    },
+  });
+});
+
 protectedRoutes.put('/profile', async (c) => {
   const customer = c.get('customer')!;
   const body = await c.req.json<{

@@ -191,7 +191,7 @@ menuCategoriesRoutes.put('/:id', requireRole('system_admin', 'owner', 'manager')
   }
 
   updates.push("updated_at = datetime('now')");
-  values.push(id);
+  values.push(id!);
 
   await c.env.DB.prepare(`UPDATE menu_categories SET ${updates.join(', ')} WHERE id = ?`)
     .bind(...values)

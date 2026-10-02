@@ -204,6 +204,8 @@ export const customers = {
       line: { display_name: string; picture_url: string } | null;
       reservations: Reservation[];
       karutes: Karute[];
+      consent_records?: CustomerConsentRecord[];
+      linked_customers?: LinkedCustomer[];
     }>(`/api/customers/${id}`),
   create: (data: Partial<Customer>) =>
     fetchApi<{ customer: Customer }>("/api/customers", { method: "POST", body: data }),
@@ -267,7 +269,7 @@ export type NameDuplicateGroup = {
 };
 
 export type DuplicateGroup = {
-  customers: (Customer & { store_name?: string; line_user_id?: string | null; line_display_name?: string | null })[];
+  customers: (Customer & { store_name?: string; line_user_id?: string | null; line_display_name?: string | null; match_reasons?: string[]; reservation_count?: number })[];
   reasons: string[];
 };
 
@@ -662,6 +664,7 @@ export type Store = {
   max_concurrent: number;
   accept_same_start_time: number;
   accept_outside_hours: number;
+  holiday_hours_enabled?: number;
 };
 
 export type BusinessHours = {
@@ -698,6 +701,32 @@ export type Customer = {
   is_minimo?: number;
   master_id?: string | null;
   member_no?: string | null;
+};
+
+// GET /api/customers/:id の consent_records（氏名 or 電話番号で一致した同意書記録）
+export type CustomerConsentRecord = {
+  id: string;
+  store_id: string;
+  customer_name: string;
+  customer_birthday?: string | null;
+  customer_phone?: string | null;
+  customer_occupation?: string | null;
+  customer_visit_reason?: string | null;
+  template_snapshot?: string | null; // JSON文字列
+  created_at: string;
+};
+
+// GET /api/customers/:id の linked_customers（同一 customer_master の他店舗レコード）
+export type LinkedCustomer = {
+  id: string;
+  store_id: string;
+  store_name: string;
+  name: string;
+  visit_count: number | null;
+  last_visit_at: string | null;
+  staff_name: string | null;
+  karute_count: number;
+  last_reservation_at: string | null;
 };
 
 export type AssignedStaff = {

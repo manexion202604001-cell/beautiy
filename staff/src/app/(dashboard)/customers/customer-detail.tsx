@@ -44,6 +44,8 @@ import {
   type Karute,
   type Staff,
   type Message,
+  type CustomerConsentRecord,
+  type LinkedCustomer,
 } from "@/lib/api";
 import {
   Select,
@@ -71,11 +73,7 @@ export default function CustomerDetail({ id, defaultTab = "karutes", backPath = 
 
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [assignedStaffList, setAssignedStaffList] = useState<AssignedStaff[]>([]);
-  const [linkedCustomers, setLinkedCustomers] = useState<{
-    id: string; store_id: string; store_name: string; name: string;
-    visit_count: number | null; last_visit_at: string | null;
-    staff_name: string | null; karute_count: number; last_reservation_at: string | null;
-  }[]>([]);
+  const [linkedCustomers, setLinkedCustomers] = useState<LinkedCustomer[]>([]);
   const [reservationList, setReservationList] = useState<Reservation[]>([]);
   const [karuteList, setKaruteList] = useState<Karute[]>([]);
   const [loading, setLoading] = useState(true);
@@ -92,7 +90,7 @@ export default function CustomerDetail({ id, defaultTab = "karutes", backPath = 
   const [editStaffIds, setEditStaffIds] = useState<string[]>([]);
   const [staffStoreMap, setStaffStoreMap] = useState<Map<string, string[]>>(new Map());
   const [staffFilterStore, setStaffFilterStore] = useState<string>("all");
-  const [consentRecords, setConsentRecords] = useState<Array<{ id: string; customer_name: string; customer_birthday?: string; customer_phone?: string; template_snapshot?: string; created_at: string }>>([]);
+  const [consentRecords, setConsentRecords] = useState<CustomerConsentRecord[]>([]);
   const [showConsentDialog, setShowConsentDialog] = useState(false);
   const [messageList, setMessageList] = useState<Message[]>([]);
   const [messagesLoading, setMessagesLoading] = useState(false);
@@ -110,8 +108,8 @@ export default function CustomerDetail({ id, defaultTab = "karutes", backPath = 
       setAssignedStaffList(data.assigned_staff || []);
       setReservationList(data.reservations as Reservation[]);
       setKaruteList(data.karutes as Karute[]);
-      setConsentRecords((data as any).consent_records || []);
-      setLinkedCustomers((data as any).linked_customers || []);
+      setConsentRecords(data.consent_records || []);
+      setLinkedCustomers(data.linked_customers || []);
     } catch (error) {
       console.error("Failed to fetch customer:", error);
     } finally {
@@ -401,7 +399,7 @@ export default function CustomerDetail({ id, defaultTab = "karutes", backPath = 
               onClick={async () => {
                 const newVal = customer.is_minimo === 1 ? 0 : 1;
                 try {
-                  const { customer: updated } = await customers.update(customer.id, { is_minimo: newVal } as any);
+                  const { customer: updated } = await customers.update(customer.id, { is_minimo: newVal });
                   setCustomer(updated);
                 } catch (e) { console.error(e); }
               }}

@@ -60,7 +60,7 @@ export default function MainLayout({
         }
       }
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   // Determine if this is a public page (messages, reserve — accessible without login)
   const currentPath =

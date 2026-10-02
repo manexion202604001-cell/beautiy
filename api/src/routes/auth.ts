@@ -117,7 +117,7 @@ authRoutes.post('/login', rateLimit(5, 60), async (c) => {
     secure: true,
     sameSite: 'Lax',
     path: '/',
-    domain: '.example.com',
+    domain: c.env.COOKIE_DOMAIN || undefined,
     maxAge: 60 * 60 * 24 * 7, // 7 days
   });
 
@@ -195,7 +195,7 @@ authRoutes.post('/totp/disable', staffAuth, async (c) => {
 
 // Logout
 authRoutes.post('/logout', (c) => {
-  deleteCookie(c, 'auth_token', { path: '/' });
+  deleteCookie(c, 'auth_token', { path: '/', domain: c.env.COOKIE_DOMAIN || undefined });
   return c.json({ success: true });
 });
 
@@ -422,7 +422,7 @@ authRoutes.post('/register', rateLimit(3, 60), async (c) => {
   // Send verification email
   if (c.env.RESEND_API_KEY) {
     try {
-      const emailService = new EmailService(c.env.RESEND_API_KEY);
+      const emailService = new EmailService(c.env.RESEND_API_KEY, c.env.EMAIL_FROM);
       const verifyUrl = `${c.env.STAFF_APP_URL}/verify-email`;
       await emailService.sendVerificationEmail(email, name, verificationToken, verifyUrl);
     } catch (error) {
@@ -484,7 +484,7 @@ authRoutes.post('/resend-verification', async (c) => {
 
   if (c.env.RESEND_API_KEY) {
     try {
-      const emailService = new EmailService(c.env.RESEND_API_KEY);
+      const emailService = new EmailService(c.env.RESEND_API_KEY, c.env.EMAIL_FROM);
       const verifyUrl = `${c.env.STAFF_APP_URL}/verify-email`;
       await emailService.sendVerificationEmail(staff.email, staff.name, verificationToken, verifyUrl);
     } catch (error) {
@@ -523,7 +523,7 @@ authRoutes.post('/forgot-password', rateLimit(3, 60), async (c) => {
 
   if (c.env.RESEND_API_KEY) {
     try {
-      const emailService = new EmailService(c.env.RESEND_API_KEY);
+      const emailService = new EmailService(c.env.RESEND_API_KEY, c.env.EMAIL_FROM);
       const resetUrl = `${c.env.STAFF_APP_URL}/reset-password?token=${encodeURIComponent(resetToken)}`;
       await emailService.sendPasswordResetEmail(staff.email, staff.name, resetUrl);
     } catch (error) {
@@ -683,7 +683,7 @@ authRoutes.post('/complete-onboarding', staffAuth, async (c) => {
     secure: true,
     sameSite: 'Lax',
     path: '/',
-    domain: '.example.com',
+    domain: c.env.COOKIE_DOMAIN || undefined,
     maxAge: 60 * 60 * 24 * 7,
   });
 

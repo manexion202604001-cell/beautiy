@@ -453,8 +453,9 @@ staffRoutes.get('/:id', async (c) => {
       salonboard_staff_id: staff.salonboard_staff_id,
       lime_name: staff.lime_name,
       staff_line_channel_id: staff.staff_line_channel_id,
-      staff_line_channel_secret: staff.staff_line_channel_secret,
-      staff_line_access_token: staff.staff_line_access_token,
+      // LINE channel secret / access token are write-only: never returned (visible to same-store staff)
+      has_staff_line_channel_secret: !!staff.staff_line_channel_secret,
+      has_staff_line_access_token: !!staff.staff_line_access_token,
       created_at: staff.created_at,
     },
   });
@@ -771,8 +772,8 @@ staffRoutes.put('/:id', async (c) => {
       salonboard_name: updated!.salonboard_name,
       lime_name: updated!.lime_name,
       staff_line_channel_id: updated!.staff_line_channel_id,
-      staff_line_channel_secret: updated!.staff_line_channel_secret,
-      staff_line_access_token: updated!.staff_line_access_token,
+      has_staff_line_channel_secret: !!updated!.staff_line_channel_secret,
+      has_staff_line_access_token: !!updated!.staff_line_access_token,
       retired_at: updated!.retired_at,
     },
   });
@@ -801,7 +802,7 @@ staffRoutes.post('/:id/avatar', async (c) => {
   }
 
   const formData = await c.req.formData();
-  const file = formData.get('file') as File;
+  const file = formData.get('file') as File | null;
 
   if (!file) {
     return c.json({ error: 'File is required' }, 400);

@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { Bindings, Variables, Menu, MenuCategory, Staff } from '../types';
 import { staffAuth, requireRole } from '../middleware/auth';
+import { importLimeMenusToDb } from '../services/limeService';
 
 export const menusRoutes = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
@@ -454,7 +455,7 @@ menusRoutes.put('/:id', requireRole('system_admin', 'owner', 'manager'), async (
   }
 
   updates.push("updated_at = datetime('now')");
-  values.push(id);
+  values.push(id!);
 
   await c.env.DB.prepare(`UPDATE menus SET ${updates.join(', ')} WHERE id = ?`)
     .bind(...values)
@@ -536,7 +537,7 @@ menusRoutes.post('/:id/image', requireRole('system_admin', 'owner', 'manager'), 
   }
 
   const formData = await c.req.formData();
-  const file = formData.get('file') as File;
+  const file = formData.get('file') as File | null;
 
   if (!file) {
     return c.json({ error: 'File is required' }, 400);

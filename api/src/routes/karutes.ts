@@ -502,7 +502,7 @@ karutesRoutes.post('/:id/images', async (c) => {
   }
 
   const formData = await c.req.formData();
-  const file = formData.get('file') as File;
+  const file = formData.get('file') as File | null;
   const imageType = formData.get('image_type') as KaruteImage['image_type'] || 'other';
   const caption = formData.get('caption') as string || null;
 

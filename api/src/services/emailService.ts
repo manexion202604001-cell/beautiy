@@ -2,9 +2,9 @@ export class EmailService {
   private apiKey: string;
   private fromAddress: string;
 
-  constructor(apiKey: string, fromAddress: string = 'SALOGIC <noreply@example.com>') {
+  constructor(apiKey: string, fromAddress?: string) {
     this.apiKey = apiKey;
-    this.fromAddress = fromAddress;
+    this.fromAddress = fromAddress || 'SALOGIC <noreply@example.com>';
   }
 
   async sendVerificationEmail(to: string, name: string, token: string, verifyUrl: string): Promise<void> {

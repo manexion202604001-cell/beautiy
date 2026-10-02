@@ -90,7 +90,7 @@ export default function ReservationSettingsPage() {
       setClosures(cl);
       setSettings({
         advance_booking_days: s.advance_booking_days ?? 365,
-        advance_booking_months: (s as any).advance_booking_months ?? 4,
+        advance_booking_months: s.advance_booking_months ?? 4,
         same_day_cutoff_hours: s.same_day_cutoff_hours ?? 1,
         max_concurrent: s.max_concurrent ?? 1,
         accept_same_start_time: !!(s.accept_same_start_time),
@@ -100,7 +100,7 @@ export default function ReservationSettingsPage() {
         booking_cutoff_time: s.booking_cutoff_time || "24:00",
         booking_cutoff_same_day_minutes: s.booking_cutoff_same_day_minutes ?? 60,
         booking_calc_method: (s.booking_calc_method as "calendar" | "business_days") || "calendar",
-        holiday_hours_enabled: !!((s as any).holiday_hours_enabled),
+        holiday_hours_enabled: !!(s.holiday_hours_enabled),
       });
     }).catch(console.error).finally(() => setLoading(false));
   }, [currentStore?.id]);

@@ -3,7 +3,7 @@ import { getCookie } from 'hono/cookie';
 import * as jose from 'jose';
 import type { Bindings, Variables, Staff, Customer } from '../types';
 
-export async function getJwtSecret(c: Context<{ Bindings: Bindings }>) {
+export async function getJwtSecret(c: Pick<Context<{ Bindings: Bindings }>, 'env'>) {
   const secret = c.env.JWT_SECRET;
   if (!secret) {
     throw new Error('JWT_SECRET environment variable is not set');
@@ -13,7 +13,7 @@ export async function getJwtSecret(c: Context<{ Bindings: Bindings }>) {
 
 export async function signToken(
   payload: { sub: string; type: 'staff' | 'customer'; role?: string; storeId?: string },
-  c: Context<{ Bindings: Bindings }>
+  c: Pick<Context<{ Bindings: Bindings }>, 'env'>
 ) {
   const secret = await getJwtSecret(c);
   return await new jose.SignJWT(payload)
@@ -25,7 +25,7 @@ export async function signToken(
 
 export async function verifyToken(
   token: string,
-  c: Context<{ Bindings: Bindings }>
+  c: Pick<Context<{ Bindings: Bindings }>, 'env'>
 ): Promise<jose.JWTPayload | null> {
   try {
     const secret = await getJwtSecret(c);

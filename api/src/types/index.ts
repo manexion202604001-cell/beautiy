@@ -5,6 +5,10 @@ export type Bindings = {
   CUSTOMER_APP_URL: string;
   ADMIN_APP_URL: string;
   STAFF_APP_URL: string;
+  COOKIE_DOMAIN?: string; // e.g. ".example.com" to share auth cookies across subdomains; unset = host-only
+  API_URL?: string; // public API origin (LIFF/LINE links); derived from CUSTOMER_APP_URL when unset
+  EMAIL_FROM?: string; // sender for transactional email (Resend)
+  CORS_ORIGINS?: string; // extra allowed origins, comma-separated
   JWT_SECRET: string;
   LINE_CHANNEL_SECRET?: string;
   LINE_CHANNEL_ACCESS_TOKEN?: string;
@@ -342,6 +346,7 @@ export type StaffBlock = {
   start_time: string | null;
   end_time: string | null;
   reason: string | null;
+  salonboard_synced: number; // 0=not synced, 1=synced, -1=error, 3=pending change, 4=pending delete
   created_at: string;
   updated_at: string;
 };

@@ -26,7 +26,7 @@ export default function ProfilePage() {
     name_kana: "",
     email: "",
     phone: "",
-    birth_date: "",
+    birthday: "",
     gender: "",
   });
 
@@ -40,7 +40,7 @@ export default function ProfilePage() {
           name_kana: data.customer.name_kana || "",
           email: data.customer.email || "",
           phone: data.customer.phone || "",
-          birth_date: data.customer.birth_date || "",
+          birthday: data.customer.birthday || "",
           gender: data.customer.gender || "",
         });
       })
@@ -54,7 +54,9 @@ export default function ProfilePage() {
     setSaved(false);
 
     try {
-      const result = await profileApi.update(formData);
+      // email is read-only (login ID); the API does not accept it
+      const { email: _email, ...updates } = formData;
+      const result = await profileApi.update(updates);
       setCustomer(result.customer);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
@@ -121,10 +123,12 @@ export default function ProfilePage() {
                 id="email"
                 type="email"
                 value={formData.email}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, email: e.target.value }))
-                }
+                readOnly
+                className="bg-muted"
               />
+              <p className="text-xs text-muted-foreground">
+                メールアドレスの変更は店舗までお問い合わせください
+              </p>
             </div>
 
             <div className="space-y-2">
@@ -141,13 +145,13 @@ export default function ProfilePage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="birth_date">生年月日</Label>
+              <Label htmlFor="birthday">生年月日</Label>
               <Input
-                id="birth_date"
+                id="birthday"
                 type="date"
-                value={formData.birth_date}
+                value={formData.birthday}
                 onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, birth_date: e.target.value }))
+                  setFormData((prev) => ({ ...prev, birthday: e.target.value }))
                 }
               />
             </div>

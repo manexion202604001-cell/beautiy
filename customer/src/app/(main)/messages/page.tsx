@@ -102,7 +102,7 @@ function MessagesPageInner() {
         try {
           const authData = await authApi.me();
           setCustomer(authData.customer);
-          if ((authData as any).line?.registration_status && (authData as any).line.registration_status !== 'completed') {
+          if (authData.line?.registration_status && authData.line.registration_status !== 'completed') {
             setNeedsNameRegistration(true);
             setRegName(authData.customer.name || "");
           }
@@ -187,7 +187,7 @@ function MessagesPageInner() {
             try {
               const authData = await authApi.me();
               setCustomer(authData.customer);
-              if ((authData as any).line?.registration_status && (authData as any).line.registration_status !== 'completed') {
+              if (authData.line?.registration_status && authData.line.registration_status !== 'completed') {
                 setNeedsNameRegistration(true);
                 setRegName(authData.customer.name || "");
               }

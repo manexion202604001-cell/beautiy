@@ -4,6 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "wrangler dev --config wrangler.dev.toml --remote",
+    "dev:local": "wrangler dev --config wrangler.dev.toml --local",
+    "db:setup:local": "wrangler d1 execute salon-db-dev --config wrangler.dev.toml --local --file=./src/db/schema.sql && wrangler d1 execute salon-db-dev --config wrangler.dev.toml --local --file=./src/db/seed.sql",
+    "db:reset:local": "rm -rf .wrangler/state/v3/d1 && pnpm run db:setup:local",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
     "publish:dev": "wrangler deploy --config wrangler.dev.toml",
     "publish": "wrangler deploy",
     "db:migrate:dev": "wrangler d1 execute salon-db-dev --remote --file=./src/db/schema.sql",
@@ -18,6 +23,7 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20241205.0",
     "typescript": "^5.7.2",
+    "vitest": "^3",
     "wrangler": "^4.111.0"
   }
 }

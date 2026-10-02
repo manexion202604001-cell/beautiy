@@ -29,11 +29,7 @@ export default function KarutesPage() {
   useEffect(() => {
     karutesApi
       .list()
-      .then((data) => {
-        // 共有されているカルテのみ表示
-        const shared = data.karutes.filter((k) => k.is_shared_with_customer);
-        setKarutes(shared);
-      })
+      .then((data) => setKarutes(data.karutes))
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
@@ -44,7 +40,7 @@ export default function KarutesPage() {
       setDetailLoading(true);
       karutesApi
         .get(selectedKaruteId)
-        .then((data) => setDetailKarute(data.karute))
+        .then((data) => setDetailKarute({ ...data.karute, images: data.images }))
         .catch(console.error)
         .finally(() => setDetailLoading(false));
     } else {
@@ -95,13 +91,13 @@ export default function KarutesPage() {
               <Card className="transition-shadow hover:shadow-md">
                 <CardContent className="flex items-center justify-between p-4">
                   <div className="space-y-1">
-                    <p className="font-medium">{formatDate(karute.date)}</p>
+                    <p className="font-medium">{formatDate(karute.visit_date)}</p>
                     <div className="flex items-center gap-1 text-sm text-muted-foreground">
                       <User className="h-3.5 w-3.5" />
-                      <span>{karute.staff?.name || "担当者情報なし"}</span>
+                      <span>{karute.staff_name || "担当者情報なし"}</span>
                     </div>
                     <p className="text-sm text-muted-foreground line-clamp-1">
-                      施術写真
+                      施術写真 {karute.image_count ?? 0}枚
                     </p>
                   </div>
                   <ChevronRight className="h-5 w-5 text-muted-foreground" />
@@ -130,16 +126,16 @@ export default function KarutesPage() {
                 <CardContent className="space-y-4 pt-6">
                   <div className="flex items-center gap-4">
                     <Avatar className="h-12 w-12">
-                      <AvatarImage src={detailKarute.staff?.avatar_url || undefined} />
+                      <AvatarImage src={detailKarute.staff_avatar_url || undefined} />
                       <AvatarFallback>
-                        {detailKarute.staff?.name?.charAt(0) || "?"}
+                        {detailKarute.staff_name?.charAt(0) || "?"}
                       </AvatarFallback>
                     </Avatar>
                     <div>
-                      <p className="font-medium">{detailKarute.staff?.name || "担当者"}</p>
+                      <p className="font-medium">{detailKarute.staff_name || "担当者"}</p>
                       <div className="flex items-center gap-1 text-sm text-muted-foreground">
                         <Calendar className="h-3.5 w-3.5" />
-                        <span>{formatDate(detailKarute.date)}</span>
+                        <span>{formatDate(detailKarute.visit_date)}</span>
                       </div>
                     </div>
                   </div>

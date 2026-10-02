@@ -3,7 +3,7 @@
 
 const STORE_SECRETS = ['salonboard_password', 'line_channel_secret', 'line_access_token', 'lime_password'] as const;
 const CUSTOMER_SECRETS = ['password_hash'] as const;
-const STAFF_SECRETS = ['password_hash', 'line_notify_token', 'verification_token', 'verification_token_expires_at', 'totp_secret', 'password_reset_token', 'password_reset_token_expires_at'] as const;
+const STAFF_SECRETS = ['password_hash', 'line_notify_token', 'verification_token', 'verification_token_expires_at', 'totp_secret', 'password_reset_token', 'password_reset_token_expires_at', 'staff_line_channel_secret', 'staff_line_access_token'] as const;
 
 function strip<T extends Record<string, unknown>>(obj: T | null | undefined, fields: readonly string[]): T | null {
   if (!obj) return obj ?? null;

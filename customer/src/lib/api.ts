@@ -1,5 +1,5 @@
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8787";
-const DEFAULT_STORE_ID = process.env.NEXT_PUBLIC_STORE_ID || "24a585be-3155-49d7-879a-7446c1a893f3";
+const DEFAULT_STORE_ID = process.env.NEXT_PUBLIC_STORE_ID || "";
 let _storeIdOverride: string | null = null;
 const TOKEN_KEY = "customer_token";
 
@@ -71,7 +71,7 @@ export interface Customer {
   name_kana: string | null;
   email: string | null;
   phone: string | null;
-  birth_date: string | null;
+  birthday: string | null;
   gender: string | null;
   memo: string | null;
   created_at: string;
@@ -136,18 +136,14 @@ export interface Reservation {
   menu_name?: string;
 }
 
+// Shared karute as exposed to customers (no treatment notes — photos only)
 export interface Karute {
   id: string;
-  store_id: string;
-  customer_id: string;
-  reservation_id: string | null;
-  staff_id: string;
-  date: string;
-  content: string;
-  is_shared_with_customer: boolean;
-  created_at: string;
-  updated_at: string;
-  staff?: Staff;
+  visit_date: string;
+  shared_at: string | null;
+  staff_name: string | null;
+  staff_avatar_url: string | null;
+  image_count?: number;
   images?: KaruteImage[];
 }
 
@@ -197,7 +193,31 @@ export const authApi = {
   },
 
   me: () =>
-    fetchApi<{ customer: Customer }>("/api/customer/auth/me"),
+    fetchApi<{
+      customer: Customer;
+      line?: { display_name: string | null; picture_url: string | null; registration_status: string | null } | null;
+      store?: { id: string; name: string } | null;
+    }>("/api/customer/auth/me"),
+
+  // LINE Login (web browser). nonce is echoed back in `state` and checked by /auth/line/callback
+  lineLoginUrl: (nonce: string) =>
+    fetchApi<{ url: string }>(
+      `/api/customer/auth/line?store_id=${encodeURIComponent(getStoreId())}&nonce=${encodeURIComponent(nonce)}`
+    ),
+
+  lineCallback: async (code: string, state: string) => {
+    const result = await fetchApi<{ customer: Customer; token: string; isNewUser: boolean }>(
+      "/api/customer/auth/line/callback",
+      {
+        method: "POST",
+        body: JSON.stringify({ code, state }),
+      }
+    );
+    if (result.token) {
+      tokenStorage.set(result.token);
+    }
+    return result;
+  },
 
   phoneMatch: async (phone: string) => {
     const result = await fetchApi<{
@@ -242,8 +262,6 @@ export const reservationsApi = {
   list: () =>
     fetchApi<{ reservations: Reservation[] }>("/api/customer/reservations"),
 
-  get: (id: string) =>
-    fetchApi<{ reservation: Reservation }>(`/api/customer/reservations/${id}`),
 
   create: (data: {
     store_id?: string;
@@ -282,7 +300,7 @@ export const reservationsApi = {
 
   cancel: (id: string) =>
     fetchApi<{ success: boolean }>(`/api/customer/reservations/${id}/cancel`, {
-      method: "POST",
+      method: "PUT",
     }),
 
   getAvailableSlots: (params: {
@@ -308,7 +326,7 @@ export const karutesApi = {
     fetchApi<{ karutes: Karute[] }>("/api/customer/karutes"),
 
   get: (id: string) =>
-    fetchApi<{ karute: Karute }>(`/api/customer/karutes/${id}`),
+    fetchApi<{ karute: Karute; images: KaruteImage[] }>(`/api/customer/karutes/${id}`),
 };
 
 // Messages API

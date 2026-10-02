@@ -3,6 +3,3 @@ packages:
   - 'admin'
   - 'customer'
   - 'staff'
-  - 'system'
-  - 'manual'
-  - 'packages/*'

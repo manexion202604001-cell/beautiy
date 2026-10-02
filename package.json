@@ -5,21 +5,25 @@
   "scripts": {
     "dev": "pnpm -r --parallel run dev",
     "dev:api": "pnpm --filter api dev",
+    "dev:api:local": "pnpm --filter api dev:local",
     "dev:admin": "pnpm --filter admin dev",
     "dev:customer": "pnpm --filter customer dev",
     "dev:staff": "pnpm --filter staff dev",
-    "dev:system": "pnpm --filter system dev",
-    "dev:manual": "pnpm --filter manual dev",
     "build": "pnpm -r run build",
     "lint": "pnpm -r run lint",
+    "typecheck": "pnpm -r exec tsc --noEmit -p .",
     "db:migrate": "pnpm --filter api db:migrate",
     "db:seed": "pnpm --filter api db:seed",
+    "db:setup:local": "pnpm --filter api db:setup:local",
+    "db:reset:local": "pnpm --filter api db:reset:local",
     "deploy:staff:dev": "./scripts/deploy.sh staff dev",
     "deploy:staff": "./scripts/deploy.sh staff prod",
     "deploy:admin:dev": "./scripts/deploy.sh admin dev",
     "deploy:admin": "./scripts/deploy.sh admin prod",
     "deploy:customer:dev": "./scripts/deploy.sh customer dev",
-    "deploy:customer": "./scripts/deploy.sh customer prod"
+    "deploy:customer": "./scripts/deploy.sh customer prod",
+    "deploy:karute-entry:dev": "./scripts/deploy.sh karute-entry dev",
+    "deploy:karute-entry": "./scripts/deploy.sh karute-entry prod"
   },
   "devDependencies": {
     "typescript": "^5.7.2"

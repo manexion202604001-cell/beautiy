@@ -421,7 +421,7 @@ function ReservationsContent() {
           is_closed: h.is_closed,
         }));
         setStoreBusinessHours(mapped);
-        setHolidayHoursEnabled(!!((storeData as any).store?.holiday_hours_enabled ?? (storeData as any).holiday_hours_enabled));
+        setHolidayHoursEnabled(!!storeData.store?.holiday_hours_enabled);
 
         if (staffHoursRes.business_hours.length > 0) {
           setBusinessHours(staffHoursRes.business_hours);

@@ -316,6 +316,12 @@ export async function getStoreLineAccessToken(db: D1Database, storeId: string): 
   return result?.line_access_token || null;
 }
 
+// "M/D H:mm" in JST (Workers run in UTC)
+function formatJstShort(date: Date): string {
+  const jst = new Date(date.getTime() + 9 * 60 * 60 * 1000);
+  return `${jst.getUTCMonth() + 1}/${jst.getUTCDate()} ${jst.getUTCHours()}:${String(jst.getUTCMinutes()).padStart(2, '0')}`;
+}
+
 // Staff LINE Notification Service (using Messaging API)
 export class StaffLineNotificationService {
   // Send push message to staff via Messaging API
@@ -354,6 +360,7 @@ export class StaffLineNotificationService {
       menuName: string;
       date: Date;
       source: string;
+      staffAppUrl?: string;
     }
   ): Promise<boolean> {
     // Get staff's LINE user ID and notification setting
@@ -371,19 +378,19 @@ export class StaffLineNotificationService {
       return false;
     }
 
-    const dateStr = `${reservation.date.getMonth() + 1}/${reservation.date.getDate()} ${reservation.date.getHours()}:${String(reservation.date.getMinutes()).padStart(2, '0')}`;
+    const dateStr = formatJstShort(reservation.date);
     const sourceLabel = reservation.source === 'line' ? 'LINE' : reservation.source === 'web' ? 'Web' : reservation.source;
 
-    const adminUrl = 'https://app.example.com/reservations';
-    const message = `🆕 新規予約が入りました
+    let message = `🆕 新規予約が入りました
 
 📅 ${dateStr}
 👤 ${reservation.customerName}
 💇 ${reservation.menuName}
-📱 経由: ${sourceLabel}
+📱 経由: ${sourceLabel}`;
 
-管理画面で確認:
-${adminUrl}`;
+    if (reservation.staffAppUrl) {
+      message += `\n\n管理画面で確認:\n${reservation.staffAppUrl}/reservations`;
+    }
 
     return this.sendMessage(accessToken, staff.line_user_id, message);
   }
@@ -423,6 +430,7 @@ ${adminUrl}`;
       menuName: string;
       date: Date;
       reason?: string;
+      staffAppUrl?: string;
     }
   ): Promise<boolean> {
     const staff = await db.prepare(
@@ -438,9 +446,8 @@ ${adminUrl}`;
       return false;
     }
 
-    const dateStr = `${reservation.date.getMonth() + 1}/${reservation.date.getDate()} ${reservation.date.getHours()}:${String(reservation.date.getMinutes()).padStart(2, '0')}`;
+    const dateStr = formatJstShort(reservation.date);
 
-    const adminUrl = 'https://app.example.com/reservations';
     let message = `❌ 予約がキャンセルされました
 
 📅 ${dateStr}
@@ -451,7 +458,9 @@ ${adminUrl}`;
       message += `\n📝 理由: ${reservation.reason}`;
     }
 
-    message += `\n\n管理画面で確認:\n${adminUrl}`;
+    if (reservation.staffAppUrl) {
+      message += `\n\n管理画面で確認:\n${reservation.staffAppUrl}/reservations`;
+    }
 
     return this.sendMessage(accessToken, staff.line_user_id, message);
   }

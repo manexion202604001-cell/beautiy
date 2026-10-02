@@ -132,14 +132,15 @@ async function encryptPayloadAes128gcm(
   const localKeyPair = await crypto.subtle.generateKey(
     { name: 'ECDH', namedCurve: 'P-256' },
     true, ['deriveBits'],
-  );
+  ) as CryptoKeyPair;
   const localPublicKeyBytes = new Uint8Array(
-    await crypto.subtle.exportKey('raw', localKeyPair.publicKey),
+    await crypto.subtle.exportKey('raw', localKeyPair.publicKey) as ArrayBuffer,
   );
 
   // ECDH shared secret
+  // Note: the runtime expects `public`; workers-types names it `$public`.
   const sharedSecret = await crypto.subtle.deriveBits(
-    { name: 'ECDH', public: clientPublicKey },
+    { name: 'ECDH', public: clientPublicKey } as SubtleCryptoDeriveKeyAlgorithm,
     localKeyPair.privateKey, 256,
   );
 

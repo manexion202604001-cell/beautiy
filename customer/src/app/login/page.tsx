@@ -46,6 +46,21 @@ function LoginPageInner() {
     }
   };
 
+  const handleLineLogin = async () => {
+    setError("");
+    setLoading(true);
+    try {
+      const nonce = crypto.randomUUID();
+      sessionStorage.setItem("line_login_nonce", nonce);
+      sessionStorage.setItem("line_login_redirect", redirectTo);
+      const { url } = await authApi.lineLoginUrl(nonce);
+      window.location.href = url;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "LINEログインを開始できませんでした");
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-4">
       <div className="mb-8 flex flex-col items-center">
@@ -107,10 +122,8 @@ function LoginPageInner() {
             variant="outline"
             className="w-full"
             size="lg"
-            onClick={() => {
-              // LINE ログイン処理
-              window.location.href = "/api/auth/line";
-            }}
+            disabled={loading}
+            onClick={handleLineLogin}
           >
             <svg
               className="mr-2 h-5 w-5"
