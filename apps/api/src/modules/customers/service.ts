@@ -483,6 +483,33 @@ export async function customerVisits(ctx: Ctx, customerId: string, limit = 50) {
   }));
 }
 
+/** Visit history carried over from the previous system (data migration) */
+export async function customerLegacyVisits(ctx: Ctx, customerId: string, limit = 200) {
+  await assertCustomerAccess(ctx, customerId, { allowMerged: true });
+  return ctx.trx
+    .selectFrom('legacy_visits as lv')
+    .leftJoin('staffs as s', 's.id', 'lv.staff_id')
+    .leftJoin('shops as sh', 'sh.id', 'lv.shop_id')
+    .leftJoin('import_jobs as j', 'j.id', 'lv.import_job_id')
+    .select([
+      'lv.id',
+      'lv.visited_at',
+      'lv.shop_id',
+      'sh.name as shop_name',
+      'lv.staff_id',
+      sql<string | null>`coalesce(s.display_name, lv.staff_name)`.as('staff_name'),
+      'lv.menu_text',
+      'lv.amount',
+      'lv.memo',
+      'lv.external_id',
+      'j.source_label',
+    ])
+    .where('lv.customer_id', '=', customerId)
+    .orderBy('lv.visited_at', 'desc')
+    .limit(limit)
+    .execute();
+}
+
 /** Unified customer timeline (appointments, kartes, transactions, messages, reviews, forms) */
 export async function customerTimeline(ctx: Ctx, customerId: string, limit = 100) {
   await assertCustomerAccess(ctx, customerId, { allowMerged: true });
@@ -504,6 +531,9 @@ export async function customerTimeline(ctx: Ctx, customerId: string, limit = 100
     UNION ALL
     (SELECT 'form', id, created_at, status, jsonb_build_object('templateId', template_id)
        FROM form_responses WHERE customer_id = ${customerId})
+    UNION ALL
+    (SELECT 'legacy_visit', id, visited_at, coalesce(left(menu_text, 80), ''), jsonb_build_object('amount', amount, 'staffName', staff_name, 'memo', left(memo, 200))
+       FROM legacy_visits WHERE customer_id = ${customerId})
     ORDER BY at DESC
     LIMIT ${limit}`.execute(ctx.trx);
   return res.rows;

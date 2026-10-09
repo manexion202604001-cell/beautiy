@@ -28,6 +28,7 @@ const RELINK_TABLES = [
   'referral_links',
   'referral_events',
   'automation_runs',
+  'legacy_visits',
 ] as const;
 
 /** Profile fields copied from source when empty on target */
@@ -159,9 +160,16 @@ export async function mergeCustomers(ctx: Ctx, targetId: string, sourceId: strin
   if (!target.marketing_opt_in || !source.marketing_opt_in) fill.marketing_opt_in = false;
   // free the unique customer_number on source before moving it
   if (fill.customer_number) await ctx.trx.updateTable('customers').set({ customer_number: null }).where('id', '=', sourceId).execute();
+  // history carried over from the previous system: both records' visits belong to the same person
+  const legacy = {
+    legacy_visit_count: Number(target.legacy_visit_count ?? 0) + Number(source.legacy_visit_count ?? 0),
+    legacy_total_sales: Number(target.legacy_total_sales ?? 0) + Number(source.legacy_total_sales ?? 0),
+    legacy_first_visit_at: earliest(target.legacy_first_visit_at, source.legacy_first_visit_at),
+    legacy_last_visit_at: latest(target.legacy_last_visit_at, source.legacy_last_visit_at),
+  };
   await ctx.trx
     .updateTable('customers')
-    .set({ ...fill, point_balance: await pointBalance(ctx, targetId), updated_by: auditUserId(ctx.actor) })
+    .set({ ...fill, ...legacy, point_balance: await pointBalance(ctx, targetId), updated_by: auditUserId(ctx.actor) })
     .where('id', '=', targetId)
     .execute();
   await ctx.trx
@@ -261,7 +269,13 @@ export async function undoMerge(ctx: Ctx, mergeLogId: string) {
       .values(prefs.map((p) => ({ customer_id: p.customer_id, organization_id: ctx.actor.organizationId, channel: p.channel, marketing_allowed: p.marketing_allowed, transactional_allowed: p.transactional_allowed, source: p.source })))
       .execute();
   }
-  const restoreTarget: Record<string, unknown> = { marketing_opt_in: targetSnapshot.marketing_opt_in };
+  const restoreTarget: Record<string, unknown> = {
+    marketing_opt_in: targetSnapshot.marketing_opt_in,
+    legacy_visit_count: targetSnapshot.legacy_visit_count ?? 0,
+    legacy_total_sales: targetSnapshot.legacy_total_sales ?? 0,
+    legacy_first_visit_at: targetSnapshot.legacy_first_visit_at ?? null,
+    legacy_last_visit_at: targetSnapshot.legacy_last_visit_at ?? null,
+  };
   for (const f of relinked.filledFields) restoreTarget[f] = targetSnapshot[f] ?? null;
   await ctx.trx.updateTable('customers').set(restoreTarget).where('id', '=', targetId).execute();
   await ctx.trx
@@ -291,4 +305,14 @@ export async function listMergeLogs(ctx: Ctx, customerId: string) {
     .where((eb) => eb.or([eb('source_customer_id', '=', customerId), eb('target_customer_id', '=', customerId)]))
     .orderBy('merged_at', 'desc')
     .execute();
+}
+
+function earliest(a: unknown, b: unknown): Date | null {
+  const ds = [a, b].filter(Boolean).map((d) => new Date(d as string | Date));
+  return ds.length ? new Date(Math.min(...ds.map((d) => d.getTime()))) : null;
+}
+
+function latest(a: unknown, b: unknown): Date | null {
+  const ds = [a, b].filter(Boolean).map((d) => new Date(d as string | Date));
+  return ds.length ? new Date(Math.max(...ds.map((d) => d.getTime()))) : null;
 }

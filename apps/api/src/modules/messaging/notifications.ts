@@ -24,6 +24,7 @@ interface AppointmentEventPayload {
   previousStartAt?: string;
   status?: string;
   source?: string;
+  sourceDetail?: Record<string, unknown>;
   from?: string;
   to?: string;
   reason?: string | null;
@@ -95,9 +96,13 @@ async function appointmentVersion(ctx: Ctx, id: string) {
 onEvent<AppointmentEventPayload>('appointment.created', async (ctx, e: Ev) => {
   const p = e.payload;
   if (!p.customerId || !['confirmed', 'tentative'].includes(p.status ?? '')) return;
+  // reservations brought over from the previous system: the customer already has a confirmation;
+  // reminders only when the import asked for them (the old system may still be sending its own)
+  const imported = p.source === 'import';
+  if (imported && !(p.sourceDetail as { sendReminders?: boolean } | undefined)?.sendReminders) return;
   const shop = await shopContext(ctx, p.shopId);
   const url = await manageUrl(ctx, e.aggregateId, p.customerId);
-  if (shop.settings.reminders.confirmation) {
+  if (shop.settings.reminders.confirmation && !imported) {
     const tentative = p.status === 'tentative';
     await queueMessage(ctx, {
       customerId: p.customerId,

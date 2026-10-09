@@ -36,6 +36,7 @@ export const NAV: NavSection[] = [
       { to: '/app/staff', label: 'スタッフ', icon: 'user', permissions: ['staff.read'] },
       { to: '/app/shifts', label: 'シフト', icon: 'clock', permissions: ['schedule.read'] },
       { to: '/app/settings', label: '店舗設定', icon: 'settings' },
+      { to: '/app/migration', label: 'データ移行', icon: 'layers', permissions: ['ops.manage'] },
     ],
   },
   {

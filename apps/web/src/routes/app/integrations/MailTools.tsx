@@ -36,6 +36,7 @@ import {
   type Tone,
 } from '../../../components/ui';
 import { newIdempotencyKey } from '../../../lib/api';
+import { decodeTextFile } from '../../../lib/decode';
 import { useAuth } from '../../../lib/auth';
 import { formatDateTime, formatTime, formatYen } from '../../../lib/format';
 
@@ -355,10 +356,7 @@ export function CsvImportDialog({
   };
   const onFile = async (file: File | undefined) => {
     if (!file) return;
-    const buf = await file.arrayBuffer();
-    // exports from Japanese admin screens are often Shift_JIS
-    let content = new TextDecoder('utf-8', { fatal: false }).decode(buf);
-    if (/\uFFFD/.test(content)) content = new TextDecoder('shift_jis').decode(buf);
+    const content = decodeTextFile(await file.arrayBuffer());
     setCsv(content);
     setFileName(file.name);
     preview.reset();

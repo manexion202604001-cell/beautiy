@@ -9,6 +9,7 @@ import type {
   DuplicateCandidate,
   Memo,
   TimelineEntry,
+  LegacyVisit,
 } from '../../../api/types';
 import { AppointmentDrawer } from '../../../components/appointments/AppointmentDrawer';
 import { CreateAppointmentDrawer } from '../../../components/appointments/CreateAppointmentDrawer';
@@ -55,7 +56,16 @@ import { CustomerKartesTab, CustomerFormsTab } from '../kartes/CustomerKarteTabs
 import { CustomerMessagesTab } from '../messages/CustomerMessagesTab';
 import { CustomerForm, toInitial } from './CustomerForm';
 
-type Tab = 'profile' | 'visits' | 'timeline' | 'memos' | 'tags' | 'duplicates' | 'kartes' | 'forms' | 'messages';
+type Tab =
+  | 'profile'
+  | 'visits'
+  | 'timeline'
+  | 'memos'
+  | 'tags'
+  | 'duplicates'
+  | 'kartes'
+  | 'forms'
+  | 'messages';
 
 export default function CustomerDetail() {
   const { id = '' } = useParams();
@@ -284,7 +294,9 @@ export default function CustomerDetail() {
             ) : null}
             {tab === 'tags' ? <TagsTab c={c} /> : null}
             {tab === 'duplicates' ? <DuplicatesTab c={c} /> : null}
-            {tab === 'messages' ? <CustomerMessagesTab customerId={c.id} customerName={c.display_name} /> : null}
+            {tab === 'messages' ? (
+              <CustomerMessagesTab customerId={c.id} customerName={c.display_name} />
+            ) : null}
           </TabPanel>
         </div>
       </div>
@@ -393,6 +405,7 @@ function ProfileTab({ c }: { c: Customer }) {
             { label: '登録日', value: formatDate(c.created_at, tz) },
           ]}
         />
+        <LegacyInfo c={c} />
       </Card>
       <div className="space-y-5">
         <Card>
@@ -448,44 +461,90 @@ function ProfileTab({ c }: { c: Customer }) {
 function VisitsTab({ id, onOpen }: { id: string; onOpen: (id: string) => void }) {
   const { timezone: tz } = useAuth();
   const q = useQuery({ queryKey: customerKeys.visits(id), queryFn: () => customersApi.visits(id) });
-  if (q.isLoading) return <InlineLoading />;
+  const legacy = useQuery({
+    queryKey: customerKeys.legacyVisits(id),
+    queryFn: () => customersApi.legacyVisits(id),
+  });
+  if (q.isLoading || legacy.isLoading) return <InlineLoading />;
   if (q.error) return <ErrorState error={q.error} />;
-  if (!q.data?.length) return <EmptyState icon="calendar" title="来店・予約履歴はありません" />;
+  if (!q.data?.length && !legacy.data?.length)
+    return <EmptyState icon="calendar" title="来店・予約履歴はありません" />;
   return (
-    <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-surface">
-      {q.data.map((v) => (
-        <li key={v.id}>
-          <button
-            type="button"
-            onClick={() => onOpen(v.id)}
-            className="flex w-full flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3 text-left hover:bg-surface-2/60"
-          >
-            <div className="w-28 shrink-0">
-              <p className="text-[13px] font-medium tabular">
-                {formatDate(v.start_at, tz, { weekday: false })}
-              </p>
-              <p className="text-xs text-muted tabular">{formatTime(v.start_at, tz)}〜</p>
-            </div>
+    <div className="space-y-5">
+      {q.data?.length ? (
+        <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-surface">
+          {q.data.map((v) => (
+            <li key={v.id}>
+              <button
+                type="button"
+                onClick={() => onOpen(v.id)}
+                className="flex w-full flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3 text-left hover:bg-surface-2/60"
+              >
+                <div className="w-28 shrink-0">
+                  <p className="text-[13px] font-medium tabular">
+                    {formatDate(v.start_at, tz, { weekday: false })}
+                  </p>
+                  <p className="text-xs text-muted tabular">{formatTime(v.start_at, tz)}〜</p>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[13px] font-medium">
+                    {v.services.map((s) => s.name).join('・') || '—'}
+                  </p>
+                  <p className="truncate text-xs text-muted">
+                    {v.shop_name} ・ {v.staff_name ?? '担当未定'}
+                    {v.is_nominated ? '（指名）' : ''} ・ {SOURCE_LABEL[v.source] ?? v.source}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[13px] tabular">
+                    {formatYen(v.transaction?.total ?? v.estimated_total)}
+                  </p>
+                  <p className="text-[11px] text-subtle">{v.transaction ? '会計済み' : '見込み'}</p>
+                </div>
+                <StatusBadge status={v.status} size="sm" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {legacy.data?.length ? <LegacyVisitList visits={legacy.data} /> : null}
+    </div>
+  );
+}
+
+/** 旧システムから移行した来店履歴（売上分析には含めない参考情報） */
+function LegacyVisitList({ visits }: { visits: LegacyVisit[] }) {
+  const { timezone: tz } = useAuth();
+  const source = visits[0]?.source_label ?? '旧システム';
+  return (
+    <section aria-labelledby="legacy-visits-title">
+      <h3 id="legacy-visits-title" className="mb-2 text-[13px] font-semibold">
+        {source}の来店履歴{' '}
+        <span className="font-normal text-muted">（{visits.length}件・移行データ）</span>
+      </h3>
+      <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-surface">
+        {visits.map((v) => (
+          <li key={v.id} className="flex flex-wrap items-start gap-x-4 gap-y-1 px-4 py-3">
+            <p className="w-28 shrink-0 text-[13px] font-medium tabular">
+              {formatDate(v.visited_at, tz, { weekday: false })}
+            </p>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-[13px] font-medium">
-                {v.services.map((s) => s.name).join('・') || '—'}
-              </p>
+              <p className="whitespace-pre-line text-[13px] font-medium">{v.menu_text || '—'}</p>
               <p className="truncate text-xs text-muted">
-                {v.shop_name} ・ {v.staff_name ?? '担当未定'}
-                {v.is_nominated ? '（指名）' : ''} ・ {SOURCE_LABEL[v.source] ?? v.source}
+                {[v.shop_name, v.staff_name ?? '担当不明'].filter(Boolean).join(' ・ ')}
+                {v.external_id ? ` ・ 伝票 ${v.external_id}` : ''}
               </p>
+              {v.memo ? (
+                <p className="mt-1 whitespace-pre-line rounded-lg bg-surface-2 px-2 py-1 text-xs">
+                  {v.memo}
+                </p>
+              ) : null}
             </div>
-            <div className="text-right">
-              <p className="text-[13px] tabular">
-                {formatYen(v.transaction?.total ?? v.estimated_total)}
-              </p>
-              <p className="text-[11px] text-subtle">{v.transaction ? '会計済み' : '見込み'}</p>
-            </div>
-            <StatusBadge status={v.status} size="sm" />
-          </button>
-        </li>
-      ))}
-    </ul>
+            <p className="text-[13px] tabular">{v.amount !== null ? formatYen(v.amount) : '—'}</p>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
@@ -493,7 +552,7 @@ function VisitsTab({ id, onOpen }: { id: string; onOpen: (id: string) => void })
 
 const KIND_META: Record<
   TimelineEntry['kind'],
-  { label: string; icon: 'calendar' | 'receipt' | 'file' | 'message' | 'star' | 'edit' }
+  { label: string; icon: 'calendar' | 'receipt' | 'file' | 'message' | 'star' | 'edit' | 'layers' }
 > = {
   appointment: { label: '予約', icon: 'calendar' },
   transaction: { label: '会計', icon: 'receipt' },
@@ -501,6 +560,7 @@ const KIND_META: Record<
   message: { label: 'メッセージ', icon: 'message' },
   review: { label: '口コミ', icon: 'star' },
   form: { label: 'フォーム', icon: 'edit' },
+  legacy_visit: { label: '来店（移行データ）', icon: 'layers' },
 };
 
 const APPT_STATUS_JA: Record<string, string> = {
@@ -522,6 +582,17 @@ function timelineSummary(e: TimelineEntry) {
   if (e.kind === 'message') {
     const [dir, ...rest] = e.summary.split(':');
     return `${dir === 'inbound' ? '受信' : '送信'}: ${rest.join(':')}`;
+  }
+  if (e.kind === 'legacy_visit') {
+    const amount = e.ref.amount as number | null | undefined;
+    const staff = e.ref.staffName as string | null | undefined;
+    return [
+      e.summary || '来店',
+      staff,
+      amount !== null && amount !== undefined ? formatYen(amount) : null,
+    ]
+      .filter(Boolean)
+      .join(' ・ ');
   }
   return e.summary;
 }
@@ -1273,5 +1344,39 @@ function MergeDialog({
         </>
       ) : null}
     </Dialog>
+  );
+}
+
+/** 旧システムから引き継いだ項目（Salon OS に対応する欄がない列も失わずに表示） */
+function LegacyInfo({ c }: { c: Customer }) {
+  const legacy = (c.attributes?.legacy ?? null) as {
+    source?: string;
+    customerNumber?: string | null;
+    registeredAt?: string | null;
+    phone2?: string | null;
+    staffName?: string | null;
+    memo?: string | null;
+    columns?: Record<string, string>;
+  } | null;
+  if (!legacy) return null;
+  const items = [
+    legacy.customerNumber ? { label: '旧顧客番号', value: legacy.customerNumber } : null,
+    legacy.registeredAt
+      ? { label: '旧システム登録日', value: legacy.registeredAt.replace(/-/g, '/') }
+      : null,
+    legacy.phone2 ? { label: '電話番号2', value: legacy.phone2 } : null,
+    legacy.staffName ? { label: '旧担当', value: legacy.staffName } : null,
+    ...Object.entries(legacy.columns ?? {}).map(([label, value]) => ({ label, value })),
+  ].filter((x): x is { label: string; value: string } => !!x);
+  if (!items.length) return null;
+  return (
+    <details className="mt-4 rounded-xl border border-border p-3 text-[13px]">
+      <summary className="cursor-pointer font-medium">
+        {legacy.source ?? '旧システム'}から引き継いだ項目（{items.length}）
+      </summary>
+      <div className="mt-2">
+        <KeyValue items={items} />
+      </div>
+    </details>
   );
 }

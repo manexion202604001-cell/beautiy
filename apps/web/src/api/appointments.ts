@@ -106,6 +106,7 @@ export const SOURCE_LABEL: Record<string, string> = {
   phone: '電話',
   walk_in: '店頭',
   staff: 'スタッフ',
+  import: '移行',
 };
 
 /** Allowed actions per status (mirrors the API state machine) */

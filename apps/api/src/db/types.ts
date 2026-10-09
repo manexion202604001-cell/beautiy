@@ -397,6 +397,10 @@ export interface Customers {
   last_name: Generated<string>;
   last_name_kana: Generated<string>;
   last_visit_at: Timestamp | null;
+  legacy_first_visit_at: Timestamp | null;
+  legacy_last_visit_at: Timestamp | null;
+  legacy_total_sales: Generated<number>;
+  legacy_visit_count: Generated<number>;
   marketing_opt_in: Generated<boolean>;
   merged_into_id: string | null;
   next_appointment_at: Timestamp | null;
@@ -615,6 +619,51 @@ export interface IdempotencyKeys {
   state: Generated<string>;
 }
 
+export interface ImportJobRows {
+  data: Generated<Json>;
+  id: Generated<string>;
+  job_id: string;
+  message: string | null;
+  organization_id: string;
+  outcome: string;
+  resource_id: string | null;
+  resource_type: string | null;
+  row_no: number;
+}
+
+export interface ImportJobs {
+  completed_at: Timestamp | null;
+  created_at: Generated<Timestamp>;
+  created_by: string | null;
+  csv: string;
+  error: string | null;
+  file_name: string | null;
+  id: Generated<string>;
+  kind: string;
+  mapping: Generated<Json>;
+  options: Generated<Json>;
+  organization_id: string;
+  processed_rows: Generated<number>;
+  shop_id: string | null;
+  source_label: Generated<string>;
+  started_at: Timestamp | null;
+  status: Generated<string>;
+  summary: Generated<Json>;
+  total_rows: Generated<number>;
+  totals: Generated<Json>;
+  undone_at: Timestamp | null;
+  undone_by: string | null;
+}
+
+export interface ImportKeys {
+  created_at: Generated<Timestamp>;
+  job_id: string | null;
+  key: string;
+  kind: string;
+  organization_id: string;
+  resource_id: string;
+}
+
 export interface IntegrationAccounts {
   config: Generated<Json>;
   consecutive_failures: Generated<number>;
@@ -706,6 +755,23 @@ export interface KarteTemplates {
   shop_id: string | null;
   status: Generated<string>;
   updated_at: Generated<Timestamp>;
+}
+
+export interface LegacyVisits {
+  amount: number | null;
+  created_at: Generated<Timestamp>;
+  customer_id: string;
+  external_id: string | null;
+  id: Generated<string>;
+  import_job_id: string | null;
+  memo: string | null;
+  menu_text: string | null;
+  organization_id: string;
+  raw: Generated<Json>;
+  shop_id: string | null;
+  staff_id: string | null;
+  staff_name: string | null;
+  visited_at: Timestamp;
 }
 
 export interface LineChannels {
@@ -1545,11 +1611,15 @@ export interface DB {
   form_responses: FormResponses;
   form_templates: FormTemplates;
   idempotency_keys: IdempotencyKeys;
+  import_job_rows: ImportJobRows;
+  import_jobs: ImportJobs;
+  import_keys: ImportKeys;
   integration_accounts: IntegrationAccounts;
   jobs: Jobs;
   karte_assets: KarteAssets;
   karte_templates: KarteTemplates;
   kartes: Kartes;
+  legacy_visits: LegacyVisits;
   line_channels: LineChannels;
   menu_categories: MenuCategories;
   menu_resource_requirements: MenuResourceRequirements;

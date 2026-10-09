@@ -66,7 +66,9 @@ export function Field({
         'aria-describedby': describedBy,
         'aria-invalid': error ? true : undefined,
         'aria-required': required || undefined,
-        invalid: children.props.invalid ?? !!error,
+        // `invalid` is a prop of our Input/Select/Textarea; a plain DOM child (e.g. a <div> grouping
+        // a button and a file input) must not receive it
+        ...(typeof children.type === 'string' ? {} : { invalid: children.props.invalid ?? !!error }),
       })}
       {hint && !error ? (
         <p id={hintId} className="text-xs text-muted">

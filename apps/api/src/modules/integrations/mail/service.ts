@@ -11,6 +11,7 @@ import { PermanentJobError } from '../../../jobs/queue.js';
 import { audit } from '../../../lib/audit.js';
 import { sha256 } from '../../../lib/crypto.js';
 import { Errors } from '../../../lib/errors.js';
+import { parseCsv } from '../../../lib/csv.js';
 import { normalizeName } from '../../../lib/normalize.js';
 import { effectiveMenus } from '../../catalog/service.js';
 import {
@@ -335,40 +336,6 @@ export async function parseTest(
 // ---------------------------------------------------------------- CSV import (existing bookings)
 
 /** RFC 4180 CSV parser (quotes, escaped quotes, CRLF, BOM) */
-export function parseCsv(text: string): string[][] {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let field = '';
-  let quoted = false;
-  const s = text.replace(/^\uFEFF/, '');
-  for (let i = 0; i < s.length; i++) {
-    const c = s[i]!;
-    if (quoted) {
-      if (c === '"') {
-        if (s[i + 1] === '"') {
-          field += '"';
-          i++;
-        } else quoted = false;
-      } else field += c;
-    } else if (c === '"') quoted = true;
-    else if (c === ',') {
-      row.push(field);
-      field = '';
-    } else if (c === '\n' || c === '\r') {
-      if (c === '\r' && s[i + 1] === '\n') i++;
-      row.push(field);
-      rows.push(row);
-      row = [];
-      field = '';
-    } else field += c;
-  }
-  if (field.length || row.length) {
-    row.push(field);
-    rows.push(row);
-  }
-  return rows.filter((r) => r.some((v) => v.trim()));
-}
-
 const CSV_COLUMNS: Record<string, string[]> = {
   reservationNo: ['予約番号', '予約no', '予約id', '受付番号', 'id'],
   datetime: ['来店日時', '予約日時', '日時'],

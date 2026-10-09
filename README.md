@@ -3,7 +3,7 @@
 美容サロン業務を **集客 → 予約 → 顧客 → 施術 → カルテ → 会計 → 口コミ → 再来店** まで一気通貫で管理するマルチテナント SaaS。
 LINE を顧客接点とし（専用アプリ不要）、個人美容師から多店舗法人まで同一基盤で運用できます。
 
-> 要件定義: [docs/requirements.md](docs/requirements.md)（v1.1・全章記述済み） / アーキテクチャ: [docs/architecture.md](docs/architecture.md) / データモデル: [docs/data-model.md](docs/data-model.md) / ADR: [docs/adr](docs/adr) / 運用: [docs/operations.md](docs/operations.md) / KPI定義: [docs/kpi-definitions.md](docs/kpi-definitions.md) / API実装規約: [apps/api/CONVENTIONS.md](apps/api/CONVENTIONS.md)
+> 要件定義: [docs/requirements.md](docs/requirements.md)（v1.1・全章記述済み） / 移行・切り替え: [docs/migration.md](docs/migration.md) / アーキテクチャ: [docs/architecture.md](docs/architecture.md) / データモデル: [docs/data-model.md](docs/data-model.md) / ADR: [docs/adr](docs/adr) / 運用: [docs/operations.md](docs/operations.md) / KPI定義: [docs/kpi-definitions.md](docs/kpi-definitions.md) / API実装規約: [apps/api/CONVENTIONS.md](apps/api/CONVENTIONS.md)
 
 ## 構成
 
@@ -26,6 +26,7 @@ infra/     docker-compose（PostgreSQL / MinIO / Mailpit）
 | 外部予約連携 | アダプタ層・差分/全件同期・競合ポリシー・手動解決キュー・枠ブロック反映・リトライ/DLQ・縮退運転・**ホットペッパービューティー / LiME 連動**（予約通知メールの転送でリアルタイム取り込み、他経路の予約は「媒体の枠止め」依頼として通知、既存予約のCSV取り込み — [ADR 0010](docs/adr/0010-mail-based-booking-media-sync.md)） |
 | 口コミ・集客・EC | 口コミ依頼/投稿/返信・Googleビジネスプロフィール連携・スタイリスト公開プロフィール・紹介リンク計測・SNS素材生成・商品/在庫・EC注文/配送 |
 | 多店舗・分析・AI | 法人→店舗→スタッフ・RBAC + 店舗/顧客単位の認可・異動時の担当引継ぎ・売上/客単価/新規・再来・失客/リピート率/LTV/メニュー構成/生産性/経路別・離脱予測・売上予測・AI下書き（人の承認必須） |
+| データ移行 | 旧システムのCSV（顧客・来店履歴/カルテ・今後の予約）を列の自動対応付け→確認→取り込み。重複防止・家族を混同しない照合・入力済みは上書きしない・ポイント残高/来店回数の引き継ぎ・照合結果・取り消し — [docs/migration.md](docs/migration.md)（切り替え手順つき） |
 | 運用 | 監査ログ（追記専用）・障害ダッシュボード・DLQ再実行・Webhook再処理・非同期CSVエクスポート・Feature Flag・保持期間/匿名化 |
 
 ## クイックスタート（ローカル）
@@ -57,11 +58,11 @@ pnpm --filter @salon/web dev              # http://localhost:5173
 
 | 項目 | 内容 |
 |---|---|
-| API 統合テスト | 275件（実PostgreSQL・RLS・同時予約・Webhook署名・税計算・名寄せ/マージ・権限境界 など） |
-| Web 単体テスト | 57件（税/金額表示・カート・セグメントDSL変換・チャート・日時変換 など） |
-| E2E (Playwright) | 11シナリオ（ホットペッパー予約メール取込→LiME枠止め依頼 / ゲスト予約 / スタッフ予約作成 / 来店会計 / 店販・分割決済・返金・取消・レジ締め / カルテ・同意書署名・事前問診 / 口コミ依頼〜返信 / EC購入〜発送 / 1対1メッセージ / セグメント作成 / 売上分析） |
-| API | 249 エンドポイント（`docs/openapi.json`、起動時は `/docs` で Swagger UI） |
-| DB | 88テーブル + マイグレーション22本（RLS・EXCLUDE制約・監査ログ追記専用トリガ） |
+| API 統合テスト | 287件（実PostgreSQL・RLS・同時予約・Webhook署名・税計算・名寄せ/マージ・権限境界 など） |
+| Web 単体テスト | 58件（税/金額表示・カート・セグメントDSL変換・チャート・日時変換 など） |
+| E2E (Playwright) | 12シナリオ（旧システムからの顧客・来店履歴の移行 / ホットペッパー予約メール取込→LiME枠止め依頼 / ゲスト予約 / スタッフ予約作成 / 来店会計 / 店販・分割決済・返金・取消・レジ締め / カルテ・同意書署名・事前問診 / 口コミ依頼〜返信 / EC購入〜発送 / 1対1メッセージ / セグメント作成 / 売上分析） |
+| API | 255 エンドポイント（`docs/openapi.json`、起動時は `/docs` で Swagger UI） |
+| DB | 88テーブル + マイグレーション23本（RLS・EXCLUDE制約・監査ログ追記専用トリガ） |
 
 ## テスト
 

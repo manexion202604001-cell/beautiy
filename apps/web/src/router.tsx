@@ -52,6 +52,7 @@ const Campaigns = lazy(() => import('./routes/app/campaigns/Campaigns'));
 const Analytics = lazy(() => import('./routes/app/analytics/Analytics'));
 const Integrations = lazy(() => import('./routes/app/integrations/Integrations'));
 const Ops = lazy(() => import('./routes/app/ops/Ops'));
+const Migration = lazy(() => import('./routes/app/migration/Migration'));
 const Unsubscribe = lazy(() => import('./routes/public/Unsubscribe'));
 const LineLink = lazy(() => import('./routes/public/LineLink'));
 const ShortLink = lazy(() => import('./routes/public/ShortLink'));
@@ -141,6 +142,7 @@ export const router = createRouter([
       { path: 'analytics', element: s(<Analytics />) },
       { path: 'integrations', element: s(<Integrations />) },
       { path: 'ops', element: s(<Ops />) },
+      { path: 'migration', element: s(<Migration />) },
       { path: '*', element: <NotFound inApp /> },
     ],
   },

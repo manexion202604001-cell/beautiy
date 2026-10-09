@@ -102,7 +102,7 @@ src/
 
 ## 7. DB / マイグレーション
 
-- 既存マイグレーションは編集しない。追加は新ファイル。モジュール別番号帯: pos/payments 0100-0109, messaging 0110-0119, kartes/files 0120-0129, integrations/ops 0130-0139, reviews/marketing/commerce 0140-0149, analytics/ai 0150-0159。
+- 既存マイグレーションは編集しない。追加は新ファイル。モジュール別番号帯: pos/payments 0100-0109, messaging 0110-0119, kartes/files 0120-0129, integrations/ops 0130-0139, reviews/marketing/commerce 0140-0149, analytics/ai 0150-0159, migration 0160-0169。
 - 追加テーブルに `organization_id` を持たせる場合、RLS ポリシーをそのマイグレーション内で作成する (0090 と同じ形式)。
 - 適用: `pnpm db:migrate` (dev DB) → 型生成: `pnpm db:codegen`。`db:reset` は共有 dev DB を消すので並行作業中は使わない。
 

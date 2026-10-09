@@ -53,6 +53,9 @@ const plugin: FastifyPluginAsyncZod = async (app) => {
   app.get('/customers/:id/merge-logs', { schema: { tags, summary: '統合履歴', params: idParam } }, (req) => req.tx((ctx) => listMergeLogs(ctx, req.params.id)));
   app.post('/customer-merges/:id/undo', { schema: { tags, summary: '統合の取り消し', params: idParam } }, (req) => req.tx((ctx) => undoMerge(ctx, req.params.id)));
   app.get('/customers/:id/visits', { schema: { tags, summary: '来店履歴', params: idParam } }, (req) => req.tx((ctx) => svc.customerVisits(ctx, req.params.id)));
+  app.get('/customers/:id/legacy-visits', { schema: { tags, summary: '旧システムの来店履歴（移行データ）', params: idParam } }, (req) =>
+    req.tx((ctx) => svc.customerLegacyVisits(ctx, req.params.id)),
+  );
   app.get('/customers/:id/timeline', { schema: { tags, summary: '顧客タイムライン', params: idParam } }, (req) => req.tx((ctx) => svc.customerTimeline(ctx, req.params.id)));
   app.put('/customers/:id/tags', { schema: { tags, summary: 'タグ設定', params: idParam, body: z.object({ tagIds: z.array(uuid) }) } }, (req) =>
     req.tx((ctx) => svc.setCustomerTags(ctx, req.params.id, req.body.tagIds)),

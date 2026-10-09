@@ -11,6 +11,7 @@ import integrations from './integrations/index.js';
 import kartes from './kartes/index.js';
 import marketing from './marketing/index.js';
 import messaging from './messaging/index.js';
+import migration from './migration/index.js';
 import ops from './ops/index.js';
 import org from './org/index.js';
 import payments from './payments/index.js';
@@ -38,6 +39,7 @@ export const modules: Record<string, FastifyPluginAsyncZod> = {
   payments,
   messaging,
   integrations,
+  migration,
   reviews,
   marketing,
   commerce,

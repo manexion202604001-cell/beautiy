@@ -282,11 +282,26 @@ export interface CustomerVisit {
 }
 
 export interface TimelineEntry {
-  kind: 'appointment' | 'transaction' | 'karte' | 'message' | 'review' | 'form';
+  kind: 'appointment' | 'transaction' | 'karte' | 'message' | 'review' | 'form' | 'legacy_visit';
   id: string;
   at: string;
   summary: string;
   ref: Record<string, unknown>;
+}
+
+/** visit history carried over from the previous system (data migration) */
+export interface LegacyVisit {
+  id: string;
+  visited_at: string;
+  shop_id: string | null;
+  shop_name: string | null;
+  staff_id: string | null;
+  staff_name: string | null;
+  menu_text: string | null;
+  amount: number | null;
+  memo: string | null;
+  external_id: string | null;
+  source_label: string | null;
 }
 
 export interface Memo {
@@ -534,7 +549,7 @@ export interface ScheduleBlock {
 // ---------------------------------------------------------------- appointments
 export type AppointmentStatus =
   'tentative' | 'confirmed' | 'checked_in' | 'in_service' | 'completed' | 'cancelled' | 'no_show';
-export type AppointmentSource = 'web' | 'line' | 'external' | 'phone' | 'walk_in' | 'staff';
+export type AppointmentSource = 'web' | 'line' | 'external' | 'phone' | 'walk_in' | 'staff' | 'import';
 
 export interface AppointmentListItem {
   id: string;

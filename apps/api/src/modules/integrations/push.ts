@@ -46,6 +46,8 @@ for (const type of PUSH_EVENTS) {
   onEvent(type, async (ctx, event) => {
     const appt = await ctx.trx.selectFrom('appointments').select(['id', 'shop_id', 'source', 'source_detail', 'version']).where('id', '=', event.aggregateId).executeTakeFirst();
     if (!appt) return;
+    // reservations imported from the previous system already hold their slot on the media
+    if (type === 'appointment.created' && appt.source === 'import') return;
     const accounts = await ctx.trx
       .selectFrom('integration_accounts')
       .select(['id', 'provider', 'config'])

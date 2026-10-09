@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import { isoDate, isoDateTime, uuid } from '../../lib/schemas.js';
 
-export const SOURCES = ['web', 'line', 'external', 'phone', 'walk_in', 'staff'] as const;
+/** 'import' = brought over from the previous system (data migration) */
+export const SOURCES = ['web', 'line', 'external', 'phone', 'walk_in', 'staff', 'import'] as const;
 export const STATUSES = ['tentative', 'confirmed', 'checked_in', 'in_service', 'completed', 'cancelled', 'no_show'] as const;
 
 export const createAppointmentSchema = z.object({
