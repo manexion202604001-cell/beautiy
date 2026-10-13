@@ -20,6 +20,8 @@ export interface CustomerSearch {
   tagId?: string;
   shopId?: string;
   staffId?: string;
+  /** customers with no staff in charge */
+  unassigned?: boolean;
   lastVisitBefore?: string;
   lastVisitAfter?: string;
   hasFutureAppointment?: boolean;

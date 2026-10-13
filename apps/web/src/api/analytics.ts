@@ -297,5 +297,12 @@ export const SOURCE_LABEL: Record<string, string> = {
   none: '予約なし(直接会計)',
   referral: '紹介',
   instagram: 'Instagram',
+  import: '旧システムから移行',
+  phone_hpb: '電話（HPB）',
+  next_visit: '次回予約',
+  minimo: 'minimo',
+  nailie: 'ネイリー',
+  practice_model: '練習モデル',
+  redo: 'お直し',
   不明: '不明',
 };

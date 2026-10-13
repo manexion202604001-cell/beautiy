@@ -4,11 +4,13 @@ import { audit } from '../../lib/audit.js';
 import { referenceCode } from '../../lib/crypto.js';
 import { Errors } from '../../lib/errors.js';
 import { emit } from '../../lib/events.js';
+import { normalizeKana, normalizePhone } from '../../lib/normalize.js';
 import { addMinutes, dayBounds, localDate } from '../../lib/time.js';
 import { effectiveMenus, evaluateCoupon, type EffectiveMenu } from '../catalog/service.js';
 import { assertCustomerAccess } from '../customers/access.js';
 import { ensureVisitedRelation } from '../customers/service.js';
 import { recomputeCustomerStats } from '../customers/stats.js';
+import { NO_MEDIA_SYNC, appointmentMediaSync } from '../integrations/api.js';
 import { loadScheduleData } from '../schedules/calendar.js';
 import {
   ACTIVE_STATUSES,
@@ -301,7 +303,7 @@ export async function getAppointmentUnchecked(ctx: Ctx, id: string) {
     .where('appointments.deleted_at', 'is', null)
     .executeTakeFirst();
   if (!a) throw Errors.notFound('予約', id);
-  const [services, resources] = await Promise.all([
+  const [services, resources, media] = await Promise.all([
     ctx.trx.selectFrom('appointment_services').select(['id', 'menu_id', 'name', 'duration_min', 'price', 'tax_rate_bp', 'staff_id', 'start_offset_min']).where('appointment_id', '=', id).orderBy('sort_order').execute(),
     ctx.trx
       .selectFrom('appointment_resources')
@@ -310,9 +312,10 @@ export async function getAppointmentUnchecked(ctx: Ctx, id: string) {
       .where('appointment_resources.appointment_id', '=', id)
       .where('appointment_resources.is_active', '=', true)
       .execute(),
+    appointmentMediaSync(ctx, [id]),
   ]);
   const customerName = a.customer_id ? `${a.customer_last_name ?? ''} ${a.customer_first_name ?? ''}`.trim() || `${a.customer_last_name_kana ?? ''} ${a.customer_first_name_kana ?? ''}`.trim() : null;
-  return { ...a, customer_name: customerName, is_new_customer: a.customer_id ? (a.customer_visit_count ?? 0) === 0 : null, services, resources };
+  return { ...a, customer_name: customerName, is_new_customer: a.customer_id ? (a.customer_visit_count ?? 0) === 0 : null, services, resources, media_sync: media.get(id) ?? NO_MEDIA_SYNC };
 }
 
 export async function getAppointment(ctx: Ctx, id: string) {
@@ -372,15 +375,32 @@ export async function listAppointments(ctx: Ctx, input: ListAppointmentsInput) {
   if (input.customerId) q = q.where('appointments.customer_id', '=', input.customerId);
   if (input.status) q = q.where('appointments.status', 'in', Array.isArray(input.status) ? input.status : [input.status]);
   if (input.source) q = q.where('appointments.source', '=', input.source);
+  if (input.q) {
+    // same matching as the customer list: name / kana substring, full phone, or part of the phone
+    const term = normalizeKana(input.q);
+    const phone = normalizePhone(input.q);
+    const digits = input.q.replace(/\D/g, '');
+    q = q.where((eb) =>
+      eb.or([
+        eb('customers.search_text', 'like', `%${term.replace(/[%_]/g, '\\$&')}%`),
+        ...(phone ? [eb('customers.phone_normalized', '=', phone)] : []),
+        ...(/^[\d-]{3,}$/.test(input.q!.trim()) ? [eb(sql`regexp_replace(customers.phone_normalized, '^[+]81', '0')`, 'like', `%${digits}%`)] : []),
+      ]),
+    );
+  }
   const rows = await q.execute();
   const ids = rows.map((r) => r.id);
-  const services = ids.length
-    ? await ctx.trx.selectFrom('appointment_services').select(['appointment_id', 'menu_id', 'name', 'duration_min', 'price']).where('appointment_id', 'in', ids).orderBy('sort_order').execute()
-    : [];
+  const [services, media] = await Promise.all([
+    ids.length
+      ? ctx.trx.selectFrom('appointment_services').select(['appointment_id', 'menu_id', 'name', 'duration_min', 'price']).where('appointment_id', 'in', ids).orderBy('sort_order').execute()
+      : [],
+    appointmentMediaSync(ctx, ids),
+  ]);
   return rows.map((r) => ({
     ...r,
     is_new_customer: r.customer_id ? (r.customer_visit_count ?? 0) === 0 : null,
     services: services.filter((s) => s.appointment_id === r.id).map(({ appointment_id: _a, ...s }) => s),
+    media_sync: media.get(r.id) ?? NO_MEDIA_SYNC,
   }));
 }
 

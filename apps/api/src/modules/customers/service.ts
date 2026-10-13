@@ -82,6 +82,7 @@ export async function searchCustomers(ctx: Ctx, input: SearchCustomersInput) {
     );
   }
   if (input.staffId) q = q.where('customers.primary_staff_id', '=', input.staffId);
+  if (input.unassigned) q = q.where('customers.primary_staff_id', 'is', null);
   // date filters are interpreted in the organization's timezone (not UTC midnight)
   if (input.lastVisitBefore || input.lastVisitAfter) {
     const org = await ctx.trx.selectFrom('organizations').select('timezone').where('id', '=', ctx.actor.organizationId).executeTakeFirstOrThrow();

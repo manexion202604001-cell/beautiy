@@ -44,6 +44,8 @@ export const searchCustomersSchema = z.object({
   tagId: uuid.optional(),
   shopId: uuid.optional(),
   staffId: uuid.optional(),
+  /** true = customers with no staff in charge (担当未設定) */
+  unassigned: booleanQuery,
   lastVisitBefore: isoDate.optional(),
   lastVisitAfter: isoDate.optional(),
   hasFutureAppointment: booleanQuery,

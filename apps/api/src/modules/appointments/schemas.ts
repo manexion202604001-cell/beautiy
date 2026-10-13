@@ -1,8 +1,14 @@
 import { z } from 'zod';
 import { isoDate, isoDateTime, uuid } from '../../lib/schemas.js';
 
-/** 'import' = brought over from the previous system (data migration) */
-export const SOURCES = ['web', 'line', 'external', 'phone', 'walk_in', 'staff', 'import'] as const;
+/**
+ * 'import' = brought over from the previous system (data migration). The second row are routes staff
+ * record by hand when taking a booking (電話（HPB）/ 次回予約 / インスタ / minimo / ネイリー / 友人 / 練習モデル / お直し).
+ */
+export const SOURCES = [
+  'web', 'line', 'external', 'phone', 'walk_in', 'staff', 'import',
+  'phone_hpb', 'next_visit', 'instagram', 'minimo', 'nailie', 'referral', 'practice_model', 'redo',
+] as const;
 export const STATUSES = ['tentative', 'confirmed', 'checked_in', 'in_service', 'completed', 'cancelled', 'no_show'] as const;
 
 export const createAppointmentSchema = z.object({
@@ -52,6 +58,8 @@ export const listAppointmentsSchema = z.object({
   customerId: uuid.optional(),
   status: z.union([z.enum(STATUSES), z.array(z.enum(STATUSES))]).optional(),
   source: z.enum(SOURCES).optional(),
+  /** customer name / kana / phone (same matching as the customer list) */
+  q: z.string().trim().min(1).max(100).optional(),
   limit: z.coerce.number().int().min(1).max(1000).default(500),
 });
 export type ListAppointmentsInput = z.infer<typeof listAppointmentsSchema>;

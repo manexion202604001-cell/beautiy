@@ -549,7 +549,18 @@ export interface ScheduleBlock {
 // ---------------------------------------------------------------- appointments
 export type AppointmentStatus =
   'tentative' | 'confirmed' | 'checked_in' | 'in_service' | 'completed' | 'cancelled' | 'no_show';
-export type AppointmentSource = 'web' | 'line' | 'external' | 'phone' | 'walk_in' | 'staff' | 'import';
+export type AppointmentSource =
+  | 'web' | 'line' | 'external' | 'phone' | 'walk_in' | 'staff' | 'import'
+  // routes staff record by hand when they take a booking
+  | 'phone_hpb' | 'next_visit' | 'instagram' | 'minimo' | 'nailie' | 'referral' | 'practice_model' | 'redo';
+
+/** How a reservation stands with the booking media (Hot Pepper / SALON BOARD, LiME ...) */
+export interface AppointmentMediaSync {
+  /** the medium the booking came from; null = taken in Salon OS */
+  origin: { provider: string; sync_state: string; last_synced_at: string | null; last_error: string | null } | null;
+  /** slot blocks on the other media; action_required / remove_required are open staff tasks */
+  blocks: { id: string; provider: string; state: string; manual: boolean; last_error: string | null; updated_at: string }[];
+}
 
 export interface AppointmentListItem {
   id: string;
@@ -576,6 +587,7 @@ export interface AppointmentListItem {
   staff_color: string | null;
   is_new_customer: boolean | null;
   services: { menu_id: string | null; name: string; duration_min: number; price: number }[];
+  media_sync?: AppointmentMediaSync;
 }
 
 export interface AppointmentDetail {
@@ -633,6 +645,7 @@ export interface AppointmentDetail {
     start_at: string;
     end_at: string;
   }[];
+  media_sync?: AppointmentMediaSync;
 }
 
 export interface AppointmentEvent {

@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties, type MouseEvent } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties, type MouseEvent } from 'react';
 import { useSearchParams } from 'react-router';
 import { SOURCE_LABEL, useAppointments } from '../../api/appointments';
 import { useStaffList } from '../../api/org';
@@ -20,16 +20,22 @@ import {
   EmptyState,
   ErrorState,
   InlineLoading,
+  Input,
   Segmented,
+  Select,
 } from '../../components/ui';
 import { useAuth } from '../../lib/auth';
 import { cn } from '../../lib/cn';
 import { WEEKDAYS_JA, formatDateJa, formatTime, formatYen } from '../../lib/format';
 import { useNow } from '../../lib/hooks';
+import { mediaBadges } from '../../lib/mediaSync';
 import {
   addDays,
+  addMonths,
   dateRange,
   minutesToHhmm,
+  monthGrid,
+  startOfMonth,
   startOfWeek,
   todayIn,
   weekdayOf,
@@ -41,15 +47,23 @@ const PX_PER_MIN = 1.1; // 66px per hour
 const SNAP = 15;
 const HIDDEN_STATUSES = new Set(['cancelled', 'no_show']);
 
-type View = 'day' | 'week';
+type View = 'day' | 'week' | 'month';
+/** how far a name / phone search looks around the date on screen */
+const SEARCH_PAST_DAYS = 60;
+const SEARCH_FUTURE_DAYS = 180;
 
 export default function CalendarPage() {
   const { currentShopId: shopId, timezone: tz, can } = useAuth();
   const [params, setParams] = useSearchParams();
   const today = todayIn(tz);
   const date = params.get('date') ?? today;
-  const view: View = params.get('view') === 'week' ? 'week' : 'day';
+  const viewParam = params.get('view');
+  const view: View = viewParam === 'week' || viewParam === 'month' ? viewParam : 'day';
   const openId = params.get('appt');
+  const staffFilter = params.get('staff') ?? '';
+  const search = params.get('q') ?? '';
+  const [searchText, setSearchText] = useState(search);
+  const staffListQ = useStaffList({ shopId: shopId ?? undefined, bookableOnly: true }, !!shopId);
   const [showCancelled, setShowCancelled] = useState(false);
   const [createInitial, setCreateInitial] = useState<CreateInitial | null>(null);
 
@@ -62,23 +76,65 @@ export default function CalendarPage() {
     setParams(next, { replace: true });
   };
 
+  // search as the user types, without a request per keystroke
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const next = searchText.trim();
+      if (next !== search) setParam({ q: next || null });
+    }, 300);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchText]);
+
   if (!shopId) return <InlineLoading />;
+  const navDate = view === 'week' ? startOfWeek(date) : view === 'month' ? startOfMonth(date) : date;
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="sr-only">予約カレンダー</h1>
-          <DateNav
-            value={view === 'week' ? startOfWeek(date) : date}
-            today={view === 'week' ? startOfWeek(today) : today}
-            step={view === 'week' ? 7 : 1}
-            onChange={(d) => setParam({ date: d })}
-            label={
-              view === 'week'
-                ? `${formatDateJa(startOfWeek(date))} 〜 ${formatDateJa(addDays(startOfWeek(date), 6))}`
-                : undefined
-            }
+          {view === 'month' ? (
+            <MonthNav
+              month={navDate}
+              thisMonth={startOfMonth(today)}
+              onChange={(d) => setParam({ date: d })}
+            />
+          ) : (
+            <DateNav
+              value={navDate}
+              today={view === 'week' ? startOfWeek(today) : today}
+              step={view === 'week' ? 7 : 1}
+              onChange={(d) => setParam({ date: d })}
+              label={
+                view === 'week'
+                  ? `${formatDateJa(navDate)} 〜 ${formatDateJa(addDays(navDate, 6))}`
+                  : undefined
+              }
+            />
+          )}
+          <Select
+            aria-label="スタッフで絞り込み"
+            className="w-40"
+            value={staffFilter}
+            onChange={(e) => setParam({ staff: e.target.value || null })}
+          >
+            <option value="">全員</option>
+            {(staffListQ.data ?? [])
+              .filter((s) => s.status === 'active' || s.id === staffFilter)
+              .map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.display_name}
+                </option>
+              ))}
+          </Select>
+          <Input
+            type="search"
+            aria-label="予約を検索"
+            placeholder="名前・電話番号で検索"
+            className="w-52"
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
           />
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -94,6 +150,7 @@ export default function CalendarPage() {
             options={[
               { value: 'day', label: '日' },
               { value: 'week', label: '週' },
+              { value: 'month', label: '月' },
             ]}
           />
           {can('appointment.write') ? (
@@ -104,21 +161,44 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {view === 'day' ? (
+      {search ? (
+        <SearchResults
+          shopId={shopId}
+          date={date}
+          tz={tz}
+          q={search}
+          staffId={staffFilter || undefined}
+          showCancelled={showCancelled}
+          onOpen={(id) => setParam({ appt: id })}
+          onClear={() => setSearchText('')}
+        />
+      ) : view === 'day' ? (
         <DayView
           shopId={shopId}
           date={date}
           tz={tz}
+          staffId={staffFilter || undefined}
           showCancelled={showCancelled}
           canCreate={can('appointment.write')}
           onOpen={(id) => setParam({ appt: id })}
           onCreate={(initial) => setCreateInitial(initial)}
         />
-      ) : (
+      ) : view === 'week' ? (
         <WeekView
           shopId={shopId}
           date={date}
           tz={tz}
+          staffId={staffFilter || undefined}
+          showCancelled={showCancelled}
+          onOpen={(id) => setParam({ appt: id })}
+          onPickDay={(d) => setParam({ date: d, view: null })}
+        />
+      ) : (
+        <MonthView
+          shopId={shopId}
+          date={date}
+          tz={tz}
+          staffId={staffFilter || undefined}
           showCancelled={showCancelled}
           onOpen={(id) => setParam({ appt: id })}
           onPickDay={(d) => setParam({ date: d, view: null })}
@@ -182,6 +262,7 @@ function DayView({
   shopId,
   date,
   tz,
+  staffId,
   showCancelled,
   canCreate,
   onOpen,
@@ -190,6 +271,8 @@ function DayView({
   shopId: string;
   date: string;
   tz: string;
+  /** show only this staff member's column */
+  staffId?: string;
   showCancelled: boolean;
   canCreate: boolean;
   onOpen: (id: string) => void;
@@ -205,13 +288,17 @@ function DayView({
   const isToday = todayIn(tz, now) === date;
 
   const appts = useMemo(
-    () => (apptsQ.data ?? []).filter((a) => showCancelled || !HIDDEN_STATUSES.has(a.status)),
-    [apptsQ.data, showCancelled],
+    () =>
+      (apptsQ.data ?? []).filter(
+        (a) =>
+          (showCancelled || !HIDDEN_STATUSES.has(a.status)) && (!staffId || a.staff_id === staffId),
+      ),
+    [apptsQ.data, showCancelled, staffId],
   );
   // invited staff cannot take bookings yet (API candidateStaff requires status=active)
   const staff = useMemo(
-    () => (staffQ.data ?? []).filter((s) => s.status === 'active'),
-    [staffQ.data],
+    () => (staffQ.data ?? []).filter((s) => s.status === 'active' && (!staffId || s.id === staffId)),
+    [staffQ.data, staffId],
   );
 
   // columns: bookable staff + anyone else who has an appointment that day
@@ -524,6 +611,7 @@ function ApptBlock({
             新規
           </Badge>
         ) : null}
+        <MediaBadges a={a} />
       </div>
       <p className={cn('mt-0.5 truncate font-medium text-fg', faded && 'line-through')}>
         {a.customer_name || '顧客未登録'}
@@ -539,6 +627,23 @@ function ApptBlock({
         </p>
       ) : null}
     </button>
+  );
+}
+
+/** Booking-media state of a reservation: where it came from and whether a slot still has to be blocked */
+function MediaBadges({ a }: { a: AppointmentListItem }) {
+  const badges = mediaBadges(a.media_sync);
+  if (!badges.length) return null;
+  return (
+    <>
+      {badges.map((b) => (
+        <span key={b.key} title={b.title}>
+          <Badge size="sm" tone={b.tone}>
+            {b.label}
+          </Badge>
+        </span>
+      ))}
+    </>
   );
 }
 
@@ -568,6 +673,7 @@ function WeekView({
   shopId,
   date,
   tz,
+  staffId,
   showCancelled,
   onOpen,
   onPickDay,
@@ -575,6 +681,7 @@ function WeekView({
   shopId: string;
   date: string;
   tz: string;
+  staffId?: string;
   showCancelled: boolean;
   onOpen: (id: string) => void;
   onPickDay: (d: string) => void;
@@ -585,6 +692,7 @@ function WeekView({
     shopId,
     from: zonedToIso(start, '00:00', tz),
     to: zonedToIso(addDays(start, 7), '00:00', tz),
+    ...(staffId ? { staffId } : {}),
     limit: 1000,
   });
   const today = todayIn(tz);
@@ -653,6 +761,9 @@ function WeekView({
                     <span className="block truncate text-[11px] text-muted">
                       {a.staff_name ?? '担当未定'}
                     </span>
+                    <span className="mt-0.5 flex flex-wrap gap-1 empty:hidden">
+                      <MediaBadges a={a} />
+                    </span>
                   </button>
                 </li>
               ))}
@@ -662,5 +773,278 @@ function WeekView({
         );
       })}
     </div>
+  );
+}
+
+// ------------------------------------------------------------------ month view
+
+const MONTH_CELL_MAX = 3;
+
+function MonthNav({
+  month,
+  thisMonth,
+  onChange,
+}: {
+  month: string;
+  thisMonth: string;
+  onChange: (d: string) => void;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <Button
+        variant="secondary"
+        size="sm"
+        aria-label="前の月"
+        onClick={() => onChange(addMonths(month, -1))}
+      >
+        ‹
+      </Button>
+      <Button
+        variant="secondary"
+        size="sm"
+        disabled={month === thisMonth}
+        onClick={() => onChange(thisMonth)}
+      >
+        今月
+      </Button>
+      <Button
+        variant="secondary"
+        size="sm"
+        aria-label="次の月"
+        onClick={() => onChange(addMonths(month, 1))}
+      >
+        ›
+      </Button>
+      <span className="text-[15px] font-semibold text-fg tabular" aria-live="polite">
+        {Number(month.slice(0, 4))}年{Number(month.slice(5, 7))}月
+      </span>
+    </div>
+  );
+}
+
+function MonthView({
+  shopId,
+  date,
+  tz,
+  staffId,
+  showCancelled,
+  onOpen,
+  onPickDay,
+}: {
+  shopId: string;
+  date: string;
+  tz: string;
+  staffId?: string;
+  showCancelled: boolean;
+  onOpen: (id: string) => void;
+  onPickDay: (d: string) => void;
+}) {
+  const weeks = useMemo(() => monthGrid(date), [date]);
+  const first = weeks[0]![0]!;
+  const last = weeks[weeks.length - 1]![6]!;
+  const month = startOfMonth(date).slice(0, 7);
+  const q = useAppointments({
+    shopId,
+    from: zonedToIso(first, '00:00', tz),
+    to: zonedToIso(addDays(last, 1), '00:00', tz),
+    ...(staffId ? { staffId } : {}),
+    limit: 1000,
+  });
+  const today = todayIn(tz);
+  if (q.error) return <ErrorState error={q.error} onRetry={() => void q.refetch()} />;
+  if (q.isLoading) return <InlineLoading />;
+  const byDay = new Map<string, AppointmentListItem[]>();
+  for (const a of q.data ?? []) {
+    if (!showCancelled && HIDDEN_STATUSES.has(a.status)) continue;
+    const d = zonedParts(a.start_at, tz).date;
+    byDay.set(d, [...(byDay.get(d) ?? []), a]);
+  }
+  return (
+    <div className="overflow-x-auto">
+      {(q.data?.length ?? 0) >= 1000 ? (
+        <Alert tone="warning">
+          予約が多いため一部のみ表示しています。スタッフで絞り込むか、週・日の表示で確認してください。
+        </Alert>
+      ) : null}
+      <div
+        className="grid min-w-[44rem] grid-cols-7 overflow-hidden rounded-2xl border border-border bg-surface"
+        role="grid"
+        aria-label={`${Number(month.slice(0, 4))}年${Number(month.slice(5, 7))}月の予約`}
+      >
+        {WEEKDAYS_JA.map((w, i) => (
+          <div
+            key={w}
+            role="columnheader"
+            className={cn(
+              'border-b border-border bg-surface-2 px-2 py-1.5 text-center text-xs font-semibold',
+              i === 0 ? 'text-danger' : i === 6 ? 'text-info' : 'text-muted',
+            )}
+          >
+            {w}
+          </div>
+        ))}
+        {weeks.flat().map((d) => {
+          const list = (byDay.get(d) ?? []).sort((a, b) => a.start_at.localeCompare(b.start_at));
+          const wd = weekdayOf(d);
+          const outside = d.slice(0, 7) !== month;
+          return (
+            <div
+              key={d}
+              role="gridcell"
+              className={cn(
+                'flex min-h-[7.5rem] flex-col border-b border-r border-border p-1 [&:nth-child(7n)]:border-r-0',
+                outside && 'bg-surface-2/60',
+              )}
+            >
+              <button
+                type="button"
+                onClick={() => onPickDay(d)}
+                aria-label={`${formatDateJa(d)} ${list.length}件。日表示を開く`}
+                className="mb-1 flex items-center justify-between rounded px-1 text-left hover:bg-surface-2"
+              >
+                <span
+                  className={cn(
+                    'inline-flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-[13px] font-semibold tabular',
+                    d === today
+                      ? 'bg-primary text-white'
+                      : outside
+                        ? 'text-subtle'
+                        : wd === 0
+                          ? 'text-danger'
+                          : wd === 6
+                            ? 'text-info'
+                            : 'text-fg',
+                  )}
+                >
+                  {Number(d.slice(8))}
+                </span>
+                {list.length ? (
+                  <span className="text-[11px] text-muted tabular">{list.length}件</span>
+                ) : null}
+              </button>
+              <ul className="space-y-0.5">
+                {list.slice(0, MONTH_CELL_MAX).map((a) => (
+                  <li key={a.id}>
+                    <button
+                      type="button"
+                      onClick={() => onOpen(a.id)}
+                      title={`${formatTime(a.start_at, tz)} ${a.customer_name || '顧客未登録'}（${a.staff_name ?? '担当未定'}）`}
+                      className={cn(
+                        'block w-full truncate rounded border-l-[3px] px-1 py-0.5 text-left text-[11px] hover:bg-surface-2',
+                        HIDDEN_STATUSES.has(a.status) && 'line-through opacity-60',
+                        mediaBadges(a.media_sync)[0]?.tone === 'danger' && 'bg-danger/10',
+                      )}
+                      style={{ borderLeftColor: a.staff_color ?? 'var(--subtle)' }}
+                    >
+                      <span className="font-semibold tabular">{formatTime(a.start_at, tz)}</span>{' '}
+                      {a.customer_name || '顧客未登録'}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              {list.length > MONTH_CELL_MAX ? (
+                <button
+                  type="button"
+                  onClick={() => onPickDay(d)}
+                  className="mt-0.5 rounded px-1 text-left text-[11px] text-muted hover:bg-surface-2"
+                >
+                  +{list.length - MONTH_CELL_MAX}件
+                </button>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ------------------------------------------------------------------ search
+
+function SearchResults({
+  shopId,
+  date,
+  tz,
+  q,
+  staffId,
+  showCancelled,
+  onOpen,
+  onClear,
+}: {
+  shopId: string;
+  date: string;
+  tz: string;
+  q: string;
+  staffId?: string;
+  showCancelled: boolean;
+  onOpen: (id: string) => void;
+  onClear: () => void;
+}) {
+  const from = addDays(date, -SEARCH_PAST_DAYS);
+  const to = addDays(date, SEARCH_FUTURE_DAYS);
+  const res = useAppointments({
+    shopId,
+    from: zonedToIso(from, '00:00', tz),
+    to: zonedToIso(to, '00:00', tz),
+    q,
+    ...(staffId ? { staffId } : {}),
+    limit: 200,
+  });
+  if (res.error) return <ErrorState error={res.error} onRetry={() => void res.refetch()} />;
+  if (res.isLoading) return <InlineLoading />;
+  const list = (res.data ?? []).filter((a) => showCancelled || !HIDDEN_STATUSES.has(a.status));
+  return (
+    <section aria-label="検索結果" className="rounded-2xl border border-border bg-surface">
+      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-2.5">
+        <p className="text-[13px] text-muted">
+          「{q}」の予約 <span className="font-semibold text-fg tabular">{list.length}件</span>
+          <span className="ml-2 text-xs text-subtle">
+            （{formatDateJa(from)} 〜 {formatDateJa(to)}）
+          </span>
+        </p>
+        <Button variant="secondary" size="sm" onClick={onClear}>
+          検索をやめる
+        </Button>
+      </header>
+      {list.length ? (
+        <ul className="divide-y divide-border">
+          {list.map((a) => (
+            <li key={a.id}>
+              <button
+                type="button"
+                onClick={() => onOpen(a.id)}
+                className="flex w-full flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2.5 text-left hover:bg-surface-2"
+              >
+                <span className="w-44 text-[13px] font-semibold tabular text-fg">
+                  {formatDateJa(zonedParts(a.start_at, tz).date)} {formatTime(a.start_at, tz)}
+                </span>
+                <span
+                  className={cn(
+                    'min-w-0 flex-1 truncate text-[13px] font-medium',
+                    HIDDEN_STATUSES.has(a.status) && 'line-through opacity-60',
+                  )}
+                >
+                  {a.customer_name || '顧客未登録'}
+                  <span className="ml-2 text-xs font-normal text-muted">
+                    {a.services.map((s) => s.name).join('・')}
+                  </span>
+                </span>
+                <span className="text-xs text-muted">{a.staff_name ?? '担当未定'}</span>
+                <span className="flex flex-wrap items-center gap-1">
+                  <StatusBadge status={a.status} size="sm" />
+                  <MediaBadges a={a} />
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <EmptyState
+          icon="search"
+          title="該当する予約がありません"
+          description="名前（漢字・フリガナ）または電話番号の一部で検索できます。キャンセル済みは「キャンセルを表示」で含められます。"
+        />
+      )}
+    </section>
   );
 }

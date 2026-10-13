@@ -6,6 +6,7 @@ import {
   useTags,
   type CustomerSearch,
 } from '../../../api/customers';
+import { useStaffList } from '../../../api/org';
 import {
   Badge,
   Button,
@@ -18,6 +19,7 @@ import {
   Input,
   LoadMore,
   PageHeader,
+  Segmented,
   Select,
   TBody,
   THead,
@@ -44,6 +46,11 @@ export default function CustomersList() {
   const navigate = useNavigate();
   const toast = useToast();
   const tags = useTags();
+  const staffList = useStaffList({ includeInactive: true });
+  const staffName = useMemo(
+    () => new Map((staffList.data ?? []).map((s) => [s.id, s.display_name])),
+    [staffList.data],
+  );
   const [params, setParams] = useSearchParams();
   const [qInput, setQInput] = useState(params.get('q') ?? '');
   const q = useDebounced(qInput.trim(), 300);
@@ -62,6 +69,8 @@ export default function CustomersList() {
   const search: CustomerSearch = useMemo(
     () => ({
       q: q || undefined,
+      unassigned: params.get('staff') === 'none' ? true : undefined,
+      staffId: params.get('staff') && params.get('staff') !== 'none' ? params.get('staff')! : undefined,
       tagId: params.get('tagId') || undefined,
       lastVisitBefore: params.get('lastVisitBefore') || undefined,
       lastVisitAfter: params.get('lastVisitAfter') || undefined,
@@ -119,6 +128,35 @@ export default function CustomersList() {
 
       <div className="mb-4 space-y-3">
         <div className="flex flex-wrap items-center gap-2">
+          <Segmented
+            label="担当で絞り込み"
+            value={params.get('staff') === 'none' ? 'none' : params.get('staff') ? 'staff' : 'all'}
+            onChange={(v) => set('staff', v === 'none' ? 'none' : '')}
+            options={[
+              { value: 'all', label: '全顧客' },
+              { value: 'none', label: '担当未設定' },
+              ...(params.get('staff') && params.get('staff') !== 'none'
+                ? [{ value: 'staff', label: `担当: ${staffName.get(params.get('staff')!) ?? '指定スタッフ'}` }]
+                : []),
+            ]}
+          />
+          <div className="w-44">
+            <label htmlFor="customer-staff" className="sr-only">
+              担当スタッフ
+            </label>
+            <Select
+              id="customer-staff"
+              value={params.get('staff') && params.get('staff') !== 'none' ? params.get('staff')! : ''}
+              onChange={(e) => set('staff', e.target.value)}
+            >
+              <option value="">担当スタッフを選択</option>
+              {(staffList.data ?? []).map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.display_name}
+                </option>
+              ))}
+            </Select>
+          </div>
           <div className="min-w-[16rem] flex-1">
             <label htmlFor="customer-q" className="sr-only">
               顧客を検索
@@ -258,6 +296,7 @@ export default function CustomersList() {
             <THead>
               <tr>
                 <Th>氏名</Th>
+                <Th>担当</Th>
                 <Th>電話番号</Th>
                 <Th>最終来店</Th>
                 <Th className="text-right">来店</Th>
@@ -269,7 +308,7 @@ export default function CustomersList() {
             <TBody>
               {items.map((c) => (
                 <Tr key={c.id} interactive onClick={() => navigate(`/app/customers/${c.id}`)}>
-                  <Td>
+                  <Td className="min-w-[9rem]">
                     <a
                       href={`/app/customers/${c.id}`}
                       onClick={(e) => {
@@ -283,6 +322,15 @@ export default function CustomersList() {
                     <p className="text-xs text-muted">
                       {`${c.last_name_kana} ${c.first_name_kana}`.trim()}
                     </p>
+                  </Td>
+                  <Td className="whitespace-nowrap">
+                    {c.primary_staff_id ? (
+                      (staffName.get(c.primary_staff_id) ?? '—')
+                    ) : (
+                      <Badge tone="warning" size="sm">
+                        担当未設定
+                      </Badge>
+                    )}
                   </Td>
                   <Td className="whitespace-nowrap tabular text-muted">{c.phone ?? '—'}</Td>
                   <Td className="whitespace-nowrap">

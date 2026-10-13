@@ -1,6 +1,12 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
-import { appointmentKeys, appointmentsApi, useAvailability } from '../../api/appointments';
+import {
+  SOURCE_LABEL,
+  STAFF_SOURCE_OPTIONS,
+  appointmentKeys,
+  appointmentsApi,
+  useAvailability,
+} from '../../api/appointments';
 import { useCoupons, useMenus } from '../../api/catalog';
 import { customerKeys } from '../../api/customers';
 import { useStaffList } from '../../api/org';
@@ -330,12 +336,11 @@ export function CreateAppointmentDrawer({
                 value={source}
                 onChange={(e) => setSource(e.target.value as AppointmentSource)}
               >
-                <option value="phone">電話</option>
-                <option value="walk_in">店頭</option>
-                <option value="staff">スタッフ登録</option>
-                <option value="line">LINE</option>
-                <option value="web">Web</option>
-                <option value="external">外部媒体</option>
+                {STAFF_SOURCE_OPTIONS.map((s) => (
+                  <option key={s} value={s}>
+                    {SOURCE_LABEL[s]}
+                  </option>
+                ))}
               </Select>
             </Field>
             <Field label="クーポン" optional>

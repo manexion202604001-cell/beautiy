@@ -42,6 +42,17 @@ describe('customers', () => {
     expect(new Set([...p1.body.items, ...p2.body.items].map((c: { id: string }) => c.id)).size).toBe(6);
   });
 
+  it('lists customers with no staff in charge (担当未設定)', async () => {
+    const t = await createTenant();
+    const assigned = (await t.owner.post('/v1/customers', { lastName: '担当', firstName: 'あり', primaryStaffId: t.ownerStaffId })).body.customer;
+    const free = (await t.owner.post('/v1/customers', { lastName: '担当', firstName: 'なし' })).body.customer;
+    const unassigned = await t.owner.get('/v1/customers?unassigned=true');
+    expect(unassigned.body.items.map((c: { id: string }) => c.id)).toEqual([free.id]);
+    const mine = await t.owner.get(`/v1/customers?staffId=${t.ownerStaffId}`);
+    expect(mine.body.items.map((c: { id: string }) => c.id)).toEqual([assigned.id]);
+    expect((await t.owner.get('/v1/customers')).body.items).toHaveLength(2);
+  });
+
   it('audits customer detail views', async () => {
     const t = await createTenant();
     const c = (await t.owner.post('/v1/customers', { lastName: '閲覧' })).body.customer;

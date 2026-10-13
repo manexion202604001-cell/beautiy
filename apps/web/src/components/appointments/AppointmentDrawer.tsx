@@ -27,6 +27,7 @@ import {
   formatYen,
 } from '../../lib/format';
 import { useRevealOnChange } from '../../lib/hooks';
+import { mediaBadges, needsMediaAction } from '../../lib/mediaSync';
 import { zonedParts, zonedToIso } from '../../lib/time';
 import { AppointmentQuickActions } from '../../routes/app/pos/AppointmentQuickActions';
 import {
@@ -351,6 +352,34 @@ function DetailView({ a, tz }: { a: AppointmentDetail; tz: string }) {
             ),
           },
           { label: '予約経路', value: SOURCE_LABEL[a.source] ?? a.source },
+          ...(mediaBadges(a.media_sync, { includeDone: true }).length
+            ? [
+                {
+                  label: '予約媒体',
+                  value: (
+                    <span className="flex flex-col items-end gap-1">
+                      <span className="flex flex-wrap justify-end gap-1">
+                        {mediaBadges(a.media_sync, { includeDone: true }).map((b) => (
+                          <span key={b.key} title={b.title}>
+                            <Badge size="sm" tone={b.tone}>
+                              {b.label}
+                            </Badge>
+                          </span>
+                        ))}
+                      </span>
+                      {needsMediaAction(a.media_sync) ? (
+                        <Link
+                          to="/app/integrations?tab=manual"
+                          className="text-xs text-primary hover:underline"
+                        >
+                          媒体の枠止め一覧を開く
+                        </Link>
+                      ) : null}
+                    </span>
+                  ),
+                },
+              ]
+            : []),
           ...(a.resources.length
             ? [{ label: '設備', value: a.resources.map((r) => r.name).join('、') }]
             : []),

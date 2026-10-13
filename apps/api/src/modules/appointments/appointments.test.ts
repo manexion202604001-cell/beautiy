@@ -178,4 +178,44 @@ describe('appointments', () => {
     const res2 = await other.owner.post('/v1/appointments', { shopId: t.shopId, startAt: jst(date, '10:00'), menuIds: [menu.id] });
     expect([403, 404]).toContain(res2.status);
   });
+
+  it('records the booking routes staff pick by hand and filters by them', async () => {
+    const { t, stylist, menu } = await setup();
+    const routes = ['phone_hpb', 'next_visit', 'instagram', 'minimo', 'nailie', 'referral', 'practice_model', 'redo'];
+    const days = [nextWeekday(WED), nextWeekday(WED, 10)];
+    const times = ['10:00', '12:00', '14:00', '16:00'];
+    for (const [i, source] of routes.entries()) {
+      const res = await t.owner.post('/v1/appointments', { shopId: t.shopId, staffId: stylist.staffId, startAt: jst(days[Math.floor(i / 4)]!, times[i % 4]!), menuIds: [menu.id], source });
+      expect(res.status, source).toBe(201);
+      expect(res.body.source).toBe(source);
+    }
+    const range = `shopId=${t.shopId}&from=${encodeURIComponent(jst(days[0]!, '00:00'))}&to=${encodeURIComponent(jst(days[1]!, '23:59'))}`;
+    const all = await t.owner.get(`/v1/appointments?${range}`);
+    expect(all.body.map((a: { source: string }) => a.source).sort()).toEqual([...routes].sort());
+    const minimo = await t.owner.get(`/v1/appointments?${range}&source=minimo`);
+    expect(minimo.body).toHaveLength(1);
+    const unknown = await t.owner.post('/v1/appointments', { shopId: t.shopId, staffId: stylist.staffId, startAt: jst(days[1]!, '18:00'), menuIds: [menu.id], source: 'fax' });
+    expect(unknown.status).toBe(400);
+  });
+
+  it('searches reservations by customer name, kana and phone', async () => {
+    const { t, stylist, menu } = await setup();
+    const date = nextWeekday(WED);
+    const hanako = await createCustomer(t, { lastName: '検索', firstName: '花子', lastNameKana: 'ケンサク', firstNameKana: 'ハナコ', phone: '090-1234-5678' });
+    const other = await createCustomer(t, { lastName: '別人', firstName: '太郎', lastNameKana: 'ベツジン', firstNameKana: 'タロウ', phone: '080-9999-0000' });
+    const mine = await t.owner.post('/v1/appointments', { shopId: t.shopId, staffId: stylist.staffId, customerId: hanako.id, startAt: jst(date, '11:00'), menuIds: [menu.id] });
+    await t.owner.post('/v1/appointments', { shopId: t.shopId, staffId: stylist.staffId, customerId: other.id, startAt: jst(date, '14:00'), menuIds: [menu.id] });
+    // a booking without a customer never matches a search
+    await t.owner.post('/v1/appointments', { shopId: t.shopId, staffId: stylist.staffId, startAt: jst(date, '17:00'), menuIds: [menu.id] });
+    const search = async (q: string) =>
+      (await t.owner.get(`/v1/appointments?shopId=${t.shopId}&date=${date}&q=${encodeURIComponent(q)}`)).body.map((a: { id: string }) => a.id);
+    expect(await search('検索')).toEqual([mine.body.id]);
+    expect(await search('けんさく')).toEqual([mine.body.id]);
+    expect(await search('09012345678')).toEqual([mine.body.id]);
+    expect(await search('5678')).toEqual([mine.body.id]);
+    expect(await search('該当なし')).toEqual([]);
+    expect((await t.owner.get(`/v1/appointments?shopId=${t.shopId}&date=${date}`)).body).toHaveLength(3);
+    // no booking medium is connected: nothing to sync
+    expect(mine.body.media_sync).toEqual({ origin: null, blocks: [] });
+  });
 });

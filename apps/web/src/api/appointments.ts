@@ -4,6 +4,7 @@ import type {
   AppointmentDetail,
   AppointmentEvent,
   AppointmentListItem,
+  AppointmentSource,
   AppointmentStatus,
   AttentionItem,
   AvailabilityResult,
@@ -19,6 +20,8 @@ export interface AppointmentQuery {
   staffId?: string;
   customerId?: string;
   status?: AppointmentStatus | AppointmentStatus[];
+  /** customer name / kana / phone */
+  q?: string;
   limit?: number;
 }
 
@@ -103,11 +106,24 @@ export const SOURCE_LABEL: Record<string, string> = {
   web: 'Web',
   line: 'LINE',
   external: '外部媒体',
-  phone: '電話',
-  walk_in: '店頭',
+  phone: '電話（自社）',
+  walk_in: '直接来店',
   staff: 'スタッフ',
   import: '移行',
+  phone_hpb: '電話（HPB）',
+  next_visit: '次回予約',
+  instagram: 'インスタ',
+  minimo: 'minimo',
+  nailie: 'ネイリー',
+  referral: '友人',
+  practice_model: '練習モデル',
+  redo: 'お直し',
 };
+
+/** Routes staff can choose when they enter a booking (the order the front desk is used to) */
+export const STAFF_SOURCE_OPTIONS: AppointmentSource[] = [
+  'phone', 'phone_hpb', 'line', 'next_visit', 'walk_in', 'instagram', 'minimo', 'nailie', 'referral', 'practice_model', 'redo', 'web', 'staff', 'external',
+];
 
 /** Allowed actions per status (mirrors the API state machine) */
 export const STATUS_ACTIONS: Record<AppointmentStatus, TransitionAction[]> = {

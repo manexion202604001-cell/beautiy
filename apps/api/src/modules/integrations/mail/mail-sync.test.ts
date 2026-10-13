@@ -296,4 +296,43 @@ describe('Hot Pepper / LiME booking-notification mail sync', () => {
     expect(appts).toHaveLength(1);
     expect(appts[0]!.start_at.toISOString()).toBe(jst(date, '11:00'));
   });
+
+  it("reports each reservation's media state on the appointment itself (calendar badges)", async () => {
+    const { t, misaki, cut, hp } = await setup();
+    const date = nextWeekday(WED);
+    const customer = await createCustomer(t);
+    const appt = (
+      await t.owner.post('/v1/appointments', {
+        shopId: t.shopId,
+        customerId: customer.id,
+        staffId: misaki.staffId,
+        startAt: jst(date, '15:00'),
+        menuIds: [cut.id],
+      })
+    ).body;
+    await runJobs();
+    // taken in Salon OS: the Hot Pepper slot still has to be blocked by staff
+    let detail = (await t.owner.get(`/v1/appointments/${appt.id}`)).body;
+    expect(detail.media_sync.origin).toBeNull();
+    expect(detail.media_sync.blocks).toMatchObject([
+      { provider: 'hotpepper_mail', state: 'action_required', manual: true },
+    ]);
+    await t.owner.post(`/v1/integrations/manual-blocks/${detail.media_sync.blocks[0].id}/done`);
+    detail = (await t.owner.get(`/v1/appointments/${appt.id}`)).body;
+    expect(detail.media_sync.blocks).toMatchObject([{ provider: 'hotpepper_mail', state: 'pushed' }]);
+
+    // arrived from Hot Pepper: shows where it came from, and is not blocked on its own medium
+    expect((await post(tokenOf(hp), bookingMail('BE00000777', date, '11:00'))).status).toBe(200);
+    await runJobs();
+    const list = (await t.owner.get(`/v1/appointments?shopId=${t.shopId}&date=${date}`)).body as {
+      id: string;
+      source: string;
+      media_sync: { origin: { provider: string; sync_state: string } | null; blocks: unknown[] };
+    }[];
+    expect(list).toHaveLength(2);
+    const external = list.find((a) => a.source === 'external')!;
+    expect(external.media_sync.origin).toMatchObject({ provider: 'hotpepper_mail', sync_state: 'synced' });
+    expect(external.media_sync.blocks).toEqual([]);
+    expect(list.find((a) => a.id === appt.id)!.media_sync.blocks).toHaveLength(1);
+  });
 });

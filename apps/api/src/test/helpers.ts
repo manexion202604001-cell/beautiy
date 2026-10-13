@@ -4,6 +4,7 @@ import { systemActor, type Ctx } from '../auth/actor.js';
 import { invalidateActorCache } from '../auth/load-actor.js';
 import { withTenant } from '../db/tenant.js';
 import { drainJobs } from '../jobs/queue.js';
+import type { SOURCES } from '../modules/appointments/schemas.js';
 import { hashPassword } from '../lib/crypto.js';
 import { buildApp, type App } from '../server.js';
 
@@ -375,7 +376,7 @@ export interface TestAppointmentInput {
   startAt: string | Date;
   durationMin?: number;
   status?: 'tentative' | 'confirmed' | 'checked_in' | 'in_service' | 'completed' | 'cancelled' | 'no_show';
-  source?: 'web' | 'line' | 'external' | 'phone' | 'walk_in' | 'staff';
+  source?: (typeof SOURCES)[number];
   isNominated?: boolean;
   estimatedTotal?: number;
 }

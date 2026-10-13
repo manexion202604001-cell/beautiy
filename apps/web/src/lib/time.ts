@@ -132,6 +132,18 @@ export function startOfMonth(date: string): string {
   return `${date.slice(0, 7)}-01`;
 }
 
+/** Weeks (Sunday first) covering the month of `date`; days outside the month fill the first / last week */
+export function monthGrid(date: string): string[][] {
+  const first = startOfMonth(date);
+  const start = addDays(first, -weekdayOf(first));
+  const last = addDays(addMonths(first, 1), -1);
+  const end = addDays(last, 6 - weekdayOf(last));
+  const days = dateRange(start, end);
+  const weeks: string[][] = [];
+  for (let i = 0; i < days.length; i += 7) weeks.push(days.slice(i, i + 7));
+  return weeks;
+}
+
 export function daysInMonth(date: string): number {
   const d = parseDate(date);
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
