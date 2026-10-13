@@ -11,6 +11,8 @@ export interface FieldDef {
   label: string;
   /** headings seen in other systems' exports (compared after normalisation) */
   synonyms: string[];
+  /** headings matched only as a whole — too generic to match as a prefix ("お客様" must not claim "お客様メモ") */
+  exact?: string[];
   /** several columns may feed this field; values are joined (e.g. 都道府県 + 市区町村 + 番地) */
   multi?: boolean;
   hint?: string;
@@ -23,10 +25,10 @@ const CUSTOMER_ID: FieldDef = {
   hint: '再取り込み時の重複防止と、来店履歴・予約との紐付けに使います',
 };
 const NAME_FIELDS: FieldDef[] = [
-  { key: 'fullName', label: '氏名（姓名まとめて）', synonyms: ['氏名', '名前', 'お名前', 'お客様名', '顧客名', '顧客氏名', '会員名', 'name', 'フルネーム'], hint: '空白で姓と名に分けます' },
+  { key: 'fullName', label: '氏名（姓名まとめて）', synonyms: ['氏名', '名前', 'お名前', 'お客様名', '顧客名', '顧客氏名', '会員名', 'name', 'フルネーム'], exact: ['お客様', '顧客'], hint: '空白で姓と名に分けます' },
   { key: 'lastName', label: '姓', synonyms: ['姓', '苗字', '名字', 'last_name', 'lastname'] },
   { key: 'firstName', label: '名', synonyms: ['名', '下の名前', 'first_name', 'firstname'] },
-  { key: 'fullKana', label: 'フリガナ（まとめて）', synonyms: ['フリガナ', 'ふりがな', 'カナ', 'かな', 'カナ氏名', '氏名カナ', '氏名（カナ）', '氏名(カナ)', 'お名前カナ', 'よみ', 'ヨミ', 'kana'] },
+  { key: 'fullKana', label: 'フリガナ（まとめて）', synonyms: ['フリガナ', 'ふりがな', 'カナ', 'かな', 'カナ氏名', '氏名カナ', '氏名（カナ）', '氏名(カナ)', 'お名前カナ', 'よみがな', 'ヨミガナ', 'よみ', 'ヨミ', 'kana'] },
   { key: 'lastNameKana', label: 'セイ', synonyms: ['セイ', 'せい', '姓カナ', '姓（カナ）', '姓(カナ)', 'last_name_kana'] },
   { key: 'firstNameKana', label: 'メイ', synonyms: ['メイ', 'めい', '名カナ', '名（カナ）', '名(カナ)', 'first_name_kana'] },
 ];
@@ -44,9 +46,9 @@ export const FIELDS: Record<ImportKind, FieldDef[]> = {
     { key: 'gender', label: '性別', synonyms: ['性別', 'gender', '男女'] },
     { key: 'postalCode', label: '郵便番号', synonyms: ['郵便番号', '〒', '郵便', 'zip', '郵便番号（〒）'] },
     { key: 'address', label: '住所', synonyms: ['住所', '都道府県', '市区町村', '番地', '住所1', '住所2', '建物名', 'address'], multi: true, hint: '複数の列を選ぶと順につなげます' },
-    { key: 'occupation', label: '職業', synonyms: ['職業', '仕事'] },
-    { key: 'acquisitionSource', label: '来店きっかけ', synonyms: ['来店きっかけ', 'きっかけ', '来店経路', '来店動機', '媒体', '集客経路', '紹介者', '紹介'] },
-    { key: 'staffName', label: '担当スタッフ', synonyms: ['担当', '担当者', '担当スタッフ', '担当者名', '指名', '指名スタッフ', 'スタイリスト', 'メイン担当'] },
+    { key: 'occupation', label: '職業', synonyms: ['職業', 'ご職業', '仕事'] },
+    { key: 'acquisitionSource', label: '来店きっかけ', synonyms: ['来店きっかけ', 'きっかけ', '来店のきっかけ', 'ご来店のきっかけ', '集客元', '来店経路', '来店動機', '媒体', '集客経路', '紹介者', '紹介'] },
+    { key: 'staffName', label: '担当スタッフ', synonyms: ['担当', '担当者', '担当スタッフ', '担当者名', '指名', '指名スタッフ', 'スタイリスト', 'メイン担当', '最近の担当'], exact: ['スタッフ', 'スタッフ名'] },
     { key: 'tags', label: 'タグ・区分', synonyms: ['タグ', '顧客区分', '区分', 'ランク', '会員ランク', 'グループ', '顧客分類'], multi: true, hint: '「|」「、」「,」区切りで複数タグ' },
     { key: 'memo', label: '顧客メモ', synonyms: ['メモ', '備考', '顧客メモ', '特記事項', 'コメント', '注意事項', '顧客備考', 'note', 'memo'], multi: true },
     { key: 'marketingOptIn', label: 'DM・配信の可否', synonyms: ['DM可否', 'DM', 'DM送付', '配信許可', 'メール配信', 'メルマガ', 'メール受信', 'お知らせ配信'] },
@@ -66,9 +68,9 @@ export const FIELDS: Record<ImportKind, FieldDef[]> = {
     { key: 'datetime', label: '来店日時', synonyms: ['来店日時', '会計日時', '売上日時', '施術日時', '日時'] },
     { key: 'date', label: '来店日', synonyms: ['来店日', '会計日', '売上日', '施術日', '日付', '利用日'] },
     { key: 'time', label: '来店時刻', synonyms: ['来店時刻', '開始時刻', '時刻', '時間', '会計時刻'] },
-    { key: 'staffName', label: '担当スタッフ', synonyms: ['担当', '担当者', '担当スタッフ', '担当者名', 'スタイリスト', '施術者', '指名'] },
+    { key: 'staffName', label: '担当スタッフ', synonyms: ['担当', '担当者', '担当スタッフ', '担当者名', 'スタイリスト', '施術者', '指名'], exact: ['スタッフ', 'スタッフ名'] },
     { key: 'menu', label: 'メニュー・施術内容', synonyms: ['メニュー', 'メニュー名', '施術内容', '技術', '技術メニュー', '施術', 'コース', '内容', '商品', '明細'], multi: true },
-    { key: 'amount', label: '金額', synonyms: ['金額', '合計', '合計金額', '売上', '売上金額', '会計金額', '税込金額', '税込合計', '請求金額', '利用金額'] },
+    { key: 'amount', label: '金額', synonyms: ['金額', '合計', '合計金額', '売上', '売上金額', '会計金額', '税込金額', '税込合計', '請求金額', '利用金額'], exact: ['料金'] },
     { key: 'shopName', label: '店舗', synonyms: ['店舗', '店舗名', '店名', 'サロン名'] },
     { key: 'memo', label: '施術メモ・カルテ', synonyms: ['メモ', '備考', 'カルテ', 'カルテメモ', '施術メモ', 'コメント', '薬剤', 'レシピ'], multi: true },
   ],
@@ -83,7 +85,7 @@ export const FIELDS: Record<ImportKind, FieldDef[]> = {
     { key: 'time', label: '開始時刻', synonyms: ['開始時刻', '開始時間', '来店時刻', '予約時刻', '時刻', '時間'] },
     { key: 'endTime', label: '終了時刻', synonyms: ['終了時刻', '終了時間', '終了予定', '終了日時'] },
     { key: 'duration', label: '所要時間', synonyms: ['所要時間', '施術時間', '予約時間（分）', '時間（分）'] },
-    { key: 'staffName', label: '担当スタッフ', synonyms: ['担当', '担当者', '担当スタッフ', '指名', '指名スタッフ', 'スタイリスト'] },
+    { key: 'staffName', label: '担当スタッフ', synonyms: ['担当', '担当者', '担当スタッフ', '指名', '指名スタッフ', 'スタイリスト'], exact: ['スタッフ', 'スタッフ名'] },
     { key: 'menu', label: 'メニュー', synonyms: ['メニュー', 'メニュー名', '施術内容', '予約メニュー', 'コース', '技術'], multi: true },
     { key: 'status', label: 'ステータス', synonyms: ['ステータス', '状態', '予約状態', '予約ステータス'] },
     { key: 'route', label: '予約経路', synonyms: ['予約経路', '経路', '予約元', '媒体', '受付方法'] },
@@ -113,9 +115,10 @@ export function suggestMapping(kind: ImportKind, header: string[]): Mapping {
     for (const f of fields) {
       if (mapping[f.key]?.length && !f.multi) continue;
       const syn = f.synonyms.map(normalizeHeading);
+      const exact = (f.exact ?? []).map(normalizeHeading);
       norm.forEach((h, i) => {
         if (used.has(i) || !h) return;
-        const hit = pass === 'exact' ? syn.includes(h) : syn.some((s) => s.length >= 2 && h.startsWith(s) && !/\d$/.test(h.slice(s.length)));
+        const hit = pass === 'exact' ? syn.includes(h) || exact.includes(h) : syn.some((s) => s.length >= 2 && h.startsWith(s) && !/\d$/.test(h.slice(s.length)));
         if (!hit) return;
         if (!f.multi && mapping[f.key]?.length) return;
         (mapping[f.key] ??= []).push(i);

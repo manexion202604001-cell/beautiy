@@ -87,5 +87,31 @@ describe('migration value parsers', () => {
     expect(r).toMatchObject({ reservationNo: [0], date: [1], time: [2], endTime: [3], fullName: [4], phone: [5], menu: [7] });
     // a bare "ID" in a reservation export is the reservation's id, not the customer's
     expect(r.customerNumber).toBeUndefined();
+    expect(r.staffName).toEqual([6]);
+  });
+
+  it('maps the field names SALOGIC shows on its screens', () => {
+    const c = suggestMapping('customers', ['会員番号', '姓', '名', 'セイ', 'メイ', '性別', '誕生日', 'ご職業', '電話番号', 'メールアドレス', '郵便番号', '住所', '集客元', '最近の担当', '来店回数', '最終来店', 'メモ']);
+    expect(c).toEqual({
+      customerNumber: [0], lastName: [1], firstName: [2], lastNameKana: [3], firstNameKana: [4], gender: [5], birthday: [6], occupation: [7],
+      phone: [8], email: [9], postalCode: [10], address: [11], acquisitionSource: [12], staffName: [13], visitCount: [14], lastVisit: [15], memo: [16],
+    });
+    expect(suggestMapping('customers', ['名前', 'よみがな', 'ご来店のきっかけ', '担当スタッフ'])).toEqual({ fullName: [0], fullKana: [1], acquisitionSource: [2], staffName: [3] });
+
+    const r = suggestMapping('reservations', ['開始日時', '終了時間', 'お客様', 'スタッフ', 'メニュー', 'ステータス', '予約経路', 'メモ']);
+    expect(r).toEqual({ datetime: [0], endTime: [1], fullName: [2], staffName: [3], menu: [4], status: [5], route: [6], memo: [7] });
+
+    const v = suggestMapping('visits', ['来店日時', 'お客様', '担当', 'メニュー', '料金']);
+    expect(v).toEqual({ datetime: [0], fullName: [1], staffName: [2], menu: [3], amount: [4] });
+  });
+
+  it('does not let a generic heading claim a longer, unrelated one', () => {
+    const c = suggestMapping('customers', ['お客様メモ', 'スタッフメモ', 'お客様番号', 'お客様']);
+    expect(c.customerNumber).toEqual([2]);
+    expect(c.fullName).toEqual([3]);
+    expect(c.staffName).toBeUndefined();
+    expect(Object.values(c).flat()).not.toContain(0);
+    expect(Object.values(c).flat()).not.toContain(1);
+    expect(suggestMapping('visits', ['料金プラン', '金額'])).toEqual({ amount: [1] });
   });
 });
