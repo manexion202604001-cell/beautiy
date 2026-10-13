@@ -24,7 +24,7 @@
 | `PORT` | `4000` | | API の待受ポート |
 | `HOST` | `0.0.0.0` | | 待受アドレス |
 | `LOG_LEVEL` | `info` | | pino のログレベル |
-| `DATABASE_URL` | `postgres://salon:salon@localhost:5432/salon` | ○ | PostgreSQL 接続文字列（本番はアプリ用ロール） |
+| `DATABASE_URL` | `postgres://salon:salon@localhost:5432/salon` | ○ | PostgreSQL 接続文字列（アプリ用ロール。スーパーユーザー / `BYPASSRLS` ロールは不可 — 2.3） |
 | `DATABASE_POOL_MAX` | `20` | | プロセスあたりの最大接続数（台数 × 値 < DB 上限） |
 | `API_BASE_URL` | `http://localhost:4000` | ○ | API の公開 URL（署名付き URL・Webhook URL・OpenAPI の servers） |
 | `WEB_BASE_URL` | `http://localhost:5173` | ○ | SPA の公開 URL（予約管理リンク・招待リンク等） |
@@ -56,11 +56,25 @@
 | `WORKER_POLL_MS` | `1000` | | ジョブが無いときのポーリング間隔 |
 | `RATE_LIMIT_MAX` | `300` | | IP あたりの全体レート上限（回/分） |
 | `DEV_EXPOSE_OTP` | `false`（`.env.example` は `true`） | ○（false） | OTP をレスポンスに含める（開発/テスト専用）。本番で true だと起動失敗 |
-| `TEST_DATABASE_URL` | `postgres://salon:salon@localhost:5432/salon_test` | | テスト用 DB（`vitest.config.ts`、global-setup がスキーマを作り直す） |
+| `TEST_DATABASE_URL` | `postgres://salon:salon@localhost:5432/salon_test` | | テスト用 DB（`vitest.config.ts`、global-setup がスキーマを作り直す）。一般ロール・UTF-8 ロケール必須（2.3） |
 
 ### 2.2 本番起動時の安全装置
 
-`config.ts` は `NODE_ENV=production` で次を検出すると起動を中止する: `JWT_SECRET` / `TOKEN_SECRET` が `dev-only` で始まる、`DEV_EXPOSE_OTP=true`。加えてデプロイ前チェックで `ENCRYPTION_KEY` が開発用既定値でないこと、`*_DRIVER` が `mock` でないこと（ステージング除く）を確認する。
+`config.ts` は `NODE_ENV=production` で次を検出すると起動を中止する: `JWT_SECRET` / `TOKEN_SECRET` が `dev-only` で始まる、`DEV_EXPOSE_OTP=true`。DB 接続ロールが RLS をバイパスする場合も起動を中止する（2.3）。加えてデプロイ前チェックで `ENCRYPTION_KEY` が開発用既定値でないこと、`*_DRIVER` が `mock` でないこと（ステージング除く）を確認する。
+
+### 2.3 DB 接続ロールとロケールの検査
+
+PostgreSQL は **スーパーユーザーと `BYPASSRLS` ロールに RLS を適用しない**（`FORCE ROW LEVEL SECURITY` でも同じ）。そのロールで接続するとテナント分離が黙って無効になるため、`src/db/preflight.ts` が API（`index.ts`）・Worker（`worker.ts`）の起動時とテストの global-setup で接続ロールと DB を検査する。マイグレーション（`migrate.ts`）は検査しない（マイグレーション用ロールはアプリ用ロールより強い権限を持ち得るため）。
+
+| 検出内容 | development | test | production |
+|---|---|---|---|
+| 接続ロールがスーパーユーザー / `BYPASSRLS` | 警告ログ | 実行中止 | 起動中止 |
+| DB のエンコーディングが UTF8 以外、または `LC_CTYPE` が `C` / `POSIX`（`pg_trgm` が非 ASCII 文字を無視し、かな・漢字の名寄せ類似判定が効かない） | 警告ログ | 実行中止 | 警告ログ |
+| DB に接続できない | 警告ログ | 実行中止 | 起動中止 |
+
+- ローカル / CI: `infra/postgres-init.sql` を管理者ロール（Docker・CI では `postgres`）で実行し、一般ロール `salon`（`NOSUPERUSER NOBYPASSRLS CREATEDB`）と、それが所有する `salon` / `salon_test`（`en_US.UTF-8`）を作る。docker-compose は初回起動時に自動実行、CI は `psql` で流し込む。公式 `postgres` イメージは `POSTGRES_USER` をスーパーユーザーにするため、アプリ・テストの接続には使わない。
+- 所有者である必要: `db:reset` とテストは `public` スキーマを作り直し、マイグレーション 0001 は trusted 拡張（`btree_gist` / `pg_trgm` / `citext`）を作成する。どちらも DB 所有者なら一般ロールで実行できる。`db:reset` を管理者ロールで実行すると `public` の所有者が管理者に変わり、以後 `salon` では `must be owner of schema public` で失敗する（管理者で `ALTER SCHEMA public OWNER TO salon;` を実行して戻す）。
+- 確認 SQL: `SELECT rolname, rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user;`（どちらも `f` であること）。マネージド DB の既定ユーザーが `BYPASSRLS` を持つ場合は、アプリ用に一般ロールを別途作成して `DATABASE_URL` に設定する。
 
 ## 3. 起動・停止
 
@@ -73,7 +87,7 @@
 | 本番 API | `node dist/index.js`（`pnpm start`） | SIGTERM/SIGINT で `app.close()` 後に終了 |
 | 本番 Worker | `node dist/worker.js`（`pnpm start:worker`） | SIGTERM で新規取得を止め、実行中ジョブの完了を待って終了 |
 | ヘルスチェック | `GET /healthz`（死活）、`GET /readyz`（DB 疎通） | ロードバランサは `/readyz` を使用 |
-| テスト | `pnpm --filter @salon/api test` | 実 PostgreSQL（`TEST_DATABASE_URL`） |
+| テスト | `pnpm --filter @salon/api test` | 実 PostgreSQL（`TEST_DATABASE_URL`、一般ロール・UTF-8 ロケール — 2.3） |
 
 ## 4. マイグレーション
 

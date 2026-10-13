@@ -50,6 +50,9 @@ pnpm --filter @salon/api dev:worker       # ジョブワーカー + 定期実行
 pnpm --filter @salon/web dev              # http://localhost:5173
 ```
 
+- DB 接続: アプリとテストは一般ロール `salon` / `salon`（DB は `salon` と `salon_test`）で接続します。Docker の管理者ユーザーは `postgres` / `postgres` で、アプリからは使いません。
+- `salon` を **スーパーユーザーにしない** でください。PostgreSQL はスーパーユーザーと `BYPASSRLS` ロールに RLS を適用しないため、テナント分離が効かなくなります（API・ワーカーは開発時は警告、本番では起動を中止。テストは開始前に失敗）。Docker を使わず手元の PostgreSQL を使う場合は、管理者ロールで [infra/postgres-init.sql](infra/postgres-init.sql) を実行してください（一般ロールと UTF-8 ロケールの DB を作成）。
+- 以前の構成（`POSTGRES_USER: salon`）で作ったボリュームが残っている場合は作り直しが必要です: `docker compose -f infra/docker-compose.yml down -v`（ローカルの DB データは消えます）→ `up -d` → `db:migrate` / `db:seed`。
 - スタッフ管理画面: `http://localhost:5173/app`（デモ: `owner@example.com` / `password-1234`）
 - 顧客向け予約: `http://localhost:5173/book/shibuya`（シード店舗）/ EC: `/store/shibuya` / マイページ: `/my`
 - 外部サービスは既定でモック（`LINE_DRIVER=mock` など）。LINE ログインは開発時 `mock:<userId>:<表示名>` トークンで動作します。
@@ -68,6 +71,7 @@ pnpm --filter @salon/web dev              # http://localhost:5173
 
 ```bash
 # API: 実PostgreSQLを使う統合テスト（TEST_DATABASE_URL のDBを毎回作り直します）
+# 接続ロールは一般ロール（スーパーユーザー / BYPASSRLS 不可）、DB は UTF-8 ロケールが必須。満たさない場合は開始前に失敗します
 TEST_DATABASE_URL=postgres://salon:salon@localhost:5432/salon_test pnpm --filter @salon/api test
 pnpm --filter @salon/api typecheck && pnpm --filter @salon/api lint
 

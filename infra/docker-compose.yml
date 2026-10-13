@@ -5,15 +5,19 @@ services:
   postgres:
     image: postgres:16
     environment:
-      POSTGRES_USER: salon
-      POSTGRES_PASSWORD: salon
-      POSTGRES_DB: salon
+      # Cluster admin only. The image makes POSTGRES_USER a superuser, and superusers bypass
+      # row-level security, so the app never connects as this user: postgres-init.sql creates
+      # the non-superuser `salon` role and the `salon` / `salon_test` databases it owns.
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
     ports: ["5432:5432"]
     volumes:
       - pgdata:/var/lib/postgresql/data
+      # runs only when the pgdata volume is empty (recreate with `down -v` after changing it)
       - ./postgres-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U salon"]
+      # over TCP: the temporary server that runs the init script listens on the unix socket only
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U salon -d salon"]
       interval: 5s
       retries: 10
 

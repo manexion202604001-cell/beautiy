@@ -4,11 +4,14 @@
  */
 import pino from 'pino';
 import { config } from './config.js';
+import { assertDatabaseReady } from './db/preflight.js';
 import { runWorker } from './jobs/queue.js';
 import { schedulerTick } from './jobs/scheduler.js';
 import './modules/index.js'; // registers job handlers, event subscribers, periodic tasks
 
 const logger = pino({ level: config.LOG_LEVEL, ...(config.NODE_ENV === 'development' ? { transport: { target: 'pino-pretty' } } : {}) });
+// refuse to process jobs when the DB role bypasses row-level security (tenant isolation)
+await assertDatabaseReady({ warn: (message) => logger.warn(message) });
 const controller = new AbortController();
 
 process.on('SIGTERM', () => controller.abort());

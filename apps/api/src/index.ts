@@ -1,7 +1,10 @@
 import { config } from './config.js';
+import { assertDatabaseReady } from './db/preflight.js';
 import { buildApp } from './server.js';
 
 const app = await buildApp();
+// refuse to serve when the DB role bypasses row-level security (tenant isolation)
+await assertDatabaseReady({ warn: (message) => app.log.warn(message) });
 
 const shutdown = async (signal: string) => {
   app.log.info({ signal }, 'shutting down');

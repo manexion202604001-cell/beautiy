@@ -16,12 +16,12 @@ jobs:
       postgres:
         image: postgres:16
         env:
-          POSTGRES_USER: salon
-          POSTGRES_PASSWORD: salon
-          POSTGRES_DB: salon_test
+          # cluster admin (superuser); the tests connect as the non-superuser `salon` role created below
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
         ports: ["5432:5432"]
         options: >-
-          --health-cmd "pg_isready -U salon"
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
@@ -29,6 +29,10 @@ jobs:
       TEST_DATABASE_URL: postgres://salon:salon@localhost:5432/salon_test
     steps:
       - uses: actions/checkout@v4
+      # Superusers bypass row-level security, so the tenant-isolation tests are only meaningful as an
+      # ordinary role. Same script as docker-compose: role `salon` + databases `salon` / `salon_test`.
+      - name: Create the application role and databases
+        run: docker exec -i "${{ job.services.postgres.id }}" psql -v ON_ERROR_STOP=1 -U postgres < infra/postgres-init.sql
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:

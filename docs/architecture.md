@@ -193,6 +193,7 @@ DB 関数 `app_current_org()` / `app_bypass_rls()` / `app_current_user()` が GU
 ### 4.3 残課題と本番構成
 
 - `app.bypass_rls` は通常の GUC であり、アプリと同じ DB ロールでは SQL 実行権限があれば設定できる。RLS は「アプリのクエリ条件漏れ」に対する防御であり、SQL インジェクション対策（パラメータ化の徹底）とは別に担保する。
+- スーパーユーザーと `BYPASSRLS` ロールには RLS が適用されない（`FORCE` でも同じ）。アプリ・テストは必ず一般ロールで接続し、API / Worker の起動時とテスト開始時に `src/db/preflight.ts` が接続ロールを検査する（development は警告、それ以外は中止。[operations.md](./operations.md) 2.3）。
 - 本番推奨: (1) マイグレーション用ロール（DDL・所有者）とアプリ用ロール（DML のみ、`NOBYPASSRLS`、`TRUNCATE` なし）を分離、(2) `withSystem` を使う処理（認証・Webhook・ジョブ取得）を限定したコードパスに保ち、静的検査（lint ルール）で新規使用をレビュー必須にする、(3) 将来的にはシステム処理を `SECURITY DEFINER` 関数へ寄せてバイパス GUC を廃止する選択肢を残す（ADR 0002）。
 
 ## 5. ジョブキューとスケジューラ
@@ -384,12 +385,13 @@ flowchart LR
 services:
   postgres:
     image: postgres:16
-    environment:
-      POSTGRES_USER: salon
-      POSTGRES_PASSWORD: salon
-      POSTGRES_DB: salon
+    environment:           # 管理者（スーパーユーザー）。アプリは postgres-init.sql が作る一般ロール salon で接続する
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
     ports: ["5432:5432"]
-    volumes: ["pgdata:/var/lib/postgresql/data"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
   minio:            # STORAGE_DRIVER=s3 を試す場合
     image: minio/minio
     command: server /data --console-address ":9001"
