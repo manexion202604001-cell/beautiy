@@ -131,7 +131,7 @@ export function DynamicField({
             })}
           </div>
           {hint && !error ? (
-            <p id={`${groupId}-hint`} className="text-xs text-muted">
+            <p id={`${groupId}-hint`} className="text-xs text-muted-foreground">
               {hint}
             </p>
           ) : null}

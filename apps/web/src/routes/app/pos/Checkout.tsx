@@ -166,7 +166,7 @@ function CheckoutView({ tx }: { tx: Transaction }) {
         back={
           <Link
             to="/app/pos"
-            className="inline-flex items-center gap-1 text-[13px] text-muted hover:text-fg"
+            className="inline-flex items-center gap-1 text-[13px] text-muted-foreground hover:text-fg"
           >
             <Icon name="chevron-left" size={16} /> 会計
           </Link>
@@ -330,12 +330,12 @@ function CheckoutView({ tx }: { tx: Transaction }) {
             <CardHeader title="合計" />
             <dl className="space-y-1.5 text-sm">
               <div className="flex justify-between">
-                <dt className="text-muted">小計</dt>
+                <dt className="text-muted-foreground">小計</dt>
                 <dd className="tabular">{formatYen(tx.subtotal)}</dd>
               </div>
               {tx.discount_total ? (
                 <div className="flex justify-between">
-                  <dt className="text-muted">値引・クーポン</dt>
+                  <dt className="text-muted-foreground">値引・クーポン</dt>
                   <dd className="tabular text-danger">−{formatYen(tx.discount_total)}</dd>
                 </div>
               ) : null}
@@ -345,7 +345,7 @@ function CheckoutView({ tx }: { tx: Transaction }) {
                   {formatYen(tx.total)}
                 </dd>
               </div>
-              <div className="flex justify-between text-xs text-muted">
+              <div className="flex justify-between text-xs text-muted-foreground">
                 <dt>内消費税</dt>
                 <dd className="tabular">{formatYen(tx.tax_total)}</dd>
               </div>
@@ -354,7 +354,7 @@ function CheckoutView({ tx }: { tx: Transaction }) {
               <TaxBreakdown breakdown={tx.tax_breakdown} />
             </div>
             {tx.point_used || tx.point_earned ? (
-              <p className="mt-2 text-xs text-muted">
+              <p className="mt-2 text-xs text-muted-foreground">
                 {tx.point_used ? `ポイント利用 ${tx.point_used}pt` : ''}
                 {tx.point_used && tx.point_earned ? ' ・ ' : ''}
                 {tx.point_earned ? `付与 ${tx.point_earned}pt` : ''}
@@ -430,10 +430,10 @@ function ReadOnlyLines({ tx }: { tx: Transaction }) {
             <p className="font-medium">
               {i.name}
               {i.tax_rate_bp === 800 ? (
-                <span className="ml-1 text-xs text-muted">※軽減</span>
+                <span className="ml-1 text-xs text-muted-foreground">※軽減</span>
               ) : null}
             </p>
-            <p className="text-xs text-muted">
+            <p className="text-xs text-muted-foreground">
               {i.amount >= 0 ? `${formatYen(i.unit_price)} × ${i.quantity}` : '値引'}
               {i.returned_quantity ? ` ・ 返品 ${i.returned_quantity}` : ''}
               {i.staff.length
@@ -449,7 +449,7 @@ function ReadOnlyLines({ tx }: { tx: Transaction }) {
       {tx.payments
         .filter((p) => ['succeeded', 'partially_refunded', 'refunded'].includes(p.status))
         .map((p) => (
-          <li key={p.id} className="flex justify-between gap-3 py-2 text-xs text-muted">
+          <li key={p.id} className="flex justify-between gap-3 py-2 text-xs text-muted-foreground">
             <span>
               {p.method === 'custom'
                 ? (p.custom_method_name ?? METHOD_LABEL.custom)

@@ -21,59 +21,75 @@ for (const vp of viewports) {
     await page.waitForTimeout(800);
     await shot(page, `${vp.name}-dashboard`);
 
+    // 予約管理: week (the view it opens in), day, then a reservation and the new-reservation page
     await nav(page, '/app/calendar');
     await expect(page.getByTestId('calendar-grid')).toBeVisible();
+    await page.waitForTimeout(800);
+    await shot(page, `${vp.name}-calendar-week`);
+    await page.getByRole('tab', { name: '日', exact: true }).click();
     await page.waitForTimeout(600);
     await shot(page, `${vp.name}-calendar-day`);
 
     const block = page.locator('[data-appt]').first();
     if (await block.count()) {
       await block.click();
-      await expect(page.getByRole('dialog')).toBeVisible();
+      await expect(page).toHaveURL(/\/app\/calendar\/[0-9a-f-]{36}$/);
+      await expect(page.getByText('予約詳細').first()).toBeVisible();
       await page.waitForTimeout(500);
-      await shot(page, `${vp.name}-appointment-drawer`);
-      await page.keyboard.press('Escape');
+      await shot(page, `${vp.name}-reservation-detail`);
     }
 
-    await page.getByRole('button', { name: '予約を追加', exact: true }).click();
-    const drawer = page.getByRole('dialog', { name: '予約を作成' });
-    await drawer.locator('input[type="checkbox"]').first().check();
-    await page.waitForTimeout(800);
+    await nav(page, '/app/calendar/new');
+    await expect(page.getByRole('heading', { level: 1, name: '新規予約作成' })).toBeVisible();
+    await page.waitForTimeout(600);
     await shot(page, `${vp.name}-create-appointment`);
-    await page.keyboard.press('Escape');
-
-    await nav(page, '/app/calendar?view=week');
-    await page.waitForTimeout(800);
-    await shot(page, `${vp.name}-calendar-week`);
 
     await nav(page, '/app/customers');
     await page.waitForTimeout(800);
     await shot(page, `${vp.name}-customers`);
 
-    await page.locator('tbody tr').first().click();
-    await expect(page.getByRole('tablist', { name: '顧客情報' })).toBeVisible();
+    await page.locator('[data-customer]').first().click();
+    const customerTabs = page.getByRole('tablist', { name: '顧客情報' });
+    await expect(customerTabs).toBeVisible();
     await page.waitForTimeout(600);
     await shot(page, `${vp.name}-customer-detail`);
+    for (const tab of ['予約履歴', 'カウンセリング', 'メッセージ']) {
+      await customerTabs.getByRole('tab', { name: new RegExp(tab) }).click();
+      await page.waitForTimeout(600);
+      await shot(page, `${vp.name}-customer-${tab}`);
+    }
+    // the previous customer screen (tags, staff memos, merge history) stays one link away
+    await page.getByTestId('customer-classic-link').click();
+    await expect(page).toHaveURL(/\/app\/customers-classic\//);
     for (const tab of ['来店履歴', 'メモ', '重複候補・統合']) {
       await page.getByRole('tab', { name: new RegExp(tab) }).click();
       await page.waitForTimeout(600);
-      await shot(page, `${vp.name}-customer-${tab}`);
+      await shot(page, `${vp.name}-customer-classic-${tab}`);
     }
 
     for (const [path, name] of [
       ['/app/customers/duplicates', 'duplicates'],
       ['/app/customers/new', 'customer-new'],
       ['/app/menus', 'menus'],
-      ['/app/menus?tab=coupons', 'coupons'],
-      ['/app/menus?tab=resources', 'resources'],
+      ['/app/menus/categories', 'menu-categories'],
+      ['/app/menus/new?type=coupon', 'coupon-new'],
+      ['/app/menus-classic?tab=coupons', 'coupons'],
+      ['/app/menus-classic?tab=resources', 'resources'],
       ['/app/staff', 'staff'],
+      ['/app/staff-classic', 'staff-classic'],
       ['/app/staff/roles', 'roles'],
+      ['/app/reservation-settings', 'reservation-settings'],
       ['/app/shifts', 'shifts'],
-      ['/app/settings', 'settings-shop'],
-      ['/app/settings?tab=booking', 'settings-booking'],
-      ['/app/settings?tab=hours', 'settings-hours'],
-      ['/app/settings?tab=holidays', 'settings-holidays'],
-      ['/app/settings?tab=org', 'settings-org'],
+      ['/app/settings', 'store-settings'],
+      ['/app/system', 'system-stores'],
+      ['/app/system?tab=owner', 'system-owner'],
+      ['/app/system?tab=staff', 'system-staff'],
+      ['/app/system?tab=more', 'system-more'],
+      ['/app/settings-classic', 'settings-shop'],
+      ['/app/settings-classic?tab=booking', 'settings-booking'],
+      ['/app/settings-classic?tab=hours', 'settings-hours'],
+      ['/app/settings-classic?tab=holidays', 'settings-holidays'],
+      ['/app/settings-classic?tab=org', 'settings-org'],
       ['/app/soon/pos', 'coming-soon'],
     ] as const) {
       await nav(page, path);
@@ -81,7 +97,32 @@ for (const vp of viewports) {
       await shot(page, `${vp.name}-${name}`);
     }
 
+    // スタッフ: 営業時間・予約設定 / スタッフ編集 dialogs of the first staff member
     await nav(page, '/app/staff');
+    const staffRow = page.getByTestId('staff-list').locator('[data-staff]').first();
+    await expect(staffRow).toBeVisible();
+    await staffRow.getByRole('button', { name: '営業時間・予約設定' }).click();
+    await page.waitForTimeout(600);
+    await shot(page, `${vp.name}-staff-settings-hours`);
+    await page.getByRole('tab', { name: '予約設定' }).click();
+    await page.waitForTimeout(300);
+    await shot(page, `${vp.name}-staff-settings-reservation`);
+    await page.keyboard.press('Escape');
+    await staffRow.getByRole('button', { name: 'スタッフ編集' }).click();
+    await page.waitForTimeout(400);
+    await shot(page, `${vp.name}-staff-edit`);
+    await page.keyboard.press('Escape');
+
+    // 予約受付設定: the four tabs
+    await nav(page, '/app/reservation-settings');
+    for (const tab of ['受付可能数', '予約設定', 'スタッフ別設定']) {
+      await page.getByRole('tab', { name: tab, exact: true }).click();
+      await page.waitForTimeout(500);
+      await shot(page, `${vp.name}-reservation-settings-${tab}`);
+    }
+
+    // the previous staff screens (detail tabs) stay one link away
+    await nav(page, '/app/staff-classic');
     await page.locator('tbody tr').nth(1).click();
     await page.waitForTimeout(600);
     await shot(page, `${vp.name}-staff-detail`);
@@ -90,9 +131,18 @@ for (const vp of viewports) {
     await shot(page, `${vp.name}-staff-schedule`);
 
     await nav(page, '/app/menus');
-    await page.getByRole('button', { name: 'メニューを追加' }).click();
+    await page.getByRole('tab', { name: /クーポン/ }).click();
     await page.waitForTimeout(500);
-    await shot(page, `${vp.name}-menu-dialog`);
+    await shot(page, `${vp.name}-menu-coupons`);
+    await page.getByRole('button', { name: '対応スタッフ' }).click();
+    await page.waitForTimeout(500);
+    await shot(page, `${vp.name}-menu-staff-matrix`);
+    await page.getByRole('button', { name: 'リスト表示' }).click();
+    await page.getByRole('tab', { name: /通常メニュー/ }).click();
+    await page.getByRole('button', { name: '新規メニュー' }).click();
+    await expect(page).toHaveURL(/\/app\/menus\/new\?type=regular/);
+    await page.waitForTimeout(500);
+    await shot(page, `${vp.name}-menu-new`);
   });
 }
 
@@ -112,9 +162,15 @@ test('staff on phone', async ({ page }) => {
   await loginAsStaff(page);
   await page.waitForTimeout(600);
   await shot(page, 'phone-dashboard');
-  await page.getByRole('button', { name: 'メニューを開く' }).click();
+  // the phone shell has a bottom bar: the screens outside its four tabs are under 「その他」
+  await page.getByRole('button', { name: 'その他のメニュー' }).click();
   await page.waitForTimeout(300);
   await shot(page, 'phone-nav');
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'アカウントメニュー' }).click();
+  await page.waitForTimeout(300);
+  await shot(page, 'phone-account-menu');
+  await page.keyboard.press('Escape');
   await nav(page, '/app/calendar');
   await page.waitForTimeout(800);
   await shot(page, 'phone-calendar');

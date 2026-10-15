@@ -1,5 +1,5 @@
 import { DateTime } from 'luxon';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { withSystem } from '../../db/tenant.js';
 import { enqueue } from '../../jobs/queue.js';
 import { registeredPeriodicTasks } from '../../jobs/scheduler.js';
@@ -16,11 +16,17 @@ import {
   nextWeekday,
   runJobs,
   setClock,
+  setQuietHours,
   updateCustomer,
   type Tenant,
 } from '../../test/helpers.js';
 
-afterEach(() => setClock(null));
+// marketing sends are deferred at night; keep the tests independent of the hour they run at
+beforeEach(() => setQuietHours(false));
+afterEach(() => {
+  setClock(null);
+  setQuietHours(true);
+});
 
 let n = 0;
 async function emailCustomer(t: Tenant, patch: Record<string, unknown> = {}, body: Record<string, unknown> = {}) {

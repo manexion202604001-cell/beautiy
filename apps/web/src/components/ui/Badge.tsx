@@ -4,13 +4,13 @@ import { cn } from '../../lib/cn';
 export type Tone = 'neutral' | 'primary' | 'success' | 'warning' | 'danger' | 'info' | 'outline';
 
 const tones: Record<Tone, string> = {
-  neutral: 'bg-surface-2 text-muted border-border',
+  neutral: 'bg-surface-2 text-muted-foreground border-border',
   primary: 'bg-primary-soft text-primary border-transparent',
   success: 'bg-success-soft text-success border-transparent',
   warning: 'bg-warning-soft text-warning border-transparent',
   danger: 'bg-danger-soft text-danger border-transparent',
   info: 'bg-info-soft text-info border-transparent',
-  outline: 'bg-transparent text-muted border-border-strong',
+  outline: 'bg-transparent text-muted-foreground border-border-strong',
 };
 
 export function Badge({
@@ -59,7 +59,7 @@ export function TagChip({
         <button
           type="button"
           onClick={onRemove}
-          className="-mr-0.5 ml-0.5 rounded-full px-1 text-muted hover:text-fg"
+          className="-mr-0.5 ml-0.5 rounded-full px-1 text-muted-foreground hover:text-fg"
           aria-label={`${name}を外す`}
         >
           ×

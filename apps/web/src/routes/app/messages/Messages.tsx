@@ -137,7 +137,7 @@ export default function Messages() {
                         <span className="shrink-0 text-[11px] text-subtle">{formatAgo(it.created_at)}</span>
                       </div>
                       <div className="mt-0.5 flex items-center gap-2">
-                        <p className="min-w-0 flex-1 truncate text-xs text-muted">
+                        <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
                           {it.direction === 'outbound' ? 'あなた: ' : ''}
                           {it.body ?? `［${it.message_type}］`}
                         </p>

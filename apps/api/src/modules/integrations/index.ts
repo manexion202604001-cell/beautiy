@@ -104,6 +104,11 @@ const plugin: FastifyPluginAsyncZod = async (app) => {
     { schema: { tags, summary: '手動ブロック依頼(媒体側で枠を止める/再開する作業)', querystring: z.object({ shopId: uuid.optional(), state: z.enum(['open', 'all']).default('open') }) } },
     (req) => req.tx((ctx) => mail.listManualBlocks(ctx, req.query)),
   );
+  app.get(
+    '/integrations/:id/received-mails',
+    { schema: { tags, summary: '受信したメール(予約通知・媒体からの認証メール等。新しい順)', params: idParam, querystring: z.object({ limit: z.coerce.number().int().min(1).max(200).default(50) }) } },
+    (req) => req.tx((ctx) => mail.listReceivedMails(ctx, req.params.id, req.query)),
+  );
   app.post('/integrations/manual-blocks/:id/done', { schema: { tags, summary: '手動ブロック依頼を対応済みにする', params: idParam } }, (req) =>
     req.tx((ctx) => mail.completeManualBlock(ctx, req.params.id)),
   );

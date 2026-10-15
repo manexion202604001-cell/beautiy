@@ -66,14 +66,14 @@ export function SegmentsTab() {
                 )}
               >
                 <p className="truncate text-sm font-medium">{s.name}</p>
-                <p className="line-clamp-2 text-xs text-muted">{describeRule(s.rule)}</p>
+                <p className="line-clamp-2 text-xs text-muted-foreground">{describeRule(s.rule)}</p>
                 <p className="mt-0.5 text-[11px] text-subtle">更新 {formatDate(s.updated_at, tz, { weekday: false })}</p>
               </button>
             </li>
           ))}
         </ul>
         {!segments.isLoading && !list.length ? (
-          <p className="px-4 py-4 text-[13px] text-muted">保存済みのセグメントはありません。</p>
+          <p className="px-4 py-4 text-[13px] text-muted-foreground">保存済みのセグメントはありません。</p>
         ) : null}
       </Card>
       {editing ? (

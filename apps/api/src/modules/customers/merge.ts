@@ -29,6 +29,7 @@ const RELINK_TABLES = [
   'referral_events',
   'automation_runs',
   'legacy_visits',
+  'customer_counseling_sheets',
 ] as const;
 
 /** Profile fields copied from source when empty on target */
@@ -45,6 +46,8 @@ const FILL_FIELDS = [
   'customer_number',
   'primary_staff_id',
   'primary_shop_id',
+  'memo',
+  'member_no',
 ] as const;
 
 type Relinked = {

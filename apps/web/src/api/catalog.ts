@@ -12,17 +12,49 @@ import type {
 
 export const catalogApi = {
   categories: (shopId?: string) => api.get<MenuCategory[]>('/menu-categories', { shopId }),
-  createCategory: (input: { shopId?: string | null; name: string; sortOrder?: number }) =>
-    api.post<MenuCategory>('/menu-categories', input),
-  updateCategory: (id: string, input: { name?: string; sortOrder?: number }) =>
-    api.patch<MenuCategory>(`/menu-categories/${id}`, input),
+  createCategory: (input: {
+    shopId?: string | null;
+    name: string;
+    sortOrder?: number;
+    color?: string | null;
+    parentId?: string | null;
+  }) => api.post<MenuCategory>('/menu-categories', input),
+  updateCategory: (
+    id: string,
+    input: { name?: string; sortOrder?: number; color?: string | null; parentId?: string | null },
+  ) => api.patch<MenuCategory>(`/menu-categories/${id}`, input),
   deleteCategory: (id: string) => api.delete(`/menu-categories/${id}`),
+  /** 全削除: every category of the shop (menus stay, uncategorised); `kept` = shared ones left alone */
+  deleteAllCategories: (shopId: string) =>
+    api.delete<{ deleted: number; kept: number }>('/menu-categories/all', { query: { shopId } }),
+  reorderCategories: (items: { id: string; sortOrder: number }[]) =>
+    api.put<{ updated: number }>('/menu-categories/reorder', { items }),
   menus: (shopId: string, includeInactive = false) =>
     api.get<EffectiveMenu[]>('/menus', { shopId, includeInactive }),
   menu: (id: string) => api.get<MenuDetail>(`/menus/${id}`),
   createMenu: (input: MenuInput) => api.post<MenuDetail>('/menus', input),
   updateMenu: (id: string, input: MenuInput) => api.patch<MenuDetail>(`/menus/${id}`, input),
   deleteMenu: (id: string) => api.delete(`/menus/${id}`),
+  /** refuses with 409 MENU_IN_USE when reservations refer to the menu */
+  deleteMenuIfUnused: (id: string) => api.delete(`/menus/${id}?checkUsage=true`),
+  reorderMenus: (items: { id: string; sortOrder: number }[]) =>
+    api.put<{ updated: number }>('/menus/reorder', { items }),
+  /** 掲載 / 非掲載 as seen from one shop */
+  setListing: (id: string, shopId: string, listed: boolean) =>
+    api.put<EffectiveMenu>(`/menus/${id}/listing`, { shopId, listed }),
+  /** 対応スタッフ: `staffIds` are the columns shown; only those staff are changed */
+  setStaffAssignments: (input: {
+    shopId: string;
+    staffIds: string[];
+    assignments: { menuId: string; staffIds: string[] }[];
+  }) => api.put<{ menus: number; added: number; removed: number }>('/menus/staff-assignments', input),
+  /** 対応設備: `resourceTypes` are the columns shown; only those kinds are changed */
+  setEquipmentAssignments: (input: {
+    shopId: string;
+    resourceTypes: string[];
+    assignments: { menuId: string; resourceTypes: string[] }[];
+  }) =>
+    api.put<{ menus: number; added: number; removed: number }>('/menus/equipment-assignments', input),
   setOverride: (
     id: string,
     shopId: string,

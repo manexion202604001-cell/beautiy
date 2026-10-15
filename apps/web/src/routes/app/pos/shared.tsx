@@ -20,7 +20,7 @@ export function TaxBreakdown({
   const rows = taxBreakdownRows(breakdown);
   if (!rows.length) return null;
   return (
-    <dl className="space-y-0.5 text-xs text-muted" data-testid="tax-breakdown">
+    <dl className="space-y-0.5 text-xs text-muted-foreground" data-testid="tax-breakdown">
       {rows.map((r) => (
         <div key={r.rateBp} className="flex justify-between gap-3">
           <dt>

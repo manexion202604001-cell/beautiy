@@ -3,7 +3,9 @@ import { defineConfig, devices } from '@playwright/test';
 /**
  * E2E smoke tests (optional): `pnpm --filter @salon/web test:e2e`
  * Prerequisites (see README):
- *  - API running with a seeded DB (default http://localhost:4100, DEV_EXPOSE_OTP=true)
+ *  - API running with a seeded DB (default http://localhost:4100, DEV_EXPOSE_OTP=true,
+ *    RATE_LIMIT_MAX=100000: the whole suite comes from one address and passes the default 300/min)
+ *  - the worker running against the same DB (mail import, notifications)
  *  - Web dev server (started automatically unless E2E_BASE_URL is given)
  *  - Chromium: PLAYWRIGHT_BROWSERS_PATH (or PW_CHROMIUM_PATH for a custom executable)
  */

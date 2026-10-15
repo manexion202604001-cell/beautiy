@@ -3,7 +3,7 @@ import { signStaffAccessToken } from '../../auth/jwt.js';
 import { invalidateActorCache } from '../../auth/load-actor.js';
 import { config } from '../../config.js';
 import { withSystem, type Tx } from '../../db/tenant.js';
-import { hashPassword, hashToken, otpCode, randomToken, verifyPassword, verifySignedPayload } from '../../lib/crypto.js';
+import { hashPassword, hashToken, otpCode, randomToken, signPayload, verifyPassword, verifySignedPayload } from '../../lib/crypto.js';
 import { Errors } from '../../lib/errors.js';
 import { sendEmail } from '../../lib/mailer.js';
 
@@ -251,6 +251,8 @@ export async function acceptInvite(token: string, password: string, meta: LoginM
       throw Errors.unauthenticated('既存アカウントのパスワードを入力してください', 'INVALID_CREDENTIALS');
     }
     await trx.updateTable('staffs').set({ status: 'active' }).where('id', '=', staff.id).execute();
+    // 設定 › 招待履歴: the invitation sent for this staff member is now 承認済み
+    await trx.updateTable('staff_invitations').set({ accepted_at: new Date() }).where('staff_id', '=', staff.id).where('accepted_at', 'is', null).execute();
     invalidateActorCache(staff.id);
     return issueTokens(trx, user.id, payload.org, staff.id, meta);
   });
@@ -265,6 +267,46 @@ export async function changePassword(userId: string, currentPassword: string, ne
     await trx.updateTable('users').set({ password_hash: await hashPassword(newPassword) }).where('id', '=', userId).execute();
     // revoke other sessions
     await trx.updateTable('auth_sessions').set({ revoked_at: new Date() }).where('user_id', '=', userId).where('revoked_at', 'is', null).execute();
+  });
+}
+
+const PASSWORD_RESET_TTL_MIN = 60;
+
+/** Fingerprint of the current password hash: makes a reset link single-use (changing the password invalidates it) */
+function passwordFingerprint(passwordHash: string | null) {
+  return hashToken(passwordHash ?? '').slice(0, 16);
+}
+
+/**
+ * Sends a password reset link to the address if a staff account exists for it.
+ * Always resolves the same way so the endpoint cannot be used to probe which addresses are registered.
+ */
+export async function requestPasswordReset(email: string) {
+  const user = await withSystem((trx) =>
+    trx.selectFrom('users').select(['id', 'email', 'password_hash']).where('email', '=', email.trim()).executeTakeFirst(),
+  );
+  if (!user) return;
+  const token = signPayload({ typ: 'pwreset', uid: user.id, pf: passwordFingerprint(user.password_hash) }, PASSWORD_RESET_TTL_MIN * 60);
+  await sendEmail({
+    to: user.email,
+    subject: '【Salon OS】パスワードリセット',
+    text: `以下のリンクから新しいパスワードを設定してください（有効期限: ${PASSWORD_RESET_TTL_MIN}分）。\n${config.WEB_BASE_URL}/reset-password/${token}\n\nこのメールに心当たりがない場合は破棄してください。パスワードは変更されません。`,
+  });
+}
+
+export async function resetPassword(token: string, newPassword: string) {
+  const payload = verifySignedPayload<{ typ: string; uid: string; pf: string }>(token);
+  const invalid = () => Errors.unauthenticated('リセットリンクが無効か期限切れです', 'INVALID_RESET_TOKEN');
+  if (!payload || payload.typ !== 'pwreset') throw invalid();
+  await withSystem(async (trx) => {
+    const user = await trx.selectFrom('users').select(['id', 'password_hash']).where('id', '=', payload.uid).forUpdate().executeTakeFirst();
+    if (!user || passwordFingerprint(user.password_hash) !== payload.pf) throw invalid();
+    await trx
+      .updateTable('users')
+      .set({ password_hash: await hashPassword(newPassword), failed_login_count: 0, locked_until: null })
+      .where('id', '=', user.id)
+      .execute();
+    await trx.updateTable('auth_sessions').set({ revoked_at: new Date() }).where('user_id', '=', user.id).where('revoked_at', 'is', null).execute();
   });
 }
 

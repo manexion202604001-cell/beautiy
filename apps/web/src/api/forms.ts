@@ -166,6 +166,7 @@ export const formsApi = {
       expiresInDays?: number;
       notify: boolean;
       channel?: 'line' | 'email' | 'sms';
+      reusePending?: boolean;
     },
   ) => api.post<FormLinkResult>(`/appointments/${appointmentId}/pre-visit-form`, input),
   customerLink: (

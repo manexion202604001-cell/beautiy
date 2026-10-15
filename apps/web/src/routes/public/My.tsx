@@ -73,7 +73,7 @@ export default function My() {
     return (
       <PublicShell header={header}>
         <h1 className="mb-1 text-lg font-semibold">マイページにログイン</h1>
-        <p className="mb-5 text-[13px] text-muted">
+        <p className="mb-5 text-[13px] text-muted-foreground">
           ご予約の確認・変更・キャンセル、お客様情報の変更ができます。
         </p>
         <div className="rounded-2xl border border-border bg-surface p-4">
@@ -141,14 +141,14 @@ function MyPage({
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-xs text-muted">
+          <p className="text-xs text-muted-foreground">
             {session.via === 'line' ? 'LINEでログイン中' : 'ログイン中'}
           </p>
           <h1 className="truncate text-lg font-semibold">
             {p ? `${p.last_name} ${p.first_name}`.trim() || 'お客様' : '…'} 様
           </h1>
           {p ? (
-            <p className="text-xs text-muted">
+            <p className="text-xs text-muted-foreground">
               ご来店 {p.visit_count}回 ・ ポイント {p.point_balance.toLocaleString('ja-JP')}pt
             </p>
           ) : null}
@@ -231,7 +231,7 @@ function AppointmentsTab({
           <p className="text-[15px] font-semibold">
             {formatDateJa(zonedParts(a.startAt, tz).date)} {formatTime(a.startAt, tz)}〜
           </p>
-          <p className="text-xs text-muted">
+          <p className="text-xs text-muted-foreground">
             {a.shopName} ・ {a.staffName ?? '担当未定'}
             {a.isNominated ? '（指名）' : ''}
           </p>
@@ -239,7 +239,7 @@ function AppointmentsTab({
         <StatusBadge status={a.status} size="sm" />
       </div>
       <p className="mt-2 text-[13px]">{a.services.map((s) => s.name).join('、')}</p>
-      <p className="text-xs text-muted">
+      <p className="text-xs text-muted-foreground">
         目安 {formatYen(a.estimatedTotal)} ・ 予約番号 {a.bookingReference}
       </p>
       {!isPast && (a.status === 'tentative' || a.status === 'confirmed') ? (
@@ -272,7 +272,7 @@ function AppointmentsTab({
   return (
     <div className="space-y-6">
       <section>
-        <h2 className="mb-2 text-[13px] font-semibold text-muted">今後のご予約</h2>
+        <h2 className="mb-2 text-[13px] font-semibold text-muted-foreground">今後のご予約</h2>
         {upcoming.isLoading ? <InlineLoading /> : null}
         {upcoming.error ? <ErrorState error={upcoming.error} /> : null}
         {upcoming.data && !upcoming.data.length ? (
@@ -285,9 +285,9 @@ function AppointmentsTab({
         </ul>
       </section>
       <section>
-        <h2 className="mb-2 text-[13px] font-semibold text-muted">これまでのご来店</h2>
+        <h2 className="mb-2 text-[13px] font-semibold text-muted-foreground">これまでのご来店</h2>
         {past.data && !past.data.length ? (
-          <p className="text-[13px] text-muted">履歴はありません</p>
+          <p className="text-[13px] text-muted-foreground">履歴はありません</p>
         ) : null}
         <ul className="space-y-2.5">
           {past.data?.map((a) => (

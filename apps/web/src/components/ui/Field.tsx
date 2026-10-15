@@ -71,7 +71,7 @@ export function Field({
         ...(typeof children.type === 'string' ? {} : { invalid: children.props.invalid ?? !!error }),
       })}
       {hint && !error ? (
-        <p id={hintId} className="text-xs text-muted">
+        <p id={hintId} className="text-xs text-muted-foreground">
           {hint}
         </p>
       ) : null}
@@ -111,7 +111,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
           'py-0',
         )}
       >
-        {leading ? <span className="shrink-0 text-muted">{leading}</span> : null}
+        {leading ? <span className="shrink-0 text-muted-foreground">{leading}</span> : null}
         <input
           ref={ref}
           className={cn(
@@ -120,7 +120,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
           )}
           {...rest}
         />
-        {trailing ? <span className="shrink-0 text-xs text-muted">{trailing}</span> : null}
+        {trailing ? <span className="shrink-0 text-xs text-muted-foreground">{trailing}</span> : null}
       </div>
     );
   }
@@ -156,7 +156,7 @@ export const Select = forwardRef<
         {children}
       </select>
       <svg
-        className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-muted"
+        className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
         width="16"
         height="16"
         viewBox="0 0 24 24"
@@ -193,7 +193,7 @@ export function Checkbox({
       <label htmlFor={inputId} className="cursor-pointer text-sm leading-snug">
         <span className="text-fg">{label}</span>
         {description ? (
-          <span className="mt-0.5 block text-xs text-muted">{description}</span>
+          <span className="mt-0.5 block text-xs text-muted-foreground">{description}</span>
         ) : null}
       </label>
     </div>
@@ -226,7 +226,7 @@ export function Switch({
         <label htmlFor={sid} className="cursor-pointer text-sm font-medium text-fg">
           {label}
         </label>
-        {description ? <p className="mt-0.5 text-xs text-muted">{description}</p> : null}
+        {description ? <p className="mt-0.5 text-xs text-muted-foreground">{description}</p> : null}
       </div>
       <button
         id={sid}
@@ -284,7 +284,7 @@ export function Segmented<T extends string>({
           className={cn(
             'rounded-md font-medium transition-colors disabled:opacity-40',
             size === 'sm' ? 'px-2.5 py-1 text-xs' : 'px-3 py-1.5 text-[13px]',
-            value === o.value ? 'bg-surface text-fg shadow-sm' : 'text-muted hover:text-fg',
+            value === o.value ? 'bg-surface text-fg shadow-sm' : 'text-muted-foreground hover:text-fg',
           )}
         >
           {o.label}

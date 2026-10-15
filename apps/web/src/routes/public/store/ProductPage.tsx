@@ -157,11 +157,11 @@ export default function ProductPage() {
           </div>
         ) : null}
       </div>
-      {p.brand ? <p className="text-xs text-muted">{p.brand}</p> : null}
+      {p.brand ? <p className="text-xs text-muted-foreground">{p.brand}</p> : null}
       <h1 className="text-lg font-semibold leading-snug">{p.name}</h1>
       <p className="mt-2 text-xl font-semibold tabular">
         {formatYen(p.price)}
-        <span className="ml-1 text-xs font-normal text-muted">
+        <span className="ml-1 text-xs font-normal text-muted-foreground">
           （税込・{taxRateText(p.taxRateBp)}）
         </span>
       </p>

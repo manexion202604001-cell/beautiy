@@ -49,7 +49,7 @@ export function NotificationChannels({ token, marketingOptIn }: { token: string;
           </div>
         );
       })}
-      <p className="text-xs text-muted">LINEは友だち追加と連携が済んでいる場合に、メール・SMSはご登録の連絡先にお送りします。</p>
+      <p className="text-xs text-muted-foreground">LINEは友だち追加と連携が済んでいる場合に、メール・SMSはご登録の連絡先にお送りします。</p>
     </div>
   );
 }

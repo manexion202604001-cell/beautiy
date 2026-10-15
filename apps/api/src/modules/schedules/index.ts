@@ -2,6 +2,7 @@ import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { hhmm, idParam, isoDate, isoDateTime, uuid } from '../../lib/schemas.js';
 import { listStaff } from '../org/service.js';
+import { staffReservationSchema } from './calendar.js';
 import * as svc from './service.js';
 
 const tags = ['schedules'];
@@ -47,6 +48,36 @@ const plugin: FastifyPluginAsyncZod = async (app) => {
     },
     (req) => req.tx((ctx) => svc.replaceWeeklySchedule(ctx, req.params.id, req.body.shopId, req.body.rows)),
   );
+
+  // ---------- スタッフ別設定 (スタッフ画面 / 予約受付設定 › スタッフ別設定)
+  const staffDay = z.object({ weekday: z.number().int().min(0).max(6), openTime: hhmm, closeTime: hhmm, isClosed: z.boolean() });
+  app.get('/staff/:id/business-hours', { schema: { tags, summary: 'スタッフ別 営業時間(曜日ごと。未設定なら店舗の営業時間)', params: idParam, querystring: z.object({ shopId: uuid }) } }, (req) =>
+    req.tx((ctx) => svc.getStaffBusinessHours(ctx, req.params.id, req.query.shopId)),
+  );
+  app.put(
+    '/staff/:id/business-hours',
+    { schema: { tags, summary: 'スタッフ別 営業時間の保存(7曜日)', params: idParam, body: z.object({ shopId: uuid, hours: z.array(staffDay).length(7) }) } },
+    (req) => req.tx((ctx) => svc.replaceStaffBusinessHours(ctx, req.params.id, req.body.shopId, req.body.hours)),
+  );
+  app.post('/staff/:id/business-hours/copy-shop', { schema: { tags, summary: 'サロンの営業時間をスタッフに反映', params: idParam, body: z.object({ shopId: uuid }) } }, (req) =>
+    req.tx((ctx) => svc.copyShopHoursToStaff(ctx, req.params.id, req.body.shopId)),
+  );
+  app.get('/staff/:id/reservation-settings', { schema: { tags, summary: 'スタッフ別 予約設定(未設定なら店舗の設定)', params: idParam, querystring: z.object({ shopId: uuid }) } }, (req) =>
+    req.tx((ctx) => svc.getStaffReservationSettings(ctx, req.params.id, req.query.shopId)),
+  );
+  app.put(
+    '/staff/:id/reservation-settings',
+    { schema: { tags, summary: 'スタッフ別 予約設定の保存', params: idParam, body: staffReservationSchema.extend({ shopId: uuid }) } },
+    (req) =>
+      req.tx((ctx) => {
+        const { shopId, ...settings } = req.body;
+        return svc.replaceStaffReservationSettings(ctx, req.params.id, shopId, settings);
+      }),
+  );
+  app.delete('/staff/:id/reservation-settings', { schema: { tags, summary: 'スタッフ別 予約設定を消して店舗の設定に戻す', params: idParam, querystring: z.object({ shopId: uuid }) } }, (req) =>
+    req.tx((ctx) => svc.replaceStaffReservationSettings(ctx, req.params.id, req.query.shopId, null)),
+  );
+  app.get('/shops/:id/staff-settings', { schema: { tags, summary: '個別の営業時間 / 予約設定を持つスタッフ', params: shopParam } }, (req) => req.tx((ctx) => svc.staffSettingsOverview(ctx, req.params.id)));
 
   app.get('/shifts', { schema: { tags, summary: 'シフト表', querystring: z.object({ shopId: uuid, from: isoDate, to: isoDate }) } }, (req) =>
     req.tx((ctx) => svc.listShifts(ctx, req.query.shopId, req.query.from, req.query.to)),

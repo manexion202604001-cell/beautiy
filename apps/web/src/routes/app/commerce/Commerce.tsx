@@ -188,13 +188,13 @@ function ProductsTab() {
                     >
                       {p.name}
                     </button>
-                    <span className="block text-xs text-muted">
+                    <span className="block text-xs text-muted-foreground">
                       {[p.brand, p.category].filter(Boolean).join(' ・ ') || '—'}
                     </span>
                   </Td>
                   <Td className="hidden font-mono text-xs md:table-cell">
                     {p.sku ?? '—'}
-                    <span className="block text-muted">{p.barcode ?? ''}</span>
+                    <span className="block text-muted-foreground">{p.barcode ?? ''}</span>
                   </Td>
                   <Td className="text-right tabular">{formatYen(p.price_inclusive)}</Td>
                   <Td className="text-right tabular">
@@ -207,7 +207,7 @@ function ProductsTab() {
                         {shopStock?.quantity ?? 0} / {ecStock?.quantity ?? 0}
                       </button>
                     ) : (
-                      <span className="text-muted">管理対象外</span>
+                      <span className="text-muted-foreground">管理対象外</span>
                     )}
                   </Td>
                   <Td>
@@ -406,7 +406,7 @@ function LowStockTab() {
               <Tr key={`${r.product_id}-${r.shop_id ?? 'ec'}`}>
                 <Td>
                   {r.name}
-                  <span className="block font-mono text-xs text-muted">{r.sku ?? ''}</span>
+                  <span className="block font-mono text-xs text-muted-foreground">{r.sku ?? ''}</span>
                 </Td>
                 <Td>{r.location}</Td>
                 <Td className="text-right tabular text-danger">{r.quantity}</Td>
@@ -554,11 +554,11 @@ function SalesTab() {
                     <Td className="text-right tabular">{r.quantity}</Td>
                     <Td className="hidden text-right tabular sm:table-cell">
                       {formatYen(r.online.amount)}{' '}
-                      <span className="text-xs text-muted">（{r.online.orders}件）</span>
+                      <span className="text-xs text-muted-foreground">（{r.online.orders}件）</span>
                     </Td>
                     <Td className="hidden text-right tabular sm:table-cell">
                       {formatYen(r.store.amount)}{' '}
-                      <span className="text-xs text-muted">（{r.store.transactions}件）</span>
+                      <span className="text-xs text-muted-foreground">（{r.store.transactions}件）</span>
                     </Td>
                     <Td className="text-right font-medium tabular">{formatYen(r.total)}</Td>
                   </Tr>

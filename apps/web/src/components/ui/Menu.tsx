@@ -121,11 +121,11 @@ export function Menu({
                   it.tone === 'danger' ? 'text-danger' : 'text-fg',
                 )}
               >
-                {it.icon ? <Icon name={it.icon} size={16} className="shrink-0 text-muted" /> : null}
+                {it.icon ? <Icon name={it.icon} size={16} className="shrink-0 text-muted-foreground" /> : null}
                 <span className="min-w-0 flex-1">
                   <span className="block truncate">{it.label}</span>
                   {it.description ? (
-                    <span className="block truncate text-xs text-muted">{it.description}</span>
+                    <span className="block truncate text-xs text-muted-foreground">{it.description}</span>
                   ) : null}
                 </span>
                 {it.checked ? <Icon name="check" size={16} className="text-primary" /> : null}

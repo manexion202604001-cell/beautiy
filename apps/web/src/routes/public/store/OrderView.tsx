@@ -58,7 +58,7 @@ export function OrderView({ order: o, token }: { order: CustomerOrder; token: st
           >
             <Spinner size={28} className="text-primary" />
             <p className="mt-3 text-base font-semibold">決済待ち</p>
-            <p className="mt-1 text-[13px] text-muted">
+            <p className="mt-1 text-[13px] text-muted-foreground">
               お支払いの完了を確認しています。このままお待ちください。
             </p>
             {o.expiresAt ? (
@@ -84,7 +84,7 @@ export function OrderView({ order: o, token }: { order: CustomerOrder; token: st
             <Icon name="check" size={24} />
           </span>
           <p className="text-base font-semibold">ご注文ありがとうございます</p>
-          <p className="mt-1 text-[13px] text-muted">
+          <p className="mt-1 text-[13px] text-muted-foreground">
             {o.status === 'paid'
               ? 'お支払いを確認しました。発送までしばらくお待ちください。'
               : ORDER_STATUS_LABEL[o.status]}
@@ -112,7 +112,7 @@ export function OrderView({ order: o, token }: { order: CustomerOrder; token: st
               <span className="tabular">{formatYen(i.amount)}</span>
             </li>
           ))}
-          <li className="flex justify-between py-1.5 text-muted">
+          <li className="flex justify-between py-1.5 text-muted-foreground">
             <span>送料</span>
             <span className="tabular">{formatYen(o.shippingFee)}</span>
           </li>
@@ -123,9 +123,9 @@ export function OrderView({ order: o, token }: { order: CustomerOrder; token: st
             </span>
           </li>
         </ul>
-        <p className="mt-1 text-xs text-muted">うち消費税 {formatYen(o.taxTotal)}</p>
+        <p className="mt-1 text-xs text-muted-foreground">うち消費税 {formatYen(o.taxTotal)}</p>
         {addr ? (
-          <p className="mt-3 whitespace-pre-line text-xs text-muted">
+          <p className="mt-3 whitespace-pre-line text-xs text-muted-foreground">
             {`お届け先: 〒${addr.postalCode} ${addr.prefecture}${addr.city}${addr.line1}${addr.line2 ? ` ${addr.line2}` : ''}\n${addr.name} 様`}
           </p>
         ) : null}

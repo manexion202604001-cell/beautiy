@@ -237,6 +237,15 @@ describe('customer form links (事前入力)', () => {
     expect(view.body.appointment.startAt).toBe(appt.start_at);
     expect(JSON.stringify(view.body)).not.toContain('phone');
 
+    // the reservation screen asks for a link every time it opens: the waiting form is reused, both links work
+    const again = await reception.api.post(`/v1/appointments/${appt.id}/pre-visit-form`, { templateId: preVisit.id, notify: false, reusePending: true });
+    expect(again.status).toBe(201);
+    expect(again.body.responseId).toBe(link.body.responseId);
+    expect(again.body.url).not.toBe(link.body.url);
+    expect((await api().get(`/v1/public/forms/${again.body.url.split('/').pop()}`)).status).toBe(200);
+    // nothing submitted yet → not marked as consented
+    expect((await t.owner.get(`/v1/appointments/${appt.id}`)).body.has_consent).toBe(false);
+
     // invalid answers do not consume the link
     const bad = await api().post(`/v1/public/forms/${token}`, { answers: { conversation: '歌いたい' } });
     expect(bad.status).toBe(400);
@@ -252,6 +261,10 @@ describe('customer form links (事前入力)', () => {
 
     const resp = await t.owner.get(`/v1/form-responses/${submit.body.responseId}`);
     expect(resp.body).toMatchObject({ status: 'submitted', submitted_via: 'customer_link', appointment_id: appt.id, shop_id: t.shopId });
+    // the reservation now shows as consented, in the detail and in the calendar list
+    expect((await t.owner.get(`/v1/appointments/${appt.id}`)).body.has_consent).toBe(true);
+    const listed = await t.owner.get('/v1/appointments', { shopId: t.shopId, customerId: c.id });
+    expect(listed.body.find((a: { id: string }) => a.id === appt.id).has_consent).toBe(true);
     expect(resp.body.ip).toBeTruthy();
     const customer = await t.owner.get(`/v1/customers/${c.id}`);
     expect(customer.body.attributes).toMatchObject({ allergies: 'ジアミン', hair_concerns: ['広がり', 'ダメージ'] });

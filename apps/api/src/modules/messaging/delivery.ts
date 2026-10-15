@@ -108,7 +108,7 @@ export async function prepareDelivery(ctx: Ctx, msg: MessageRow, now: Date): Pro
 
   const shop = await loadShop(ctx, msg.shop_id ?? customer.primary_shop_id);
   const tz = shop?.timezone ?? (await orgTimezone(ctx));
-  if (marketing) {
+  if (marketing && clock.quietHours) {
     const until = quietHoursUntil(now, tz);
     if (until) return { kind: 'defer', until };
   }

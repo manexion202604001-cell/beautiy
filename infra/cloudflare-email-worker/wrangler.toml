@@ -1,0 +1,11 @@
+# Cloudflare Email Worker for Salon OS (docs/go-live.md 「メール受信」).
+# The per-shop inbound URLs are secret (they contain the connector token): set them with
+#   npx wrangler secret put ROUTES
+# as JSON, e.g. {"hpb-omotesando": "https://<Salon OS>/v1/webhooks/inbound_email/<token>"}
+name = "salon-os-email"
+main = "src/index.js"
+compatibility_date = "2026-09-01"
+
+[vars]
+# optional: also forward every mail to this (verified) address, as a safety copy
+# BACKUP_TO = "owner@example.com"

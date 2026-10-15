@@ -124,7 +124,7 @@ export default function Reviews() {
                   {summary.data.average?.toFixed(2) ?? '—'}
                 </p>
                 <Stars value={summary.data.average} size={18} />
-                <p className="mt-1 text-xs text-muted">公開 {summary.data.count}件</p>
+                <p className="mt-1 text-xs text-muted-foreground">公開 {summary.data.count}件</p>
               </div>
               <div className="min-w-0 flex-1">
                 <RatingBars distribution={summary.data.distribution} count={summary.data.count} />
@@ -337,12 +337,12 @@ function ReviewItem({ r, manage }: { r: Review; manage: boolean }) {
           </div>
           {r.title ? <p className="mt-1 text-sm font-semibold">{r.title}</p> : null}
         </div>
-        <p className="text-xs text-muted">{formatDateTime(r.posted_at, tz)}</p>
+        <p className="text-xs text-muted-foreground">{formatDateTime(r.posted_at, tz)}</p>
       </div>
       {r.body ? (
         <p className="mt-2 whitespace-pre-wrap text-[13px] leading-relaxed">{r.body}</p>
       ) : null}
-      <p className="mt-2 text-xs text-muted">
+      <p className="mt-2 text-xs text-muted-foreground">
         {r.reviewer_name ?? '匿名'}
         {r.customer_name ? `（顧客: ${r.customer_name}）` : ''}
         {r.staff_name ? ` ・ 担当 ${r.staff_name}` : ''}
@@ -350,7 +350,7 @@ function ReviewItem({ r, manage }: { r: Review; manage: boolean }) {
       </p>
       {r.reply_body && !replying ? (
         <div className="mt-3 rounded-xl bg-surface-2 p-3 text-[13px]">
-          <p className="mb-1 text-xs font-medium text-muted">
+          <p className="mb-1 text-xs font-medium text-muted-foreground">
             お店からの返信 {r.replied_at ? `・ ${formatDateTime(r.replied_at, tz)}` : ''}
             {r.source === 'google'
               ? r.reply_synced_at
@@ -439,8 +439,8 @@ function RequestsList({ shopId }: { shopId?: string }) {
           <li key={r.id} className="flex items-center gap-3 px-4 py-3 text-[13px]">
             <span className="min-w-0 flex-1">
               <span className="font-medium">{r.customer_name || '—'}</span>
-              {r.staff_name ? <span className="text-muted"> ・ 担当 {r.staff_name}</span> : null}
-              <span className="block text-xs text-muted">
+              {r.staff_name ? <span className="text-muted-foreground"> ・ 担当 {r.staff_name}</span> : null}
+              <span className="block text-xs text-muted-foreground">
                 発行 {formatDateTime(r.created_at, tz)}
                 {r.expires_at ? ` ・ 期限 ${formatDateTime(r.expires_at, tz)}` : ''}
               </span>

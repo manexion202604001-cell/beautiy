@@ -85,7 +85,7 @@ export function StaffCreateDialog({ onClose }: { onClose: () => void }) {
       if (res.inviteUrl) setInvite({ url: inviteLink(res.inviteUrl), staffId: res.staff.id });
       else {
         onClose();
-        navigate(`/app/staff/${res.staff.id}`);
+        navigate(`/app/staff-classic/${res.staff.id}`);
       }
     } catch (e) {
       setError(errorMessage(e));
@@ -103,7 +103,7 @@ export function StaffCreateDialog({ onClose }: { onClose: () => void }) {
         description="このリンクをスタッフに送ってください。7日間有効です。リンクからパスワードを設定するとログインできます。"
         footer={
           <>
-            <Button variant="ghost" onClick={() => navigate(`/app/staff/${invite.staffId}`)}>
+            <Button variant="ghost" onClick={() => navigate(`/app/staff-classic/${invite.staffId}`)}>
               スタッフ詳細へ
             </Button>
             <Button
@@ -253,7 +253,7 @@ export function StaffCreateDialog({ onClose }: { onClose: () => void }) {
               ) : null}
             </div>
           ) : (
-            <p className="mt-2 text-xs text-muted">
+            <p className="mt-2 text-xs text-muted-foreground">
               カレンダーに表示するだけのスタッフ（業務委託など）向けです。
             </p>
           )}
@@ -286,7 +286,7 @@ export function StaffCreateDialog({ onClose }: { onClose: () => void }) {
             onChange={(e) => set('isBookable', e.target.checked)}
           />
           <div>
-            <p className="mb-1.5 text-xs text-muted">カレンダーの色</p>
+            <p className="mb-1.5 text-xs text-muted-foreground">カレンダーの色</p>
             <div className="flex gap-1.5" role="radiogroup" aria-label="カレンダーの色">
               {COLORS.map((c) => (
                 <button

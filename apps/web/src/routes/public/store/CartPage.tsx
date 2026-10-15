@@ -27,7 +27,7 @@ export default function CartPage() {
           <div className="fixed inset-x-0 bottom-0 border-t border-border bg-surface/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur">
             <div className="mx-auto flex max-w-xl items-center gap-3">
               <div className="min-w-0 flex-1">
-                <p className="text-xs text-muted">小計（{cartCount(cart)}点・税込）</p>
+                <p className="text-xs text-muted-foreground">小計（{cartCount(cart)}点・税込）</p>
                 <p className="text-lg font-semibold tabular" data-testid="cart-subtotal">
                   {formatYen(cartSubtotal(cart))}
                 </p>
@@ -113,7 +113,7 @@ export default function CartPage() {
               </li>
             ))}
           </ul>
-          <p className="mt-4 text-xs text-muted">
+          <p className="mt-4 text-xs text-muted-foreground">
             送料はご注文時に計算されます。価格・在庫は注文確定時に再確認されます。
           </p>
           <Link to={`/store/${shopSlug}`} className="mt-4 inline-block text-[13px] text-primary">

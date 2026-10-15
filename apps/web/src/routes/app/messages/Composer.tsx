@@ -95,7 +95,7 @@ export const Composer = forwardRef<
   });
 
   if (!can('message.send')) {
-    return <p className="border-t border-border px-4 py-3 text-[13px] text-muted">メッセージを送信する権限がありません。</p>;
+    return <p className="border-t border-border px-4 py-3 text-[13px] text-muted-foreground">メッセージを送信する権限がありません。</p>;
   }
 
   return (
@@ -162,7 +162,7 @@ export const Composer = forwardRef<
       </Field>
       {showPreview && text.trim() ? (
         <div className="rounded-lg border border-dashed border-border bg-surface-2 px-3 py-2 text-[13px]">
-          <p className="mb-1 text-xs font-medium text-muted">プレビュー（このお客様の情報で表示）</p>
+          <p className="mb-1 text-xs font-medium text-muted-foreground">プレビュー（このお客様の情報で表示）</p>
           <p className="whitespace-pre-wrap text-fg">{preview.data?.body ?? (preview.isFetching ? '…' : '')}</p>
           {preview.data?.unknownVariables.length ? (
             <p className="mt-1 text-xs text-warning">不明な変数: {preview.data.unknownVariables.join(', ')}</p>

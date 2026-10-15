@@ -55,7 +55,7 @@ export default function OrderStatus() {
         <Link to={`/my/${shopSlug}?tab=orders`} className="text-primary">
           注文履歴を見る
         </Link>
-        <Link to={`/store/${shopSlug}`} className="text-muted">
+        <Link to={`/store/${shopSlug}`} className="text-muted-foreground">
           ストアに戻る
         </Link>
       </div>

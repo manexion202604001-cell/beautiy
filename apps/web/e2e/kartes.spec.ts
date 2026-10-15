@@ -66,6 +66,16 @@ test('kartes & forms: karte with photo → share page; staff consent with signat
   await customerLink.click();
   await expect(page).toHaveURL(/\/app\/customers\/.*tab=kartes/);
   await expect(page.getByRole('tab', { name: 'カルテ', selected: true })).toBeVisible();
+  // the karte just written is listed on the customer screen and opens as カルテ詳細
+  await page.locator('[data-karte]').first().click();
+  await expect(page.getByRole('heading', { name: 'カルテ詳細' })).toBeVisible();
+  await expect(page.getByText('くびれミディ')).toBeVisible();
+  await expect(page.getByText('ストレートA')).toBeVisible();
+  await page.getByRole('button', { name: '戻る', exact: true }).click();
+  await expect(page.getByRole('tablist', { name: '顧客情報' })).toBeVisible();
+  // signed documents (同意書・事前問診) are on the previous customer screen, one link away
+  await page.getByTestId('customer-classic-link').click();
+  await expect(page).toHaveURL(/\/app\/customers-classic\//);
   await page.getByRole('tab', { name: '書類' }).click();
   await page.getByRole('button', { name: '店頭で記入・署名' }).click();
   const fill = page.getByRole('dialog', { name: 'フォームに記入' });

@@ -87,7 +87,7 @@ export function ChannelPreferencesCard({ customerId }: { customerId: string }) {
             <table className="w-full text-[13px]">
               <caption className="sr-only">チャネル別の同意</caption>
               <thead>
-                <tr className="text-xs text-muted">
+                <tr className="text-xs text-muted-foreground">
                   <th scope="col" className="py-1 text-left font-medium">チャネル</th>
                   <th scope="col" className="py-1 text-center font-medium">販促</th>
                   <th scope="col" className="py-1 text-center font-medium">予約通知</th>
@@ -127,7 +127,7 @@ export function ChannelPreferencesCard({ customerId }: { customerId: string }) {
                 })}
               </tbody>
             </table>
-            <p className="mt-2 text-xs text-muted">変更は監査ログに記録されます。</p>
+            <p className="mt-2 text-xs text-muted-foreground">変更は監査ログに記録されます。</p>
           </div>
         </div>
       ) : null}
@@ -193,7 +193,7 @@ export function LineLinkCard({ customerId }: { customerId: string }) {
                   コピー
                 </Button>
               </div>
-              <p className="text-xs text-muted">有効期限: {formatDateTime(result.expiresAt)}</p>
+              <p className="text-xs text-muted-foreground">有効期限: {formatDateTime(result.expiresAt)}</p>
             </div>
           </div>
         ) : null}
@@ -229,7 +229,7 @@ function AiSummaryCard({ customerId }: { customerId: string }) {
           </p>
         </div>
       ) : (
-        <p className="text-[13px] text-muted">ボタンを押すと要約を作成します。</p>
+        <p className="text-[13px] text-muted-foreground">ボタンを押すと要約を作成します。</p>
       )}
     </Card>
   );

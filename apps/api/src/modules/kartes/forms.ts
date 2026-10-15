@@ -57,7 +57,7 @@ export interface TemplateSnapshot {
 const MAX_SIGNATURE_BYTES = 1024 * 1024;
 const INVALID_LINK = () => Errors.unauthenticated('リンクが無効か有効期限が切れています', 'INVALID_LINK');
 
-function snapshotOf(t: FormTemplateRow): TemplateSnapshot {
+export function snapshotOf(t: FormTemplateRow): TemplateSnapshot {
   return {
     templateId: t.id,
     lineageId: t.lineage_id,
@@ -171,7 +171,10 @@ export async function updateFormTemplate(ctx: Ctx, id: string, input: UpdateForm
     (input.bodyMarkdown !== undefined && input.bodyMarkdown !== before.body_markdown) ||
     (input.requiresSignature !== undefined && input.requiresSignature !== before.requires_signature);
 
-  const used = await ctx.trx.selectFrom('form_responses').select('id').where('template_id', '=', id).limit(1).executeTakeFirst();
+  // answered on a form response, or agreed to at the walk-in reception (kept on the intake until it is linked)
+  const used =
+    (await ctx.trx.selectFrom('form_responses').select('id').where('template_id', '=', id).limit(1).executeTakeFirst()) ??
+    (await ctx.trx.selectFrom('walkin_intakes').select('id').where('consent_template_id', '=', id).limit(1).executeTakeFirst());
 
   if (contentChanged && used && before.status !== 'draft') {
     const newId = randomUUID();
@@ -263,7 +266,7 @@ async function resolveSignatureFile(ctx: Ctx, sig: { dataUrl?: string; fileId?: 
 }
 
 /** Validate answers, store the signature, compute the tamper-evidence hash → columns of a submitted response */
-async function prepareSubmission(ctx: Ctx, snapshot: TemplateSnapshot, rawAnswers: Record<string, unknown>, signature: { dataUrl?: string; fileId?: string; signerName: string } | undefined) {
+export async function prepareSubmission(ctx: Ctx, snapshot: TemplateSnapshot, rawAnswers: Record<string, unknown>, signature: { dataUrl?: string; fileId?: string; signerName: string } | undefined) {
   const answers = validateFieldValues(snapshot.fields, rawAnswers);
   if (snapshot.requiresSignature && !signature) throw Errors.business('SIGNATURE_REQUIRED', 'この書類には署名が必要です');
   const sigFile = signature ? await resolveSignatureFile(ctx, signature) : null;
@@ -312,7 +315,7 @@ async function applyAttributeMappings(ctx: Ctx, customerId: string, fields: Form
   await audit(ctx, { action: 'customer.attributes_from_form', resourceType: 'customer', resourceId: customerId, after: patch, metadata: { formResponseId: responseId } });
 }
 
-async function afterSubmit(ctx: Ctx, row: FormResponseRow, answers: FieldValues) {
+export async function afterSubmit(ctx: Ctx, row: FormResponseRow, answers: FieldValues) {
   const snapshot = asSnapshot(row.template_snapshot);
   await applyAttributeMappings(ctx, row.customer_id, snapshot.fields, answers, row.id);
   await audit(ctx, {
@@ -384,7 +387,22 @@ async function issueFormLink(ctx: Ctx, args: { customerId: string; appointment: 
   const template = await activeTemplate(ctx, args.input.templateId);
   const shopId = args.appointment?.shop_id ?? template.shop_id ?? ctx.meta.currentShopId ?? (ctx.actor.kind === 'staff' ? (ctx.actor.shopIds[0] ?? null) : null);
   const snapshot = snapshotOf(template);
-  const pending = await ctx.trx
+  // the reservation screen shows the QR every time it opens: keep one waiting form per visit
+  const waiting =
+    args.input.reusePending && args.appointment
+      ? await ctx.trx
+          .selectFrom('form_responses')
+          .selectAll()
+          .where('appointment_id', '=', args.appointment.id)
+          .where('template_id', '=', template.id)
+          .where('template_version', '=', template.version)
+          .where('status', '=', 'pending')
+          .orderBy('created_at', 'desc')
+          .executeTakeFirst()
+      : undefined;
+  const pending =
+    waiting ??
+    (await ctx.trx
     .insertInto('form_responses')
     .values({
       organization_id: ctx.actor.organizationId,
@@ -398,7 +416,7 @@ async function issueFormLink(ctx: Ctx, args: { customerId: string; appointment: 
       created_by: auditUserId(ctx.actor),
     })
     .returningAll()
-    .executeTakeFirstOrThrow();
+    .executeTakeFirstOrThrow());
 
   // default lifetime: until the day after the appointment, otherwise 7 days
   let ttlSec = (args.input.expiresInDays ?? 7) * 86_400;

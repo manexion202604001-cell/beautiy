@@ -153,7 +153,7 @@ export function CustomerPicker({
               </Badge>
             ) : null}
           </p>
-          <p className="truncate text-xs text-muted">
+          <p className="truncate text-xs text-muted-foreground">
             {[value.kana, value.phone].filter(Boolean).join(' ・ ') || '連絡先未登録'}
           </p>
         </div>
@@ -178,7 +178,7 @@ export function CustomerPicker({
             >
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">{c.displayName}</p>
-                <p className="truncate text-xs text-muted">
+                <p className="truncate text-xs text-muted-foreground">
                   {[
                     c.phone,
                     c.birthday && formatDate(c.birthday, undefined, { weekday: false }),
@@ -341,7 +341,7 @@ export function CustomerPicker({
               className={cn('cursor-pointer px-3 py-2', i === active && 'bg-surface-2')}
             >
               <p className="text-sm font-medium text-fg">{c.display_name || '（氏名未登録）'}</p>
-              <p className="text-xs text-muted">
+              <p className="text-xs text-muted-foreground">
                 {[
                   `${c.last_name_kana} ${c.first_name_kana}`.trim(),
                   c.phone,
@@ -355,7 +355,7 @@ export function CustomerPicker({
             </li>
           ))}
           {!results.isFetching && items.length === 0 ? (
-            <li className="px-3 py-2 text-[13px] text-muted">該当する顧客が見つかりません</li>
+            <li className="px-3 py-2 text-[13px] text-muted-foreground">該当する顧客が見つかりません</li>
           ) : null}
         </ul>
       ) : null}

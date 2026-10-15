@@ -3,7 +3,7 @@ import type { Permission } from '../../auth/permissions.js';
 /**
  * File purposes, allowed content types and size limits (要件 21: object storage, DB keeps metadata only).
  */
-export const FILE_PURPOSES = ['karte_photo', 'sketch', 'signature', 'product_image', 'staff_photo', 'document', 'sns_asset', 'export'] as const;
+export const FILE_PURPOSES = ['karte_photo', 'sketch', 'signature', 'product_image', 'staff_photo', 'menu_image', 'document', 'sns_asset', 'export'] as const;
 export type FilePurpose = (typeof FILE_PURPOSES)[number];
 
 const MB = 1024 * 1024;
@@ -39,6 +39,8 @@ export const PURPOSE_POLICIES: Record<FilePurpose, PurposePolicy> = {
   signature: { contentTypes: ['image/png'], maxBytes: 1 * MB, writePermissions: ['karte.write', 'form.manage'], label: '署名' },
   product_image: { contentTypes: IMAGE_TYPES, maxBytes: 10 * MB, writePermissions: ['product.manage'], label: '商品画像' },
   staff_photo: { contentTypes: IMAGE_TYPES, maxBytes: 10 * MB, writePermissions: ['staff.manage'], label: 'スタッフ写真' },
+  // menu / coupon photo shown on the menu screens: browser-displayable formats only
+  menu_image: { contentTypes: ['image/jpeg', 'image/png', 'image/webp'], maxBytes: 10 * MB, writePermissions: ['menu.manage'], label: 'メニュー画像' },
   document: { contentTypes: ['application/pdf', ...IMAGE_TYPES], maxBytes: 20 * MB, writePermissions: ['karte.write', 'form.manage'], label: '書類' },
   sns_asset: { contentTypes: [...IMAGE_TYPES, 'video/mp4', 'video/quicktime'], maxBytes: 100 * MB, writePermissions: ['marketing.manage'], label: 'SNS素材' },
   export: { contentTypes: ['text/csv', 'application/zip', 'application/pdf'], maxBytes: 200 * MB, writePermissions: ['export.data'], label: 'エクスポート' },

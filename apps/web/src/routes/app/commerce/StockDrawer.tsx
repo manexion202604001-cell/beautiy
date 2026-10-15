@@ -184,7 +184,7 @@ export function StockDrawer({
               })}
               {!q.data.locations.length ? (
                 <Tr>
-                  <Td colSpan={3} className="text-muted">
+                  <Td colSpan={3} className="text-muted-foreground">
                     在庫の記録はまだありません
                   </Td>
                 </Tr>
@@ -267,7 +267,7 @@ export function StockDrawer({
                   <li key={m.id} className="flex items-center gap-3 px-3 py-2">
                     <span className="min-w-0 flex-1">
                       {STOCK_REASON_LABEL[m.reason] ?? m.reason} ・ {m.shop_name ?? 'EC倉庫'}
-                      {m.note ? <span className="text-muted"> ・ {m.note}</span> : null}
+                      {m.note ? <span className="text-muted-foreground"> ・ {m.note}</span> : null}
                       <span className="block text-xs text-subtle">
                         {formatDateTime(m.created_at, tz)}
                       </span>
@@ -282,7 +282,7 @@ export function StockDrawer({
                 ))}
               </ul>
             ) : (
-              <p className="text-[13px] text-muted">履歴はありません</p>
+              <p className="text-[13px] text-muted-foreground">履歴はありません</p>
             )}
           </section>
         </div>

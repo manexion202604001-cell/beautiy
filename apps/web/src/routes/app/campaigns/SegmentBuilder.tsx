@@ -67,7 +67,7 @@ export function SegmentBuilder({
         disabled={disabled}
       />
       {value.items.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-border px-4 py-6 text-center text-[13px] text-muted">
+        <p className="rounded-xl border border-dashed border-border px-4 py-6 text-center text-[13px] text-muted-foreground">
           条件を追加してください。条件なしでは対象者を決められません。
         </p>
       ) : null}
@@ -126,7 +126,7 @@ function MatchPicker({
 }) {
   return (
     <div className={cn('flex flex-wrap items-center gap-2 text-[13px]', compact && 'text-xs')}>
-      <span className="text-muted">次の条件の</span>
+      <span className="text-muted-foreground">次の条件の</span>
       <Select
         selectSize="sm"
         aria-label={label}
@@ -299,7 +299,7 @@ function NumberInput({
         onChange={(e) => onChange(e.target.value === '' ? undefined : Number(e.target.value))}
         disabled={disabled}
       />
-      {suffix ? <span className="text-muted">{suffix}</span> : null}
+      {suffix ? <span className="text-muted-foreground">{suffix}</span> : null}
     </label>
   );
 }
@@ -319,7 +319,7 @@ function ChipSelect({
   disabled?: boolean;
   empty?: string;
 }) {
-  if (!options.length) return <p className="text-xs text-muted">{empty ?? '選択肢がありません'}</p>;
+  if (!options.length) return <p className="text-xs text-muted-foreground">{empty ?? '選択肢がありません'}</p>;
   return (
     <div role="group" aria-label={label} className="flex flex-wrap gap-1.5">
       {options.map((o) => {
@@ -333,7 +333,7 @@ function ChipSelect({
             onClick={() => onChange(on ? value.filter((v) => v !== o.id) : [...value, o.id])}
             className={cn(
               'inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs transition-colors disabled:opacity-50',
-              on ? 'border-primary bg-primary-soft text-primary' : 'border-border bg-surface text-muted hover:text-fg',
+              on ? 'border-primary bg-primary-soft text-primary' : 'border-border bg-surface text-muted-foreground hover:text-fg',
             )}
           >
             {o.color ? <span className="h-2 w-2 rounded-full" style={{ background: o.color }} aria-hidden /> : null}
@@ -378,7 +378,7 @@ function ConditionParams({
     case 'first_visit_within_days_without_return':
       return (
         <Row>
-          <span className="text-muted">初回来店から</span>
+          <span className="text-muted-foreground">初回来店から</span>
           <NumberInput label="日数" value={cond.days} onChange={(n) => onChange({ ...cond, days: n ?? 0 })} suffix="日" disabled={disabled} />
           <Select
             selectSize="sm"
@@ -396,7 +396,7 @@ function ConditionParams({
     case 'ltv_top_percent':
       return (
         <Row>
-          <span className="text-muted">上位</span>
+          <span className="text-muted-foreground">上位</span>
           <NumberInput label="割合" value={cond.percent} min={0.1} step={0.1} onChange={(n) => onChange({ ...cond, percent: n ?? 0 })} suffix="%" disabled={disabled} />
         </Row>
       );
@@ -412,7 +412,7 @@ function ConditionParams({
             disabled={disabled}
           />
           <Row>
-            <span className="text-muted">期間</span>
+            <span className="text-muted-foreground">期間</span>
             <NumberInput label="期間（日）" optional value={cond.withinDays} onChange={(n) => onChange({ ...cond, withinDays: n })} suffix="日以内（空欄=全期間）" disabled={disabled} />
           </Row>
         </div>
@@ -495,7 +495,7 @@ function ConditionParams({
     case 'no_review':
       return (
         <Row>
-          <span className="text-muted">直近</span>
+          <span className="text-muted-foreground">直近</span>
           <NumberInput label="期間（日）" optional value={cond.withinDays} onChange={(n) => onChange({ ...cond, withinDays: n })} suffix="日（空欄=これまで一度も）" disabled={disabled} />
         </Row>
       );
@@ -517,7 +517,7 @@ function ConditionParams({
       );
     case 'no_future_appointment':
     case 'has_future_appointment':
-      return <p className="pt-1 text-xs text-muted">追加の設定はありません。</p>;
+      return <p className="pt-1 text-xs text-muted-foreground">追加の設定はありません。</p>;
   }
 }
 
@@ -536,7 +536,7 @@ export function SegmentPreview({ state, shopId, compact }: { state: BuilderState
   return (
     <div className="space-y-3" aria-live="polite">
       <div className="rounded-2xl border border-border bg-surface-2/60 p-4">
-        <p className="text-xs text-muted">対象人数（現在の条件）</p>
+        <p className="text-xs text-muted-foreground">対象人数（現在の条件）</p>
         <p className="mt-1 text-3xl font-semibold tracking-tight text-fg" data-testid="segment-count">
           {!rule ? '—' : q.data ? `${q.data.count.toLocaleString('ja-JP')}人` : '…'}
         </p>

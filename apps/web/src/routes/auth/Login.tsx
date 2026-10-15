@@ -1,10 +1,11 @@
 import { useState, type FormEvent } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router';
 import type { OrgRef } from '../../api/types';
-import { Alert, Button, Field, Icon, Input } from '../../components/ui';
+import { ChevronRight } from 'lucide-react';
+import { Button, Input, Label } from '../../components/shad';
 import { errorMessage } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
-import { AuthShell } from './AuthShell';
+import { AuthCard, AuthError } from './AuthCard';
 
 type Step =
   | { kind: 'credentials' }
@@ -77,126 +78,117 @@ export default function Login() {
 
   if (step.kind === 'organization') {
     return (
-      <AuthShell
-        title="法人を選択"
-        subtitle="複数の法人に所属しています。ログインする法人を選んでください。"
-      >
-        {error ? (
-          <Alert tone="danger" className="mb-4">
-            {error}
-          </Alert>
-        ) : null}
-        <ul className="space-y-2">
-          {step.organizations.map((o) => (
-            <li key={o.id}>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={(e) => submitCredentials(e as unknown as FormEvent, o.id)}
-                className="flex w-full items-center justify-between rounded-xl border border-border bg-surface px-4 py-3 text-left hover:border-primary hover:bg-primary-soft/40 disabled:opacity-60"
-              >
-                <span>
-                  <span className="block text-sm font-medium text-fg">{o.name}</span>
-                  <span className="block text-xs text-muted">{o.slug}</span>
-                </span>
-                <Icon name="chevron-right" className="text-muted" />
-              </button>
-            </li>
-          ))}
-        </ul>
-        <Button variant="ghost" className="mt-4" onClick={() => setStep({ kind: 'credentials' })}>
-          戻る
-        </Button>
-      </AuthShell>
+      <AuthCard description="ログインする法人を選んでください">
+        <div className="sy-4">
+          {error ? <AuthError>{error}</AuthError> : null}
+          <ul className="sy-2">
+            {step.organizations.map((o) => (
+              <li key={o.id}>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={(e) => submitCredentials(e as unknown as FormEvent, o.id)}
+                  className="flex w-full items-center justify-between rounded-lg border p-4 text-left transition-colors hover:bg-muted/50 disabled:opacity-50"
+                >
+                  <span>
+                    <span className="block text-sm font-medium">{o.name}</span>
+                    <span className="block text-xs text-muted-foreground">{o.slug}</span>
+                  </span>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </button>
+              </li>
+            ))}
+          </ul>
+          <div className="text-center">
+            <button
+              type="button"
+              className="text-sm text-muted-foreground hover:underline"
+              onClick={() => setStep({ kind: 'credentials' })}
+            >
+              ログインに戻る
+            </button>
+          </div>
+        </div>
+      </AuthCard>
     );
   }
 
   if (step.kind === 'mfa') {
     return (
-      <AuthShell
-        title="確認コードを入力"
-        subtitle={`${step.destination} に6桁のコードを送信しました（10分間有効）。`}
-      >
-        <form onSubmit={submitMfa} className="space-y-4" noValidate>
-          {error ? <Alert tone="danger">{error}</Alert> : null}
+      <AuthCard description="確認コードを入力">
+        <form onSubmit={submitMfa} className="sy-4" noValidate>
+          <p className="text-sm text-muted-foreground">
+            {step.destination} に6桁のコードを送信しました（10分間有効）。
+          </p>
+          {error ? <AuthError>{error}</AuthError> : null}
           {step.devCode ? (
-            <Alert tone="info" title="開発モード">
-              確認コード: <span className="font-mono font-semibold tabular">{step.devCode}</span>
-            </Alert>
+            <p className="text-sm text-muted-foreground">
+              開発モードの確認コード: <span className="font-mono font-semibold">{step.devCode}</span>
+            </p>
           ) : null}
-          <Field label="確認コード" required>
+          <div className="sy-2">
+            <Label htmlFor="code">確認コード</Label>
             <Input
+              id="code"
               inputMode="numeric"
               autoComplete="one-time-code"
               maxLength={6}
               value={code}
               onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
-              inputSize="lg"
-              className="text-center font-mono text-xl tracking-[0.5em]"
               autoFocus
             />
-          </Field>
-          <Button type="submit" variant="primary" size="lg" className="w-full" loading={busy}>
+          </div>
+          <Button type="submit" className="w-full" disabled={busy}>
             確認してログイン
           </Button>
-          <Button
-            variant="ghost"
-            className="w-full"
-            onClick={() => setStep({ kind: 'credentials' })}
-          >
-            戻る
-          </Button>
+          <div className="text-center">
+            <button
+              type="button"
+              className="text-sm text-muted-foreground hover:underline"
+              onClick={() => setStep({ kind: 'credentials' })}
+            >
+              ログインに戻る
+            </button>
+          </div>
         </form>
-      </AuthShell>
+      </AuthCard>
     );
   }
 
   return (
-    <AuthShell
-      title="ログイン"
-      subtitle="スタッフアカウントでログインしてください。"
-      footer={
-        <>
-          はじめてご利用ですか？{' '}
-          <Link to="/signup" className="font-medium text-primary hover:underline">
-            新規法人登録
-          </Link>
-        </>
-      }
-    >
-      <form onSubmit={(e) => submitCredentials(e)} className="space-y-4" noValidate>
-        {error ? <Alert tone="danger">{error}</Alert> : null}
-        <Field label="メールアドレス" required>
+    <AuthCard description="スタッフ用管理画面にログイン">
+      <form onSubmit={(e) => submitCredentials(e)} className="sy-4" noValidate>
+        <div className="sy-2">
+          <Label htmlFor="email">メールアドレス または ログインID</Label>
           <Input
-            type="email"
+            id="email"
+            type="text"
             autoComplete="username"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            inputSize="lg"
-            autoFocus
-            placeholder="you@example.com"
+            placeholder="email@example.com または owner_xxxxx"
           />
-        </Field>
-        <Field label="パスワード" required>
+        </div>
+        <div className="sy-2">
+          <Label htmlFor="password">パスワード</Label>
           <Input
+            id="password"
             type="password"
             autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            inputSize="lg"
           />
-        </Field>
-        <Button type="submit" variant="primary" size="lg" className="w-full" loading={busy}>
+        </div>
+        {error ? <AuthError>{error}</AuthError> : null}
+        <Button type="submit" className="w-full" disabled={busy}>
           ログイン
         </Button>
+        <div className="text-center">
+          <Link to="/forgot-password" className="text-sm text-muted-foreground hover:underline">
+            パスワードを忘れた方
+          </Link>
+        </div>
       </form>
-      {import.meta.env.DEV ? (
-        <p className="mt-6 rounded-lg bg-surface-2 px-3 py-2 text-xs text-muted">
-          開発用: <span className="font-mono">owner@example.com</span> /{' '}
-          <span className="font-mono">password-1234</span>（
-          <span className="font-mono">pnpm --filter @salon/api db:seed</span>）
-        </p>
-      ) : null}
-    </AuthShell>
+    </AuthCard>
   );
 }

@@ -24,6 +24,7 @@ export const customerListColumns = [
   'customers.email',
   'customers.primary_shop_id',
   'customers.primary_staff_id',
+  'customers.acquisition_source',
   'customers.first_visit_at',
   'customers.last_visit_at',
   'customers.visit_count',
@@ -35,6 +36,18 @@ export const customerListColumns = [
   'customers.marketing_opt_in',
   'customers.created_at',
 ] as const;
+
+/**
+ * 'line' = the record was created from a LINE friend and still carries the LINE display name
+ * instead of a real name (no family name, no reading, given name = LINE display name).
+ */
+export function nameSource(
+  c: { last_name: string; first_name: string; last_name_kana: string; first_name_kana: string },
+  lineDisplayNames: readonly (string | null)[],
+): 'line' | null {
+  if (c.last_name || c.last_name_kana || c.first_name_kana || !c.first_name) return null;
+  return lineDisplayNames.some((n) => n === c.first_name) ? 'line' : null;
+}
 
 export function displayName(c: { last_name: string; first_name: string; last_name_kana?: string; first_name_kana?: string }) {
   const name = `${c.last_name} ${c.first_name}`.trim();
@@ -94,6 +107,10 @@ export async function searchCustomers(ctx: Ctx, input: SearchCustomersInput) {
   }
   if (input.birthdayMonth) q = q.where(sql`extract(month from customers.birthday)`, '=', input.birthdayMonth);
 
+  // number of customers matching the filters (the list shows "50/1234件" and "残りN件")
+  const totalRow = await q.clearSelect().select(sql<number>`count(*)::int`.as('n')).executeTakeFirst();
+  const total = Number(totalRow?.n ?? 0);
+
   const cursor = decodeCursor(input.cursor);
   type Row = Awaited<ReturnType<typeof q.execute>>[number];
   let sortKey: (r: Row) => string | number | Date | null;
@@ -128,8 +145,35 @@ export async function searchCustomers(ctx: Ctx, input: SearchCustomersInput) {
   }
   const rows = await q.limit(input.limit + 1).execute();
   const page = paginate(rows, input.limit, sortKey);
-  const tags = await tagsFor(ctx, page.items.map((r) => r.id));
-  return { items: page.items.map((r) => ({ ...r, display_name: displayName(r), tags: tags.get(r.id) ?? [] })), nextCursor: page.nextCursor };
+  const ids = page.items.map((r) => r.id);
+  const tags = await tagsFor(ctx, ids);
+  const staffIds = [...new Set(page.items.map((r) => r.primary_staff_id).filter((x): x is string => !!x))];
+  const staffNames = new Map(
+    staffIds.length ? (await ctx.trx.selectFrom('staffs').select(['id', 'display_name']).where('id', 'in', staffIds).execute()).map((r) => [r.id, r.display_name]) : [],
+  );
+  const lineNames = new Map<string, (string | null)[]>();
+  if (ids.length) {
+    const rows = await ctx.trx
+      .selectFrom('customer_identities')
+      .select(['customer_id', 'display_name'])
+      .where('customer_id', 'in', ids)
+      .where('provider', '=', 'line')
+      .where('unlinked_at', 'is', null)
+      .execute();
+    for (const r of rows) lineNames.set(r.customer_id, [...(lineNames.get(r.customer_id) ?? []), r.display_name]);
+  }
+  return {
+    items: page.items.map((r) => ({
+      ...r,
+      display_name: displayName(r),
+      tags: tags.get(r.id) ?? [],
+      primary_staff_name: r.primary_staff_id ? (staffNames.get(r.primary_staff_id) ?? null) : null,
+      has_line: lineNames.has(r.id),
+      name_source: nameSource(r, lineNames.get(r.id) ?? []),
+    })),
+    nextCursor: page.nextCursor,
+    total,
+  };
 }
 
 async function tagsFor(ctx: Ctx, customerIds: string[]) {
@@ -184,6 +228,10 @@ export async function getCustomer(ctx: Ctx, customerId: string, opts: { audit?: 
   return {
     ...rest,
     display_name: displayName(c),
+    name_source: nameSource(
+      c,
+      identities.filter((i) => i.provider === 'line').map((i) => i.display_name),
+    ),
     tags: tags.get(customerId) ?? [],
     identities: identities.map((i) => ({ ...i, external_id: i.provider === 'line' ? maskId(i.external_id) : i.external_id })),
     relations,
@@ -225,6 +273,7 @@ export async function createCustomer(ctx: Ctx, input: CreateCustomerInput) {
       postal_code: input.postalCode ?? null,
       address: input.address ?? null,
       occupation: input.occupation ?? null,
+      memo: input.memo?.trim() || null,
       acquisition_source: input.acquisitionSource ?? null,
       primary_shop_id: primaryShopId,
       primary_staff_id: input.primaryStaffId ?? null,
@@ -306,6 +355,7 @@ export async function updateCustomer(ctx: Ctx, customerId: string, input: Update
       postal_code: input.postalCode,
       address: input.address,
       occupation: input.occupation,
+      memo: input.memo === undefined ? undefined : input.memo?.trim() || null,
       acquisition_source: input.acquisitionSource,
       primary_shop_id: input.primaryShopId,
       primary_staff_id: input.primaryStaffId,

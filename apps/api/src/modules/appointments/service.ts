@@ -11,6 +11,7 @@ import { assertCustomerAccess } from '../customers/access.js';
 import { ensureVisitedRelation } from '../customers/service.js';
 import { recomputeCustomerStats } from '../customers/stats.js';
 import { NO_MEDIA_SYNC, appointmentMediaSync } from '../integrations/api.js';
+import { appointmentsWithSubmittedForm } from '../kartes/api.js';
 import { loadScheduleData } from '../schedules/calendar.js';
 import {
   ACTIVE_STATUSES,
@@ -24,6 +25,8 @@ import {
   pickResources,
   type StaffPlan,
 } from './availability.js';
+import { assertSeatLimit } from './seat-limit.js';
+import { freeLane, staffMaxConcurrent } from './booking-rules.js';
 import type { CreateAppointmentInput, ListAppointmentsInput, UpdateAppointmentInput } from './schemas.js';
 
 type Status = 'tentative' | 'confirmed' | 'checked_in' | 'in_service' | 'completed' | 'cancelled' | 'no_show';
@@ -45,6 +48,8 @@ const SLOT_REASON_MESSAGES: Record<string, string> = {
   resource_unavailable: '必要な席・設備が空いていません',
   lead_time: '予約受付締切を過ぎています',
   horizon: '予約受付期間外です',
+  same_start: 'この開始時刻には既に予約が入っています',
+  capacity: 'この時間帯は受付可能数に達しています',
 };
 
 export interface PlanInput {
@@ -55,6 +60,8 @@ export interface PlanInput {
   publicBooking?: boolean;
   allowOutsideSchedule?: boolean;
   excludeAppointmentId?: string;
+  /** total treatment time entered by staff instead of the sum of the menus */
+  durationMin?: number;
 }
 
 export interface ResolvedPlan {
@@ -65,6 +72,8 @@ export interface ResolvedPlan {
   occupied: { start: Date; end: Date };
   resources: { resourceId: string; start: Date; end: Date }[];
   tz: string;
+  /** lane of the staff member this booking takes (appointments.staff_lane) */
+  lane: number;
 }
 
 /**
@@ -79,7 +88,7 @@ export async function resolvePlan(ctx: Ctx, input: PlanInput): Promise<ResolvedP
   if (ordered.some((m) => !m)) throw Errors.validation('予約できないメニューが含まれています');
   const menuList = ordered as EffectiveMenu[];
 
-  const candidates = await candidateStaff(ctx, input.shopId, input.menuIds, input.staffId ?? undefined);
+  const candidates = await candidateStaff(ctx, input.shopId, input.menuIds, input.staffId ?? undefined, { publicBooking: input.publicBooking });
   if (input.staffId && !candidates.includes(input.staffId)) {
     throw Errors.business('STAFF_NOT_AVAILABLE', 'このスタッフは指定メニューを担当できないか、この店舗で予約を受け付けていません');
   }
@@ -90,8 +99,11 @@ export async function resolvePlan(ctx: Ctx, input: PlanInput): Promise<ResolvedP
     await sql`SELECT pg_advisory_xact_lock(hashtextextended(${'staff:' + id}, 0))`.execute(ctx.trx);
   }
 
+  // 受付可能数 counts bookings across staff: online bookings of a shop are checked one at a time
+  if (input.publicBooking) await sql`SELECT pg_advisory_xact_lock(hashtextextended(${'capacity:' + input.shopId}, 0))`.execute(ctx.trx);
+
   const date = localDate(input.startAt, shop.timezone);
-  const plans = await buildPlans(ctx, menuList, candidates);
+  const plans = await buildPlans(ctx, menuList, candidates, input.durationMin);
   const data = await loadScheduleData(ctx, input.shopId, candidates, date, date, shop.timezone);
   const bounds = dayBounds(date, shop.timezone);
   const occupancy = await loadOccupancy(ctx, input.shopId, candidates, addMinutes(bounds.start, -720), addMinutes(bounds.end, 720), data, input.excludeAppointmentId);
@@ -106,7 +118,7 @@ export async function resolvePlan(ctx: Ctx, input: PlanInput): Promise<ResolvedP
       // staff override: still must not clash with other appointments or resources
       const occ = occupiedRange(plan, input.startAt);
       const busy = occupancy.staffBusy.get(staffId) ?? [];
-      const clash = busy.some((b) => b.start < occ.end && occ.start < b.end);
+      const clash = freeLane(occ, busy, staffMaxConcurrent(data, staffId)) === null;
       const resOk = !plan.resourceNeeds.length || !!pickResources(plan, input.startAt, occupancy);
       if (!clash && resOk) ok.push(staffId);
       else lastReason = clash ? 'staff_busy' : 'resource_unavailable';
@@ -129,7 +141,9 @@ export async function resolvePlan(ctx: Ctx, input: PlanInput): Promise<ResolvedP
   for (const r of [...resources].sort((a, b) => a.resourceId.localeCompare(b.resourceId))) {
     await sql`SELECT pg_advisory_xact_lock(hashtextextended(${'resource:' + r.resourceId}, 0))`.execute(ctx.trx);
   }
-  return { staffId, autoAssigned, plan, menus: menuList, occupied: occupiedRange(plan, input.startAt), resources, tz: shop.timezone };
+  const occupied = occupiedRange(plan, input.startAt);
+  const lane = freeLane(occupied, occupancy.staffBusy.get(staffId) ?? [], staffMaxConcurrent(data, staffId)) ?? 0;
+  return { staffId, autoAssigned, plan, menus: menuList, occupied, resources, tz: shop.timezone, lane };
 }
 
 async function uniqueReference(ctx: Ctx): Promise<string> {
@@ -177,7 +191,12 @@ export async function createAppointment(ctx: Ctx, input: CreateAppointmentInput,
     menuIds: input.menuIds,
     publicBooking: opts.publicBooking,
     allowOutsideSchedule: !opts.publicBooking && input.allowOutsideSchedule,
+    durationMin: opts.publicBooking ? undefined : input.durationMin,
   });
+  // 席数アラート: bookings taken by staff or online are capped; imports from booking media are not refused
+  if (!opts.trusted || opts.publicBooking) {
+    await assertSeatLimit(ctx, { shopId: input.shopId, start: startAt, end: addMinutes(startAt, resolved.plan.durationMin) });
+  }
 
   const estimated = resolved.plan.services.reduce((s, x) => s + x.price, 0);
   let couponDiscount = 0;
@@ -205,6 +224,7 @@ export async function createAppointment(ctx: Ctx, input: CreateAppointmentInput,
       shop_id: input.shopId,
       customer_id: input.customerId ?? null,
       staff_id: resolved.staffId,
+      staff_lane: resolved.lane,
       is_nominated: isNominated,
       booking_reference: await uniqueReference(ctx),
       start_at: startAt,
@@ -303,7 +323,7 @@ export async function getAppointmentUnchecked(ctx: Ctx, id: string) {
     .where('appointments.deleted_at', 'is', null)
     .executeTakeFirst();
   if (!a) throw Errors.notFound('予約', id);
-  const [services, resources, media] = await Promise.all([
+  const [services, resources, media, consented] = await Promise.all([
     ctx.trx.selectFrom('appointment_services').select(['id', 'menu_id', 'name', 'duration_min', 'price', 'tax_rate_bp', 'staff_id', 'start_offset_min']).where('appointment_id', '=', id).orderBy('sort_order').execute(),
     ctx.trx
       .selectFrom('appointment_resources')
@@ -313,9 +333,10 @@ export async function getAppointmentUnchecked(ctx: Ctx, id: string) {
       .where('appointment_resources.is_active', '=', true)
       .execute(),
     appointmentMediaSync(ctx, [id]),
+    appointmentsWithSubmittedForm(ctx, [id]),
   ]);
   const customerName = a.customer_id ? `${a.customer_last_name ?? ''} ${a.customer_first_name ?? ''}`.trim() || `${a.customer_last_name_kana ?? ''} ${a.customer_first_name_kana ?? ''}`.trim() : null;
-  return { ...a, customer_name: customerName, is_new_customer: a.customer_id ? (a.customer_visit_count ?? 0) === 0 : null, services, resources, media_sync: media.get(id) ?? NO_MEDIA_SYNC };
+  return { ...a, customer_name: customerName, is_new_customer: a.customer_id ? (a.customer_visit_count ?? 0) === 0 : null, services, resources, media_sync: media.get(id) ?? NO_MEDIA_SYNC, has_consent: consented.has(id) };
 }
 
 export async function getAppointment(ctx: Ctx, id: string) {
@@ -390,18 +411,29 @@ export async function listAppointments(ctx: Ctx, input: ListAppointmentsInput) {
   }
   const rows = await q.execute();
   const ids = rows.map((r) => r.id);
-  const [services, media] = await Promise.all([
+  const [services, media, consented] = await Promise.all([
     ids.length
       ? ctx.trx.selectFrom('appointment_services').select(['appointment_id', 'menu_id', 'name', 'duration_min', 'price']).where('appointment_id', 'in', ids).orderBy('sort_order').execute()
       : [],
     appointmentMediaSync(ctx, ids),
+    appointmentsWithSubmittedForm(ctx, ids),
   ]);
   return rows.map((r) => ({
     ...r,
     is_new_customer: r.customer_id ? (r.customer_visit_count ?? 0) === 0 : null,
     services: services.filter((s) => s.appointment_id === r.id).map(({ appointment_id: _a, ...s }) => s),
     media_sync: media.get(r.id) ?? NO_MEDIA_SYNC,
+    has_consent: consented.has(r.id),
   }));
+}
+
+/** Total time the menus take for this staff member (null when a menu is no longer bookable) */
+async function menuDurationFor(ctx: Ctx, shopId: string, menuIds: string[], staffId: string): Promise<number | null> {
+  const menus = await effectiveMenus(ctx, shopId, { menuIds });
+  const ordered = menuIds.map((id) => menus.find((m) => m.id === id));
+  if (ordered.some((m) => !m)) return null;
+  const plans = await buildPlans(ctx, ordered as EffectiveMenu[], [staffId]);
+  return plans.get(staffId)?.durationMin ?? null;
 }
 
 async function lockAppointment(ctx: Ctx, id: string, expectedVersion?: number) {
@@ -426,7 +458,9 @@ export async function updateAppointment(ctx: Ctx, id: string, input: UpdateAppoi
   const menuIds = input.menuIds ?? currentServices.map((s) => s.menu_id!).filter(Boolean);
   const startAt = input.startAt ? new Date(input.startAt) : before.start_at;
   const staffChanged = input.staffId !== undefined && input.staffId !== before.staff_id;
-  const scheduleChanged = staffChanged || !!input.menuIds || (input.startAt !== undefined && startAt.getTime() !== before.start_at.getTime());
+  const currentDurationMin = Math.round((before.end_at.getTime() - before.start_at.getTime()) / 60_000);
+  const durationChanged = !opts.publicBooking && input.durationMin !== undefined && input.durationMin !== currentDurationMin;
+  const scheduleChanged = staffChanged || !!input.menuIds || durationChanged || (input.startAt !== undefined && startAt.getTime() !== before.start_at.getTime());
 
   const patch: Record<string, unknown> = {
     customer_note: input.customerNote,
@@ -440,8 +474,15 @@ export async function updateAppointment(ctx: Ctx, id: string, input: UpdateAppoi
   };
 
   if (scheduleChanged) {
+    // moving a reservation whose end time was edited by hand keeps that length
+    let durationMin = opts.publicBooking ? undefined : input.durationMin;
+    if (durationMin === undefined && !input.menuIds && before.staff_id) {
+      const menuDefault = await menuDurationFor(ctx, before.shop_id, menuIds, before.staff_id);
+      if (menuDefault !== null && menuDefault !== currentDurationMin) durationMin = currentDurationMin;
+    }
     const resolved = await resolvePlan(ctx, {
       shopId: before.shop_id,
+      durationMin,
       staffId: input.staffId === undefined ? before.staff_id : input.staffId,
       startAt,
       menuIds,
@@ -449,8 +490,12 @@ export async function updateAppointment(ctx: Ctx, id: string, input: UpdateAppoi
       allowOutsideSchedule: !opts.publicBooking && input.allowOutsideSchedule,
       excludeAppointmentId: id,
     });
+    if (!opts.trusted || opts.publicBooking) {
+      await assertSeatLimit(ctx, { shopId: before.shop_id, start: startAt, end: addMinutes(startAt, resolved.plan.durationMin), excludeAppointmentId: id });
+    }
     Object.assign(patch, {
       staff_id: resolved.staffId,
+      staff_lane: resolved.lane,
       start_at: startAt,
       end_at: addMinutes(startAt, resolved.plan.durationMin),
       occupied_start_at: resolved.occupied.start,

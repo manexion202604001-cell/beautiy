@@ -114,10 +114,26 @@ async function productsFor(ctx: Ctx, ids: string[]) {
   return ids.map((id) => rows.find((r) => r.id === id)).filter((r): r is NonNullable<typeof r> => !!r);
 }
 
+/**
+ * The treatment record every karte carries regardless of its template (カルテ編集 の固定項目).
+ * They are plain text, accepted on any karte, and — unlike the internal note — part of what the
+ * customer sees once the karte is shared.
+ */
+export const STANDARD_KARTE_FIELDS = [
+  { key: 'menu_content', label: 'メニュー' },
+  { key: 'hair_condition', label: '髪の状態' },
+  { key: 'color_formula', label: 'カラー配合' },
+  { key: 'perm_info', label: 'パーマ情報' },
+  { key: 'styling_notes', label: 'スタイリングメモ' },
+  { key: 'customer_feedback', label: 'お客様フィードバック' },
+  { key: 'next_suggestion', label: '次回提案' },
+] as const;
+const STANDARD_KARTE_KEYS: ReadonlySet<string> = new Set(STANDARD_KARTE_FIELDS.map((f) => f.key));
+
 async function resolveFields(ctx: Ctx, templateId: string | null, shopId: string, values: Record<string, unknown>, legacyKeys?: ReadonlySet<string>): Promise<FieldValues> {
   if (!templateId) return validateFreeFields(values);
   const template = await usableKarteTemplate(ctx, templateId, shopId);
-  return validateFieldValues(templateFields(template), values, { allowExtraKeys: legacyKeys });
+  return validateFieldValues(templateFields(template), values, { allowExtraKeys: new Set([...(legacyKeys ?? []), ...STANDARD_KARTE_KEYS]) });
 }
 
 // ---------------------------------------------------------------- views
@@ -206,7 +222,7 @@ export async function createKarte(ctx: Ctx, input: CreateKarteInput) {
   if (templateId) {
     const t = await usableKarteTemplate(ctx, templateId, input.shopId);
     if (t.status !== 'active') throw Errors.validation('このテンプレートは現在使用できません');
-    fields = validateFieldValues(templateFields(t), input.fields);
+    fields = validateFieldValues(templateFields(t), input.fields, { allowExtraKeys: STANDARD_KARTE_KEYS });
   } else {
     fields = validateFreeFields(input.fields);
   }
@@ -407,6 +423,7 @@ const ASSET_PURPOSES: Record<CreateAssetInput['assetType'], FilePurpose[]> = {
   photo: ['karte_photo'],
   sketch: ['sketch', 'karte_photo'],
   document: ['document', 'karte_photo'],
+  face_drawing: ['sketch'],
 };
 
 export async function addAsset(ctx: Ctx, karteId: string, input: CreateAssetInput) {
@@ -415,6 +432,20 @@ export async function addAsset(ctx: Ctx, karteId: string, input: CreateAssetInpu
   const file = await getAttachableFile(ctx, input.fileId, ASSET_PURPOSES[input.assetType]);
   const used = await ctx.trx.selectFrom('karte_assets').select('id').where('file_id', '=', file.id).where('deleted_at', 'is', null).executeTakeFirst();
   if (used) throw Errors.conflict('FILE_ALREADY_ATTACHED', 'このファイルは既に添付されています');
+  // one live face drawing per karte: saving a new one replaces the previous
+  if (input.assetType === 'face_drawing') {
+    const previous = await ctx.trx
+      .selectFrom('karte_assets')
+      .select(['id', 'file_id'])
+      .where('karte_id', '=', karteId)
+      .where('asset_type', '=', 'face_drawing')
+      .where('deleted_at', 'is', null)
+      .execute();
+    for (const p of previous) {
+      await ctx.trx.updateTable('karte_assets').set({ deleted_at: new Date() }).where('id', '=', p.id).execute();
+      await markFileDeleted(ctx, p.file_id);
+    }
+  }
   let sortOrder = input.sortOrder;
   if (sortOrder === undefined) {
     const max = await ctx.trx
@@ -545,8 +576,9 @@ export async function unshareKarte(ctx: Ctx, karteId: string) {
 
 /**
  * Customer-safe projection: visit date, shop, staff display name, customer-visible template fields,
- * assets flagged for sharing (signed URLs), homecare advice and recommended products (name/price).
- * Never includes internal notes, chemicals or non-visible fields.
+ * the fixed treatment record (STANDARD_KARTE_FIELDS), assets flagged for sharing (signed URLs),
+ * homecare advice and recommended products (name/price).
+ * Never includes internal notes, chemicals or non-visible template fields.
  */
 export async function customerSafeKarte(ctx: Ctx, k: KarteRow) {
   const [shop, staff, template, assets] = await Promise.all([
@@ -561,11 +593,18 @@ export async function customerSafeKarte(ctx: Ctx, k: KarteRow) {
       .execute(),
   ]);
   const values = (k.fields ?? {}) as Record<string, unknown>;
-  const visibleFields = template
-    ? templateFields(template)
-        .filter((f) => f.customerVisible && values[f.key] !== undefined && values[f.key] !== null && values[f.key] !== '')
-        .map((f) => ({ key: f.key, label: f.label, value: values[f.key], display: formatFieldValue(values[f.key]) }))
-    : [];
+  const defined = template ? templateFields(template) : [];
+  const visibleFields: { key: string; label: string; value: unknown; display: string }[] = defined
+    .filter((f) => f.customerVisible && values[f.key] !== undefined && values[f.key] !== null && values[f.key] !== '')
+    .map((f) => ({ key: f.key, label: f.label, value: values[f.key], display: formatFieldValue(values[f.key]) }));
+  // the fixed treatment record is part of a shared karte (the internal note never is); a key the
+  // template defines itself follows the template's own customerVisible setting
+  for (const f of STANDARD_KARTE_FIELDS) {
+    const v = values[f.key];
+    if (typeof v === 'string' && v.trim() !== '' && !defined.some((d) => d.key === f.key)) {
+      visibleFields.push({ key: f.key, label: f.label, value: v, display: formatFieldValue(v) });
+    }
+  }
   const homecare = homecareFromDb(k.homecare);
   const products = await productsFor(ctx, homecare.product_ids);
   return {

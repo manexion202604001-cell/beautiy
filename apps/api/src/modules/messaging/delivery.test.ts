@@ -20,6 +20,7 @@ import {
   nextWeekday,
   runJobs,
   setClock,
+  setQuietHours,
   textEvent,
   updateCustomer,
   type Tenant,
@@ -29,7 +30,12 @@ import { lineMock } from './providers/line.js';
 import { renderMessage } from './templates.js';
 
 beforeEach(() => lineMock.reset());
-afterEach(() => setClock(null));
+// marketing sends are deferred at night; keep the tests independent of the hour they run at
+beforeEach(() => setQuietHours(false));
+afterEach(() => {
+  setClock(null);
+  setQuietHours(true);
+});
 
 function queue(t: Tenant, input: QueueMessageInput) {
   return asSystem(t.organizationId, (ctx) => queueMessage(ctx, input));
@@ -117,6 +123,7 @@ describe('message.deliver', () => {
   });
 
   it('defers marketing messages during quiet hours (21:00–09:00 local) until 09:00', async () => {
+    setQuietHours(true);
     const t = await createTenant();
     const ch = await createLineChannel(t);
     const { userId, customerId } = await lineFollower(t, ch);
@@ -309,8 +316,11 @@ describe('1:1 messaging API', () => {
     expect(row).toMatchObject({ body: '予約できますか？', direction: 'inbound', unread_count: 2 });
     expect((await t.owner.get('/v1/messages/inbox', { unreadOnly: 'true' })).body.items).toHaveLength(1);
 
+    expect((await t.owner.get('/v1/messages/unread-count')).body).toEqual({ count: 2 });
+
     const read = await t.owner.post(`/v1/messages/${row.id}/read`);
     expect(read.body).toEqual({ ok: true, updated: 2 });
+    expect((await t.owner.get('/v1/messages/unread-count')).body).toEqual({ count: 0 });
     const inbox2 = await t.owner.get('/v1/messages/inbox');
     expect(inbox2.body.items[0].unread_count).toBe(0);
     expect((await t.owner.get('/v1/messages/inbox', { unreadOnly: 'true' })).body.items).toHaveLength(0);

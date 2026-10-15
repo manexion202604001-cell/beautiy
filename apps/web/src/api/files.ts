@@ -6,6 +6,7 @@ export type FilePurpose =
   | 'signature'
   | 'product_image'
   | 'staff_photo'
+  | 'menu_image'
   | 'document'
   | 'sns_asset'
   | 'export';
@@ -35,6 +36,7 @@ export const MAX_BYTES: Partial<Record<FilePurpose, number>> = {
   karte_photo: 15 * MB,
   sketch: 10 * MB,
   product_image: 10 * MB,
+  menu_image: 10 * MB,
   signature: 1 * MB,
   document: 20 * MB,
 };

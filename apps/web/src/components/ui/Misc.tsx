@@ -44,7 +44,7 @@ export function CardHeader({
     <div className={cn('mb-4 flex flex-wrap items-start justify-between gap-3', className)}>
       <div className="min-w-0">
         <h2 className="text-[15px] font-semibold text-fg">{title}</h2>
-        {description ? <p className="mt-0.5 text-[13px] text-muted">{description}</p> : null}
+        {description ? <p className="mt-0.5 text-[13px] text-muted-foreground">{description}</p> : null}
       </div>
       {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
     </div>
@@ -67,7 +67,7 @@ export function PageHeader({
       <div className="min-w-0">
         {back ? <div className="mb-1">{back}</div> : null}
         <h1 className="text-xl font-semibold tracking-tight text-fg sm:text-2xl">{title}</h1>
-        {description ? <p className="mt-1 text-[13px] text-muted">{description}</p> : null}
+        {description ? <p className="mt-1 text-[13px] text-muted-foreground">{description}</p> : null}
       </div>
       {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
     </div>
@@ -98,7 +98,7 @@ export function EmptyState({
         <Icon name={icon} size={22} />
       </div>
       <p className="text-sm font-medium text-fg">{title}</p>
-      {description ? <p className="mt-1 max-w-sm text-[13px] text-muted">{description}</p> : null}
+      {description ? <p className="mt-1 max-w-sm text-[13px] text-muted-foreground">{description}</p> : null}
       {action ? <div className="mt-4">{action}</div> : null}
     </div>
   );
@@ -128,7 +128,7 @@ export function ErrorState({
       <p className="text-sm font-medium text-fg">
         {forbidden ? 'この画面を表示する権限がありません' : '読み込みに失敗しました'}
       </p>
-      <p className="mt-1 max-w-md text-[13px] text-muted">{errorMessage(error)}</p>
+      <p className="mt-1 max-w-md text-[13px] text-muted-foreground">{errorMessage(error)}</p>
       {onRetry && !forbidden ? (
         <Button className="mt-4" size="sm" icon="refresh" onClick={onRetry}>
           再読み込み
@@ -244,7 +244,7 @@ export function Stat({
 }) {
   return (
     <div className={cn('min-w-0', className)}>
-      <p className="text-xs text-muted">{label}</p>
+      <p className="text-xs text-muted-foreground">{label}</p>
       <p className="mt-0.5 truncate text-lg font-semibold text-fg tabular">{value}</p>
       {sub ? <p className="truncate text-xs text-subtle">{sub}</p> : null}
     </div>
@@ -253,7 +253,7 @@ export function Stat({
 
 export function InlineLoading({ label = '読み込み中…' }: { label?: string }) {
   return (
-    <div className="flex items-center gap-2 py-6 text-[13px] text-muted" role="status">
+    <div className="flex items-center gap-2 py-6 text-[13px] text-muted-foreground" role="status">
       <Spinner />
       {label}
     </div>
@@ -276,7 +276,7 @@ export function KeyValue({
     >
       {items.map((it, i) => (
         <div key={i} className="contents">
-          <dt className="text-muted">{it.label}</dt>
+          <dt className="text-muted-foreground">{it.label}</dt>
           <dd className="min-w-0 break-words text-fg">{it.value}</dd>
         </div>
       ))}

@@ -108,7 +108,7 @@ function AssetCard({ asset, onOpen }: { asset: SnsAsset; onOpen: () => void }) {
       </button>
       <div className="p-3">
         <p className="text-[13px] font-medium">{SNS_TEMPLATE_LABEL[asset.template]}</p>
-        <p className="line-clamp-1 text-xs text-muted">{asset.caption || asset.hashtags.map((h) => `#${h}`).join(' ') || '—'}</p>
+        <p className="line-clamp-1 text-xs text-muted-foreground">{asset.caption || asset.hashtags.map((h) => `#${h}`).join(' ') || '—'}</p>
         <p className="mt-0.5 text-[11px] text-subtle">
           {formatDate(asset.created_at, tz, { weekday: false })}
           {asset.karte_asset_id ? ' ・掲載同意あり' : ''}
@@ -338,7 +338,7 @@ function CreateAssetDialog({ onClose, onCreated }: { onClose: () => void; onCrea
                       ))}
                     </div>
                   ) : (
-                    <p className="text-xs text-muted">このカルテには写真がありません。</p>
+                    <p className="text-xs text-muted-foreground">このカルテには写真がありません。</p>
                   )
                 ) : null}
                 {assetId ? (
@@ -350,7 +350,7 @@ function CreateAssetDialog({ onClose, onCreated }: { onClose: () => void; onCrea
                   />
                 ) : null}
                 {template === 'before_after' ? (
-                  <p className="text-xs text-muted">ビフォー・アフターはカルテ内のビフォー/アフター写真を組み合わせて作成します。</p>
+                  <p className="text-xs text-muted-foreground">ビフォー・アフターはカルテ内のビフォー/アフター写真を組み合わせて作成します。</p>
                 ) : null}
               </>
             )}

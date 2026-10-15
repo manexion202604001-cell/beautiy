@@ -195,18 +195,18 @@ function MenusTab({ shopId }: { shopId: string }) {
                       ) : null}
                     </div>
                   </Td>
-                  <Td className="text-muted">{m.categoryName ?? '—'}</Td>
+                  <Td className="text-muted-foreground">{m.categoryName ?? '—'}</Td>
                   <Td className="whitespace-nowrap text-right tabular">
                     {formatDuration(m.durationMin)}
                     {m.bufferBeforeMin || m.bufferAfterMin ? (
-                      <span className="block text-xs text-muted">
+                      <span className="block text-xs text-muted-foreground">
                         前{m.bufferBeforeMin}分 / 後{m.bufferAfterMin}分
                       </span>
                     ) : null}
                   </Td>
                   <Td className="whitespace-nowrap text-right tabular">
                     {formatYen(m.price)}
-                    <span className="block text-xs text-muted">
+                    <span className="block text-xs text-muted-foreground">
                       {m.priceTaxIncluded ? '税込' : '税抜'} {taxRateLabel(m.taxRateBp)}
                     </span>
                   </Td>
@@ -247,7 +247,7 @@ function MenusTab({ shopId }: { shopId: string }) {
         </Table>
       )}
       {!allShops && manage ? (
-        <p className="text-xs text-muted">
+        <p className="text-xs text-muted-foreground">
           ※
           共通メニューの編集には全店舗権限が必要です。「店舗別設定」で価格・時間・提供可否を上書きできます。
         </p>
@@ -391,7 +391,7 @@ function CategoriesTab() {
           </li>
         ))}
         {!cats.data?.length ? (
-          <li className="py-3 text-[13px] text-muted">カテゴリがありません</li>
+          <li className="py-3 text-[13px] text-muted-foreground">カテゴリがありません</li>
         ) : null}
       </ul>
       {manage ? (
@@ -507,7 +507,7 @@ function CouponsTab({ shopId }: { shopId: string }) {
                   </div>
                 </Td>
                 <Td className="whitespace-nowrap font-medium">{couponValue(c)}</Td>
-                <Td className="text-xs text-muted">
+                <Td className="text-xs text-muted-foreground">
                   {[
                     c.min_amount ? `${formatYen(c.min_amount)}以上` : null,
                     c.new_customer_only ? '新規限定' : null,
@@ -520,7 +520,7 @@ function CouponsTab({ shopId }: { shopId: string }) {
                     .filter(Boolean)
                     .join(' ・ ')}
                 </Td>
-                <Td className="whitespace-nowrap text-xs text-muted">
+                <Td className="whitespace-nowrap text-xs text-muted-foreground">
                   {c.valid_from || c.valid_until
                     ? `${c.valid_from ? formatDate(c.valid_from, tz, { weekday: false }) : ''}〜${c.valid_until ? formatDate(c.valid_until, tz, { weekday: false }) : ''}`
                     : '無期限'}
@@ -619,17 +619,17 @@ function ResourcesTab({ shopId }: { shopId: string }) {
     <div className="grid gap-5 lg:grid-cols-[1.5fr_1fr]">
       <Card>
         <h2 className="text-[15px] font-semibold">席・設備</h2>
-        <p className="mt-0.5 text-[13px] text-muted">
+        <p className="mt-0.5 text-[13px] text-muted-foreground">
           メニューに「必要な設備」を設定すると、空き枠計算で設備の空きも考慮されます（例: ヘッドスパ
           → スパベッド）。
         </p>
         {!groups.size ? (
-          <p className="mt-4 text-[13px] text-muted">登録された席・設備はありません</p>
+          <p className="mt-4 text-[13px] text-muted-foreground">登録された席・設備はありません</p>
         ) : null}
         <div className="mt-4 space-y-4">
           {[...groups.entries()].map(([t, list]) => (
             <div key={t}>
-              <p className="mb-1.5 text-xs font-semibold text-muted">
+              <p className="mb-1.5 text-xs font-semibold text-muted-foreground">
                 {resourceTypeLabel(t)} <span className="font-mono text-subtle">({t})</span> ・{' '}
                 {list.filter((r) => r.status === 'active').length}台稼働
               </p>

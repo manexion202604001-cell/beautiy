@@ -69,7 +69,7 @@ export default function Duplicates() {
       >
         {nameOf(c)}
       </Link>
-      <dl className="mt-1.5 space-y-0.5 text-xs text-muted">
+      <dl className="mt-1.5 space-y-0.5 text-xs text-muted-foreground">
         <div>フリガナ: {`${c.last_name_kana} ${c.first_name_kana}`.trim() || '—'}</div>
         <div>電話: {c.phone ?? '—'}</div>
         <div>メール: {c.email ?? '—'}</div>
@@ -88,7 +88,7 @@ export default function Duplicates() {
         title="名寄せ（重複顧客）"
         description="完全一致（電話・メール）と類似（氏名＋生年月日など）の候補です。自動では統合されません。内容を確認して統合するか、別人として除外してください。"
         back={
-          <Link to="/app/customers" className="text-[13px] text-muted hover:text-fg">
+          <Link to="/app/customers" className="text-[13px] text-muted-foreground hover:text-fg">
             ← 顧客一覧
           </Link>
         }

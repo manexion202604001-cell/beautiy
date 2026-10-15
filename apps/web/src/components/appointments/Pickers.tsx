@@ -49,7 +49,7 @@ export function MenuPicker({
         {groups.map(([cat, items]) => (
           <fieldset key={cat} className="border-b border-border last:border-b-0">
             <legend className="sr-only">{cat}</legend>
-            <p className="sticky top-0 bg-surface-2 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted">
+            <p className="sticky top-0 bg-surface-2 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               {cat}
             </p>
             {items.map((m) => {
@@ -85,7 +85,7 @@ export function MenuPicker({
                         </Badge>
                       ) : null}
                     </span>
-                    <span className="block text-xs text-muted">
+                    <span className="block text-xs text-muted-foreground">
                       {formatDuration(m.durationMin)}
                     </span>
                   </span>
@@ -98,12 +98,12 @@ export function MenuPicker({
           </fieldset>
         ))}
         {menus.length === 0 ? (
-          <p className="px-3 py-4 text-[13px] text-muted">メニューが登録されていません</p>
+          <p className="px-3 py-4 text-[13px] text-muted-foreground">メニューが登録されていません</p>
         ) : null}
       </div>
       {error ? <p className="mt-1 text-xs font-medium text-danger">{error}</p> : null}
       {selected.length ? (
-        <p className="mt-2 text-[13px] text-muted">
+        <p className="mt-2 text-[13px] text-muted-foreground">
           {selected.length}件選択 ・ 所要{' '}
           <span className="font-medium text-fg">{formatDuration(duration)}</span> ・ 目安{' '}
           <span className="font-medium text-fg tabular">{formatYen(total)}</span>
@@ -145,7 +145,7 @@ export function SlotPicker({
   }
   if (!slots.length) {
     return (
-      <p className="flex items-center gap-2 rounded-xl bg-surface-2 px-3 py-3 text-[13px] text-muted">
+      <p className="flex items-center gap-2 rounded-xl bg-surface-2 px-3 py-3 text-[13px] text-muted-foreground">
         <Icon name="info" size={16} />
         {emptyText}
       </p>

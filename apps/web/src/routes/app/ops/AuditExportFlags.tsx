@@ -113,7 +113,7 @@ export function AuditTab() {
           </Button>
         </div>
       </form>
-      <p className="text-xs text-muted">監査ログの検索自体も監査ログに記録されます。</p>
+      <p className="text-xs text-muted-foreground">監査ログの検索自体も監査ログに記録されます。</p>
       {!query ? <EmptyState icon="shield" title="条件を指定して検索してください" /> : null}
       {q.error ? <ErrorState error={q.error} onRetry={() => void q.refetch()} /> : null}
       {query && q.data && !items.length ? <EmptyState icon="search" title="該当するログはありません" /> : null}
@@ -166,15 +166,15 @@ export function AuditTab() {
                     <td colSpan={6} className="bg-surface-2/40 px-4 py-3">
                       <div className="grid gap-3 lg:grid-cols-3">
                         <div>
-                          <p className="mb-1 text-xs font-medium text-muted">変更前</p>
+                          <p className="mb-1 text-xs font-medium text-muted-foreground">変更前</p>
                           <JsonBlock value={l.before} />
                         </div>
                         <div>
-                          <p className="mb-1 text-xs font-medium text-muted">変更後</p>
+                          <p className="mb-1 text-xs font-medium text-muted-foreground">変更後</p>
                           <JsonBlock value={l.after} />
                         </div>
                         <div>
-                          <p className="mb-1 text-xs font-medium text-muted">メタデータ</p>
+                          <p className="mb-1 text-xs font-medium text-muted-foreground">メタデータ</p>
                           <JsonBlock value={l.metadata} />
                           <p className="mt-1 break-all text-[11px] text-subtle">
                             request {l.request_id ?? '—'} ・trace {l.trace_id ?? '—'}
@@ -373,7 +373,7 @@ export function FlagsTab() {
               <Tr key={f.key}>
                 <Td>
                   <code className="text-xs">{f.key}</code>
-                  {f.description ? <p className="text-xs text-muted">{f.description}</p> : null}
+                  {f.description ? <p className="text-xs text-muted-foreground">{f.description}</p> : null}
                 </Td>
                 <Td>{f.global ? (f.global.enabled ? '有効' : '無効') : '—'}</Td>
                 <Td>{f.override ? <Badge tone="info">{f.override.enabled ? '有効' : '無効'}</Badge> : <span className="text-xs text-subtle">なし</span>}</Td>

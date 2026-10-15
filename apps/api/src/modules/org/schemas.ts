@@ -7,15 +7,32 @@ const slug = z
   .max(50)
   .regex(/^[a-z0-9][a-z0-9-]*[a-z0-9]$/, '英小文字・数字・ハイフンのみ使用できます');
 
+/** オーナー情報 (設定 › オーナー情報 / 初期設定): 事業形態 and, for a company, its contact details */
+export const ownerProfileSchema = z.object({
+  ownerType: z.enum(['individual', 'company']),
+  companyName: z.string().max(100).nullable().optional(),
+  companyPostalCode: z.string().max(10).nullable().optional(),
+  companyPhone: z.string().max(30).nullable().optional(),
+  companyAddress: z.string().max(200).nullable().optional(),
+  companyEmail: z.string().email().nullable().optional(),
+});
+export type OwnerProfile = z.infer<typeof ownerProfileSchema>;
+
 export const signupSchema = z.object({
   organizationName: z.string().min(1).max(100),
-  organizationSlug: slug,
+  /** omitted → generated (the first-run screen does not ask for URL ids) */
+  organizationSlug: slug.optional(),
   shopName: z.string().min(1).max(100),
-  shopSlug: slug,
+  shopSlug: slug.optional(),
   ownerName: z.string().min(1).max(100),
   email: z.string().email(),
   password: z.string().min(10).max(200),
+  /** shop phone number */
   phone: z.string().max(30).optional(),
+  shopPostalCode: z.string().max(10).optional(),
+  shopAddressLine: z.string().max(200).optional(),
+  shopEmail: z.string().email().optional(),
+  ownerProfile: ownerProfileSchema.optional(),
   timezone: z.string().optional(),
   plan: z.enum(['solo', 'standard', 'pro', 'enterprise']).optional(),
 });
@@ -30,6 +47,8 @@ export const updateOrganizationSchema = z.object({
     .nullable()
     .optional(),
   settings: z.record(z.string(), z.unknown()).optional(),
+  /** stored as organizations.settings.ownerProfile */
+  ownerProfile: ownerProfileSchema.optional(),
 });
 export type UpdateOrganizationInput = z.infer<typeof updateOrganizationSchema>;
 
@@ -46,7 +65,8 @@ const shopBase = {
   description: z.string().max(2000).nullable().optional(),
   settings: z.record(z.string(), z.unknown()).optional(),
 };
-export const createShopSchema = z.object(shopBase);
+/** slug omitted → generated (設定 › 新しい店舗 asks only for name / address / phone / email) */
+export const createShopSchema = z.object({ ...shopBase, slug: slug.optional() });
 export type CreateShopInput = z.infer<typeof createShopSchema>;
 export const updateShopSchema = z
   .object(shopBase)

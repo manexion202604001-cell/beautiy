@@ -216,7 +216,7 @@ export function MenuDialog({
               ]}
             />
             {!allShops ? (
-              <p className="mt-1 text-xs text-muted">
+              <p className="mt-1 text-xs text-muted-foreground">
                 共通メニューの作成には全店舗権限が必要です。
               </p>
             ) : null}
@@ -349,7 +349,7 @@ export function MenuDialog({
 
         <fieldset>
           <legend className="mb-1 text-[13px] font-semibold">必要な席・設備</legend>
-          <p className="mb-2 text-xs text-muted">
+          <p className="mb-2 text-xs text-muted-foreground">
             開始からのオフセットと使用時間（空欄＝メニュー終了まで）を指定します。
           </p>
           <div className="space-y-2">
@@ -454,13 +454,13 @@ export function MenuDialog({
             設備条件を追加
           </Button>
           {!resourceTypes.length ? (
-            <p className="text-xs text-muted">先に「席・設備」タブで設備を登録してください。</p>
+            <p className="text-xs text-muted-foreground">先に「席・設備」タブで設備を登録してください。</p>
           ) : null}
         </fieldset>
 
         <fieldset>
           <legend className="mb-1 text-[13px] font-semibold">担当可能スタッフ</legend>
-          <p className="mb-2 text-xs text-muted">選択しない場合は全スタッフが担当できます。</p>
+          <p className="mb-2 text-xs text-muted-foreground">選択しない場合は全スタッフが担当できます。</p>
           <div className="grid gap-2 sm:grid-cols-2">
             {(staff.data ?? []).map((s) => (
               <Checkbox

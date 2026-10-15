@@ -319,7 +319,7 @@ export default function CustomersList() {
                     >
                       {c.display_name || '（氏名未登録）'}
                     </a>
-                    <p className="text-xs text-muted">
+                    <p className="text-xs text-muted-foreground">
                       {`${c.last_name_kana} ${c.first_name_kana}`.trim()}
                     </p>
                   </Td>
@@ -332,17 +332,17 @@ export default function CustomersList() {
                       </Badge>
                     )}
                   </Td>
-                  <Td className="whitespace-nowrap tabular text-muted">{c.phone ?? '—'}</Td>
+                  <Td className="whitespace-nowrap tabular text-muted-foreground">{c.phone ?? '—'}</Td>
                   <Td className="whitespace-nowrap">
                     {c.last_visit_at ? (
                       <>
                         {formatDate(c.last_visit_at, tz, { weekday: false })}
-                        <span className="block text-xs text-muted">
+                        <span className="block text-xs text-muted-foreground">
                           {formatRelativeDay(c.last_visit_at, tz)}
                         </span>
                       </>
                     ) : (
-                      <span className="text-muted">—</span>
+                      <span className="text-muted-foreground">—</span>
                     )}
                   </Td>
                   <Td className="text-right tabular">{c.visit_count}回</Td>
@@ -362,7 +362,7 @@ export default function CustomersList() {
                         <TagChip key={t.id} name={t.name} color={t.color} />
                       ))}
                       {c.tags.length > 3 ? (
-                        <span className="text-xs text-muted">+{c.tags.length - 3}</span>
+                        <span className="text-xs text-muted-foreground">+{c.tags.length - 3}</span>
                       ) : null}
                     </div>
                   </Td>

@@ -84,11 +84,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             </span>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium text-fg">{t.title}</p>
-              {t.description ? <p className="mt-0.5 text-xs text-muted">{t.description}</p> : null}
+              {t.description ? <p className="mt-0.5 text-xs text-muted-foreground">{t.description}</p> : null}
             </div>
             <button
               type="button"
-              className="text-muted hover:text-fg"
+              className="text-muted-foreground hover:text-fg"
               onClick={() => dismiss(t.id)}
               aria-label="通知を閉じる"
             >

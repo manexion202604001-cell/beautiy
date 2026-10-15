@@ -1,0 +1,16 @@
+{
+  "name": "salon-os-email-worker",
+  "private": true,
+  "description": "Cloudflare Email Worker: forwards booking-notification mails (SALON BOARD / LiME) to the Salon OS inbound URL of each shop",
+  "type": "module",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "test": "node --test src/forward.test.js"
+  },
+  "dependencies": {
+    "postal-mime": "2.7.6"
+  },
+  "devDependencies": {
+    "wrangler": "4.146.0"
+  }
+}

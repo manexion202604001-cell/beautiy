@@ -229,7 +229,7 @@ function ShopInfoTab({ shop, editable }: { shop: Shop; editable: boolean }) {
           description="オフにすると予約ページが表示されなくなります（保存で反映）。"
         />
         <div className="mt-4 rounded-xl bg-surface-2/60 p-3">
-          <p className="text-xs text-muted">予約ページURL</p>
+          <p className="text-xs text-muted-foreground">予約ページURL</p>
           <div className="mt-1 flex items-center gap-2">
             <code className="min-w-0 flex-1 truncate text-[13px]">{bookingUrl}</code>
             <IconButton
@@ -549,7 +549,7 @@ function BookingTab({ shop, editable }: { shop: Shop; editable: boolean }) {
             {dirty ? (
               <span className="text-[13px] text-warning">未保存の変更があります</span>
             ) : (
-              <span className="text-[13px] text-muted">変更はありません</span>
+              <span className="text-[13px] text-muted-foreground">変更はありません</span>
             )}
             <Button variant="ghost" size="sm" disabled={!dirty} onClick={() => setS(shop.settings)}>
               元に戻す
@@ -670,7 +670,7 @@ function HoursTab({ shop, editable }: { shop: Shop; editable: boolean }) {
                     className="w-28"
                     disabled={!editable}
                   />
-                  <span className="text-muted">〜</span>
+                  <span className="text-muted-foreground">〜</span>
                   <label className="sr-only" htmlFor={`bh-e-${wd}`}>
                     {WEEKDAYS_JA[wd]}曜 閉店
                   </label>
@@ -770,7 +770,7 @@ function HolidaysTab({ shop, editable }: { shop: Shop; editable: boolean }) {
               role="columnheader"
               className={cn(
                 'py-1 font-medium',
-                wd === 0 ? 'text-danger' : wd === 6 ? 'text-info' : 'text-muted',
+                wd === 0 ? 'text-danger' : wd === 6 ? 'text-info' : 'text-muted-foreground',
               )}
             >
               {WEEKDAYS_JA[wd]}
@@ -814,7 +814,7 @@ function HolidaysTab({ shop, editable }: { shop: Shop; editable: boolean }) {
             );
           })}
         </div>
-        <p className="mt-3 text-xs text-muted">
+        <p className="mt-3 text-xs text-muted-foreground">
           日付をクリックすると、臨時休業・特別営業時間を設定できます。
         </p>
       </Card>
@@ -822,14 +822,14 @@ function HolidaysTab({ shop, editable }: { shop: Shop; editable: boolean }) {
         <CardHeader title="この月の設定" />
         {ex.isLoading ? <InlineLoading /> : null}
         {ex.data && !ex.data.length ? (
-          <p className="text-[13px] text-muted">臨時休業・特別営業はありません。</p>
+          <p className="text-[13px] text-muted-foreground">臨時休業・特別営業はありません。</p>
         ) : null}
         <ul className="divide-y divide-border">
           {(ex.data ?? []).map((e) => (
             <li key={e.id} className="flex items-center justify-between gap-2 py-2.5 text-[13px]">
               <span>
                 <span className="font-medium">{formatDateJa(e.date)}</span>
-                <span className="ml-2 text-muted">
+                <span className="ml-2 text-muted-foreground">
                   {e.is_closed ? '臨時休業' : `特別営業 ${e.open_time}〜${e.close_time}`}
                 </span>
                 {e.note ? <span className="block text-xs text-subtle">{e.note}</span> : null}

@@ -147,7 +147,7 @@ export type DuplicateKarteInput = z.infer<typeof duplicateKarteSchema>;
 
 // ---------------------------------------------------------------- assets
 
-export const ASSET_TYPES = ['photo_before', 'photo_after', 'photo', 'sketch', 'document'] as const;
+export const ASSET_TYPES = ['photo_before', 'photo_after', 'photo', 'sketch', 'document', 'face_drawing'] as const;
 export const createAssetSchema = z.object({
   fileId: uuid,
   assetType: z.enum(ASSET_TYPES),
@@ -233,6 +233,8 @@ export const formLinkSchema = z.object({
   expiresInDays: z.number().int().min(1).max(60).optional(),
   notify: z.boolean().default(false),
   channel: z.enum(['line', 'email', 'sms']).optional(),
+  /** appointment links: add a link to the form already waiting for this visit instead of starting another one */
+  reusePending: z.boolean().optional(),
 });
 export type FormLinkInput = z.infer<typeof formLinkSchema>;
 
@@ -257,3 +259,65 @@ export const listFormResponsesSchema = z.object({
 export type ListFormResponsesInput = z.infer<typeof listFormResponsesSchema>;
 
 export const voidFormResponseSchema = z.object({ reason: z.string().min(1).max(500) });
+
+// ---------------------------------------------------------------- walk-in intakes (同意書一覧・受付保留)
+
+export const WALKIN_STATUSES = ['pending', 'linked', 'created', 'discarded'] as const;
+
+export const listWalkinIntakesSchema = z.object({
+  shopId: uuid,
+  /** customer name / kana / phone */
+  q: z.string().max(100).optional(),
+  status: z.enum(WALKIN_STATUSES).default('pending'),
+  cursor: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(100),
+});
+export type ListWalkinIntakesInput = z.infer<typeof listWalkinIntakesSchema>;
+
+export const walkinReceptionLinkSchema = z.object({ shopId: uuid, staffId: uuid.optional() });
+export const linkWalkinIntakeSchema = z.object({ customerId: uuid });
+
+/** ?staff=<staff id>&form=<consent template id or lineage id> of the reception QR */
+export const publicWalkinQuerySchema = z.object({ staff: uuid.optional(), form: uuid.optional() });
+
+export const publicWalkinSubmitSchema = z.object({
+  staffId: uuid.nullable().optional(),
+  /** the consent version the customer read (GET /public/walkin/:slug → consent.templateId) */
+  templateId: uuid,
+  customer: z.object({
+    lastName: z.string().trim().min(1, '姓を入力してください').max(50),
+    firstName: z.string().trim().min(1, '名を入力してください').max(50),
+    lastNameKana: z.string().trim().min(1, 'セイを入力してください').max(50),
+    firstNameKana: z.string().trim().min(1, 'メイを入力してください').max(50),
+    birthday: isoDate,
+    phone: z.string().trim().min(10, '電話番号を入力してください').max(20),
+    occupation: z.string().trim().max(100).nullable().optional(),
+    visitReason: z.string().trim().max(100).nullable().optional(),
+  }),
+  /** 「上記の内容に同意します」 */
+  agreed: z.literal(true, { message: '同意が必要です' }),
+  answers: answersSchema.default({}),
+  signature: z.object({ dataUrl: signatureDataUrl, signerName: z.string().min(1).max(100) }).optional(),
+});
+export type PublicWalkinSubmitInput = z.infer<typeof publicWalkinSubmitSchema>;
+
+// ---------------------------------------------------------------- counselling sheet (staff-editable, one per customer)
+
+const sheetKey = z.string().regex(/^[a-z][a-z0-9_]{0,49}$/, 'キーは英小文字・数字・_ で指定してください');
+const sheetAnswer = z.union([z.string().max(2000), z.array(z.string().max(200)).max(100)]);
+/** { <category id>: { <question id>: answer } } */
+export const counselingSheetDataSchema = z
+  .record(sheetKey, z.record(sheetKey, sheetAnswer).refine((v) => Object.keys(v).length <= 200, { message: '項目数が多すぎます' }))
+  .refine((v) => Object.keys(v).length <= 50, { message: 'カテゴリ数が多すぎます' });
+export type CounselingSheetData = z.infer<typeof counselingSheetDataSchema>;
+
+/** walk-in reception: the counselling sheet filled after the consent (same shape as the customer's sheet) */
+export const publicWalkinCounselingSchema = z.object({ data: counselingSheetDataSchema });
+export type PublicWalkinCounselingInput = z.infer<typeof publicWalkinCounselingSchema>;
+
+export const saveCounselingSheetSchema = z.object({
+  data: counselingSheetDataSchema,
+  /** the shop the sheet is being filled in at (recorded on the sheet) */
+  shopId: uuid.nullable().optional(),
+});
+export type SaveCounselingSheetInput = z.infer<typeof saveCounselingSheetSchema>;

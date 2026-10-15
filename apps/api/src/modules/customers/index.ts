@@ -4,8 +4,20 @@ import { idParam, uuid } from '../../lib/schemas.js';
 import { dismissDuplicate, findDuplicateCandidates, listDuplicatePairs } from './duplicates.js';
 import { assertCustomerAccess } from './access.js';
 import { listMergeLogs, mergeCustomers, undoMerge } from './merge.js';
+import { dismissNameDuplicate, linkMaster, listNameDuplicates, unlinkMaster } from './name-duplicates.js';
+import { customerOverview } from './overview.js';
 import * as svc from './service.js';
-import { createCustomerSchema, memoSchema, mergeSchema, searchCustomersSchema, updateCustomerSchema, updateMemoSchema } from './schemas.js';
+import {
+  createCustomerSchema,
+  dismissNameDuplicateSchema,
+  linkMasterSchema,
+  memoSchema,
+  mergeSchema,
+  nameDuplicatesSchema,
+  searchCustomersSchema,
+  updateCustomerSchema,
+  updateMemoSchema,
+} from './schemas.js';
 
 const tags = ['customers'];
 
@@ -31,6 +43,19 @@ const plugin: FastifyPluginAsyncZod = async (app) => {
     await req.tx((ctx) => dismissDuplicate(ctx, req.body.customerIdA, req.body.customerIdB));
     return reply.status(204).send();
   });
+  app.get('/customers/name-duplicates', { schema: { tags, summary: '名前重複グループ一覧(同じ氏名の別レコード)', querystring: nameDuplicatesSchema } }, (req) =>
+    req.tx((ctx) => listNameDuplicates(ctx, req.query)),
+  );
+  app.post('/customers/name-duplicates/dismiss', { schema: { tags, summary: '名前重複グループの除外(統合しない)', body: dismissNameDuplicateSchema } }, (req) =>
+    req.tx((ctx) => dismissNameDuplicate(ctx, req.body.normalizedName)),
+  );
+  app.post('/customers/link-master', { schema: { tags, summary: '同一人物としてリンク(会員番号を共有・レコードは統合しない)', body: linkMasterSchema } }, (req) =>
+    req.tx((ctx) => linkMaster(ctx, req.body.customerIds)),
+  );
+  app.post('/customers/:id/unlink-master', { schema: { tags, summary: '会員番号リンクの解除', params: idParam } }, (req) => req.tx((ctx) => unlinkMaster(ctx, req.params.id)));
+  app.get('/customers/:id/overview', { schema: { tags, summary: '顧客画面の付帯情報(最近の担当・LINE・リンク済みレコード)', params: idParam } }, (req) =>
+    req.tx((ctx) => customerOverview(ctx, req.params.id)),
+  );
   app.get('/customers/:id', { schema: { tags, summary: '顧客詳細(閲覧は監査対象)', params: idParam } }, (req) => req.tx((ctx) => svc.getCustomer(ctx, req.params.id)));
   app.patch('/customers/:id', { schema: { tags, summary: '顧客更新', params: idParam, body: updateCustomerSchema } }, (req) =>
     req.tx((ctx) => svc.updateCustomer(ctx, req.params.id, req.body)),
@@ -52,7 +77,11 @@ const plugin: FastifyPluginAsyncZod = async (app) => {
   );
   app.get('/customers/:id/merge-logs', { schema: { tags, summary: '統合履歴', params: idParam } }, (req) => req.tx((ctx) => listMergeLogs(ctx, req.params.id)));
   app.post('/customer-merges/:id/undo', { schema: { tags, summary: '統合の取り消し', params: idParam } }, (req) => req.tx((ctx) => undoMerge(ctx, req.params.id)));
-  app.get('/customers/:id/visits', { schema: { tags, summary: '来店履歴', params: idParam } }, (req) => req.tx((ctx) => svc.customerVisits(ctx, req.params.id)));
+  app.get(
+    '/customers/:id/visits',
+    { schema: { tags, summary: '来店履歴(予約。新しい順)', params: idParam, querystring: z.object({ limit: z.coerce.number().int().min(1).max(500).default(50) }) } },
+    (req) => req.tx((ctx) => svc.customerVisits(ctx, req.params.id, req.query.limit)),
+  );
   app.get('/customers/:id/legacy-visits', { schema: { tags, summary: '旧システムの来店履歴（移行データ）', params: idParam } }, (req) =>
     req.tx((ctx) => svc.customerLegacyVisits(ctx, req.params.id)),
   );

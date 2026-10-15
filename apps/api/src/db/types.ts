@@ -166,6 +166,7 @@ export interface Appointments {
   source: Generated<string>;
   source_detail: Generated<Json>;
   staff_id: string | null;
+  staff_lane: Generated<number>;
   staff_note: string | null;
   start_at: Timestamp;
   status: Generated<string>;
@@ -324,6 +325,18 @@ export interface CustomerChannelPreferences {
   updated_at: Generated<Timestamp>;
 }
 
+export interface CustomerCounselingSheets {
+  created_at: Generated<Timestamp>;
+  created_by: string | null;
+  customer_id: string;
+  data: Generated<Json>;
+  id: Generated<string>;
+  organization_id: string;
+  shop_id: string | null;
+  updated_at: Generated<Timestamp>;
+  updated_by: string | null;
+}
+
 export interface CustomerDuplicateDismissals {
   created_at: Generated<Timestamp>;
   customer_a_id: string;
@@ -402,6 +415,8 @@ export interface Customers {
   legacy_total_sales: Generated<number>;
   legacy_visit_count: Generated<number>;
   marketing_opt_in: Generated<boolean>;
+  member_no: string | null;
+  memo: string | null;
   merged_into_id: string | null;
   next_appointment_at: Timestamp | null;
   no_show_count: Generated<number>;
@@ -793,11 +808,13 @@ export interface LineChannels {
 }
 
 export interface MenuCategories {
+  color: string | null;
   created_at: Generated<Timestamp>;
   deleted_at: Timestamp | null;
   id: Generated<string>;
   name: string;
   organization_id: string;
+  parent_id: string | null;
   shop_id: string | null;
   sort_order: Generated<number>;
   updated_at: Generated<Timestamp>;
@@ -817,27 +834,34 @@ export interface Menus {
   buffer_after_min: Generated<number>;
   buffer_before_min: Generated<number>;
   category_id: string | null;
+  coupon_type: string | null;
   created_at: Generated<Timestamp>;
   created_by: string | null;
   deleted_at: Timestamp | null;
   description: string | null;
   duration_min: number;
+  expiry_date: string | null;
   id: Generated<string>;
   image_file_id: string | null;
   is_consultation: Generated<boolean>;
   is_public: Generated<boolean>;
+  menu_type: Generated<string>;
   name: string;
   new_customer_only: Generated<boolean>;
   organization_id: string;
+  presentation_condition: string | null;
   price: number;
   price_tax_included: Generated<boolean>;
+  price_tilde: Generated<boolean>;
   shop_id: string | null;
   sort_order: Generated<number>;
   status: Generated<string>;
+  sub_category_ids: Generated<string[]>;
   tax_rate_bp: Generated<number>;
   trace_id: string | null;
   updated_at: Generated<Timestamp>;
   updated_by: string | null;
+  usage_condition: string | null;
 }
 
 export interface MenuShopOverrides {
@@ -1344,6 +1368,30 @@ export interface SnsAssets {
   template: string;
 }
 
+export interface StaffBookingSettings {
+  created_at: Generated<Timestamp>;
+  id: Generated<string>;
+  organization_id: string;
+  reservation: Json | null;
+  shop_id: string;
+  staff_id: string;
+  updated_at: Generated<Timestamp>;
+  weekly_all_closed: Generated<boolean>;
+}
+
+export interface StaffInvitations {
+  accepted_at: Timestamp | null;
+  created_at: Generated<Timestamp>;
+  email: string;
+  id: Generated<string>;
+  invited_by_staff_id: string | null;
+  organization_id: string;
+  role_id: string;
+  shop_id: string;
+  staff_id: string;
+  trace_id: string | null;
+}
+
 export interface StaffMenus {
   duration_min: number | null;
   menu_id: string;
@@ -1364,7 +1412,9 @@ export interface Staffs {
   hired_on: string | null;
   id: Generated<string>;
   is_bookable: Generated<boolean>;
+  line_user_id: string | null;
   nomination_fee: Generated<number>;
+  notify_line: Generated<boolean>;
   organization_id: string;
   phone: string | null;
   public_profile: Generated<Json>;
@@ -1399,6 +1449,7 @@ export interface StaffShopAssignments {
   ended_on: string | null;
   id: Generated<string>;
   is_primary: Generated<boolean>;
+  is_visible_to_customer: Generated<boolean>;
   organization_id: string;
   shop_id: string;
   staff_id: string;
@@ -1557,6 +1608,43 @@ export interface Users {
   updated_at: Generated<Timestamp>;
 }
 
+export interface WalkinIntakes {
+  birthday: string | null;
+  consent_answers: Generated<Json>;
+  consent_document_hash: string;
+  consent_response_id: string | null;
+  consent_signature_file_id: string | null;
+  consent_signed_at: Timestamp | null;
+  consent_signer_name: string | null;
+  consent_snapshot: Json;
+  consent_submitted_at: Timestamp;
+  consent_template_id: string;
+  consent_template_version: number;
+  counseling_data: Generated<Json>;
+  counseling_submitted_at: Timestamp | null;
+  created_at: Generated<Timestamp>;
+  customer_id: string | null;
+  first_name: Generated<string>;
+  first_name_kana: Generated<string>;
+  id: Generated<string>;
+  ip: string | null;
+  last_name: Generated<string>;
+  last_name_kana: Generated<string>;
+  occupation: string | null;
+  organization_id: string;
+  phone: string | null;
+  phone_normalized: string | null;
+  resolved_at: Timestamp | null;
+  resolved_by: string | null;
+  search_text: Generated<string | null>;
+  shop_id: string;
+  staff_id: string | null;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+  user_agent: string | null;
+  visit_reason: string | null;
+}
+
 export interface WebhookEvents {
   attempts: Generated<number>;
   event_id: string;
@@ -1594,6 +1682,7 @@ export interface DB {
   coupons: Coupons;
   custom_payment_methods: CustomPaymentMethods;
   customer_channel_preferences: CustomerChannelPreferences;
+  customer_counseling_sheets: CustomerCounselingSheets;
   customer_duplicate_dismissals: CustomerDuplicateDismissals;
   customer_identities: CustomerIdentities;
   customer_memos: CustomerMemos;
@@ -1655,6 +1744,8 @@ export interface DB {
   shop_calendar_exceptions: ShopCalendarExceptions;
   shops: Shops;
   sns_assets: SnsAssets;
+  staff_booking_settings: StaffBookingSettings;
+  staff_invitations: StaffInvitations;
   staff_menus: StaffMenus;
   staff_shifts: StaffShifts;
   staff_shop_assignments: StaffShopAssignments;
@@ -1668,5 +1759,6 @@ export interface DB {
   transaction_items: TransactionItems;
   transactions: Transactions;
   users: Users;
+  walkin_intakes: WalkinIntakes;
   webhook_events: WebhookEvents;
 }

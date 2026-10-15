@@ -118,7 +118,7 @@ export function FilterBar({ filters, update }: { filters: AnalyticsFilters; upda
           </Field>
         </>
       ) : (
-        <p className="pb-1.5 text-xs text-muted tabular">
+        <p className="pb-1.5 text-xs text-muted-foreground tabular">
           {filters.from.replace(/-/g, '/')} 〜 {filters.to.replace(/-/g, '/')}
         </p>
       )}

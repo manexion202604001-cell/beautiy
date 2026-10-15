@@ -45,7 +45,7 @@ export default function Unsubscribe() {
                 ? 'すべてのお知らせ・キャンペーンの配信を停止しました。'
                 : `${CHANNEL_LABEL[submit.data.channel]}でのお知らせ・キャンペーンの配信を停止しました。`}
             </Alert>
-            <p className="text-[13px] text-muted">ご予約の確認やリマインドなど、大切なお知らせは引き続きお送りします。</p>
+            <p className="text-[13px] text-muted-foreground">ご予約の確認やリマインドなど、大切なお知らせは引き続きお送りします。</p>
           </div>
         ) : info.data ? (
           <div className="space-y-4">
@@ -74,7 +74,7 @@ export default function Unsubscribe() {
             <Button variant="primary" size="lg" className="w-full" onClick={() => submit.mutate()} loading={submit.isPending}>
               配信を停止する
             </Button>
-            <p className="text-xs text-muted">ご予約の確認・リマインドは停止されません。配信はマイページからいつでも再開できます。</p>
+            <p className="text-xs text-muted-foreground">ご予約の確認・リマインドは停止されません。配信はマイページからいつでも再開できます。</p>
           </div>
         ) : null}
       </Card>

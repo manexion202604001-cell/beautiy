@@ -50,7 +50,7 @@ export function MyOrders({ slug, token }: { slug: string; token: string }) {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-[15px] font-semibold tabular">{formatYen(o.total)}</p>
-                    <p className="text-xs text-muted">
+                    <p className="text-xs text-muted-foreground">
                       {o.orderNumber} ・ {formatDateTime(o.createdAt)}
                     </p>
                   </div>

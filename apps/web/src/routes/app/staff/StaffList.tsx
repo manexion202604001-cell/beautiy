@@ -97,22 +97,22 @@ export default function StaffList() {
           </THead>
           <TBody>
             {staff.data.map((s) => (
-              <Tr key={s.id} interactive onClick={() => navigate(`/app/staff/${s.id}`)}>
+              <Tr key={s.id} interactive onClick={() => navigate(`/app/staff-classic/${s.id}`)}>
                 <Td>
                   <div className="flex items-center gap-3">
                     <Avatar name={s.display_name} color={s.color} size={34} />
                     <div className="min-w-0">
                       <a
-                        href={`/app/staff/${s.id}`}
+                        href={`/app/staff-classic/${s.id}`}
                         onClick={(e) => {
                           e.preventDefault();
-                          navigate(`/app/staff/${s.id}`);
+                          navigate(`/app/staff-classic/${s.id}`);
                         }}
                         className="font-medium hover:text-primary hover:underline"
                       >
                         {s.display_name}
                       </a>
-                      <p className="text-xs text-muted">
+                      <p className="text-xs text-muted-foreground">
                         {[s.title, EMPLOYMENT_LABEL[s.employment_type]]
                           .filter(Boolean)
                           .join(' ・ ')}
@@ -135,7 +135,7 @@ export default function StaffList() {
                         <span key={a.shop_id} className="mr-2 inline-block">
                           {shopName(a.shop_id)}
                           {a.is_primary && s.shops.length > 1 ? (
-                            <span className="text-xs text-muted">（主）</span>
+                            <span className="text-xs text-muted-foreground">（主）</span>
                           ) : null}
                         </span>
                       ))

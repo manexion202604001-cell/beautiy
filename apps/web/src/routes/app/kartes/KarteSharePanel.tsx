@@ -57,7 +57,7 @@ export function KarteSharePanel({ karte, writable }: { karte: KarteDetail; writa
           )
         }
       />
-      <p className="mb-3 text-[13px] text-muted">
+      <p className="mb-3 text-[13px] text-muted-foreground">
         共有される内容: 写真 {sharedCount}
         枚・ホームケア・「共有」項目（スタッフメモと薬剤は共有されません）
       </p>
@@ -67,7 +67,7 @@ export function KarteSharePanel({ karte, writable }: { karte: KarteDetail; writa
       {link ? (
         <div className="mb-3 space-y-3">
           <CopyLink url={link.url} label="共有リンク" />
-          <p className="text-xs text-muted">有効期限 {formatDateTime(link.expiresAt, tz)}</p>
+          <p className="text-xs text-muted-foreground">有効期限 {formatDateTime(link.expiresAt, tz)}</p>
           <div className="flex justify-center">
             <QrCode value={link.url} label="共有リンクのQRコード" />
           </div>

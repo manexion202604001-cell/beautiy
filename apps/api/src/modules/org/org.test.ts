@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { withSystem } from '../../db/tenant.js';
+import { mockOutbox } from '../../lib/mailer.js';
 import { api, createStaffUser, createTenant } from '../../test/helpers.js';
 
 describe('auth & organization', () => {
@@ -61,6 +62,27 @@ describe('auth & organization', () => {
     const ok = await api().post('/v1/auth/otp/verify', { challengeId: login.body.challengeId, code: login.body.devCode });
     expect(ok.status).toBe(200);
     expect(ok.body.accessToken).toBeTruthy();
+  });
+
+  it('resets a forgotten password with a single-use emailed link', async () => {
+    const t = await createTenant();
+    const before = mockOutbox.length;
+    // unknown addresses get the same answer and no mail
+    expect((await api().post('/v1/auth/password-reset/request', { email: 'nobody-' + t.email })).status).toBe(204);
+    expect(mockOutbox.length).toBe(before);
+    expect((await api().post('/v1/auth/password-reset/request', { email: t.email })).status).toBe(204);
+    const mail = mockOutbox.findLast((m) => m.to === t.email)!;
+    const token = /\/reset-password\/(\S+)/.exec(mail.text)![1]!;
+
+    expect((await api().post('/v1/auth/password-reset/confirm', { token: token + 'x', password: 'new-password-5678' })).status).toBe(401);
+    expect((await api().post('/v1/auth/password-reset/confirm', { token, password: 'new-password-5678' })).status).toBe(204);
+    // the old password no longer works, the new one does
+    expect((await api().post('/v1/auth/login', { email: t.email, password: t.password })).status).toBe(401);
+    expect((await api().post('/v1/auth/login', { email: t.email, password: 'new-password-5678' })).body.status).toBe('authenticated');
+    // the link cannot be used twice
+    const again = await api().post('/v1/auth/password-reset/confirm', { token, password: 'another-password-9' });
+    expect(again.status).toBe(401);
+    expect(again.body.error.code).toBe('INVALID_RESET_TOKEN');
   });
 
   it('isolates tenants (RLS + resource authorization)', async () => {

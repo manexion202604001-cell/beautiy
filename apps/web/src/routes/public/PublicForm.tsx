@@ -49,7 +49,7 @@ export default function PublicForm() {
             <Icon name="check" size={28} />
           </span>
           <h1 className="text-lg font-semibold">ご回答ありがとうございました</h1>
-          <p className="mt-2 text-[13px] text-muted">
+          <p className="mt-2 text-[13px] text-muted-foreground">
             内容はサロンに送信されました。このページは閉じていただいて構いません。
           </p>
         </div>
@@ -130,7 +130,7 @@ export default function PublicForm() {
       }
     >
       <h1 className="text-lg font-semibold">{v.form.name}</h1>
-      <p className="mb-4 text-[13px] text-muted">
+      <p className="mb-4 text-[13px] text-muted-foreground">
         {v.customer.lastName} {v.customer.firstName} 様
         {v.appointment
           ? ` ・ ご予約 ${formatDateJa(zonedParts(v.appointment.startAt, tz).date)} ${formatTime(v.appointment.startAt, tz)}`
@@ -161,13 +161,13 @@ export default function PublicForm() {
           />
         ))}
         {!v.form.fields.length ? (
-          <p className="text-[13px] text-muted">記入項目はありません。</p>
+          <p className="text-[13px] text-muted-foreground">記入項目はありません。</p>
         ) : null}
       </div>
       {v.form.requiresSignature ? (
         <section className="mt-5 space-y-3 rounded-2xl border border-border bg-surface p-4">
           <h2 className="text-sm font-semibold">ご署名</h2>
-          <p className="text-xs text-muted">上記の内容を確認し、同意のうえ署名してください。</p>
+          <p className="text-xs text-muted-foreground">上記の内容を確認し、同意のうえ署名してください。</p>
           <Field label="お名前" required error={errors.__signer || null}>
             <Input
               value={signer}

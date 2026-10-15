@@ -73,6 +73,30 @@ const plugin: FastifyPluginAsyncZod = async (app) => {
   );
 
   app.post(
+    '/auth/password-reset/request',
+    {
+      config: { auth: 'public', ...authRateLimit },
+      schema: { tags: ['auth'], summary: 'パスワードリセットのリンクを送信', body: z.object({ email: z.string().email() }) },
+    },
+    async (req, reply) => {
+      await svc.requestPasswordReset(req.body.email);
+      return reply.status(204).send();
+    },
+  );
+
+  app.post(
+    '/auth/password-reset/confirm',
+    {
+      config: { auth: 'public', ...authRateLimit },
+      schema: { tags: ['auth'], summary: 'パスワードリセットの確定', body: z.object({ token: z.string().min(10), password: z.string().min(10).max(200) }) },
+    },
+    async (req, reply) => {
+      await svc.resetPassword(req.body.token, req.body.password);
+      return reply.status(204).send();
+    },
+  );
+
+  app.post(
     '/auth/switch-organization',
     { schema: { tags: ['auth'], summary: '法人切替', body: z.object({ organizationId: uuid }) } },
     (req) => svc.switchOrganization(req.staff().userId, req.body.organizationId, meta(req)),

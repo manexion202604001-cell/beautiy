@@ -164,8 +164,30 @@ export async function listDuplicatePairs(ctx: Ctx, limit = 100) {
     LIMIT ${limit}`.execute(ctx.trx);
   if (!res.rows.length) return [];
   const ids = [...new Set(res.rows.flatMap((r) => [r.a, r.b]))];
-  const customers = await ctx.trx.selectFrom('customers').select(cols).where('id', 'in', ids).execute();
-  const byId = new Map(customers.map((c) => [c.id, c]));
+  const [customers, lineRows] = await Promise.all([
+    ctx.trx
+      .selectFrom('customers')
+      .leftJoin('staffs', 'staffs.id', 'customers.primary_staff_id')
+      .select([...cols, 'customers.created_at', 'staffs.display_name as primary_staff_name'])
+      .where('customers.id', 'in', ids)
+      .execute(),
+    // LINE profile of each side: the review list shows which record came from a LINE friend
+    ctx.trx
+      .selectFrom('customer_identities')
+      .select(['customer_id', 'display_name', 'profile'])
+      .where('customer_id', 'in', ids)
+      .where('provider', '=', 'line')
+      .where('unlinked_at', 'is', null)
+      .orderBy('linked_at', 'desc')
+      .execute(),
+  ]);
+  const lineOf = (id: string) => {
+    const l = lineRows.find((r) => r.customer_id === id);
+    if (!l) return null;
+    const picture = (l.profile as { pictureUrl?: unknown } | null)?.pictureUrl;
+    return { display_name: l.display_name, picture_url: typeof picture === 'string' && /^https:\/\//.test(picture) ? picture : null };
+  };
+  const byId = new Map(customers.map((c) => [c.id, { ...c, line: lineOf(c.id) }]));
   return res.rows
     .map((r) => {
       const a = byId.get(r.a)!;

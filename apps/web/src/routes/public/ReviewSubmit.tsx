@@ -65,7 +65,7 @@ export default function ReviewSubmit() {
             <Icon name="check" size={28} />
           </span>
           <h1 className="text-lg font-semibold">ご協力ありがとうございました</h1>
-          <p className="mt-2 text-[13px] text-muted">
+          <p className="mt-2 text-[13px] text-muted-foreground">
             {result.status === 'published'
               ? '口コミを公開しました。'
               : 'いただいた口コミは確認後に公開されます。'}
@@ -73,7 +73,7 @@ export default function ReviewSubmit() {
           {result.googleReviewUrl ? (
             <div className="mt-6 w-full rounded-2xl border border-border bg-surface p-4 text-left">
               <p className="text-sm font-medium">よろしければ Google でも感想をお聞かせください</p>
-              <p className="mt-1 text-xs text-muted">
+              <p className="mt-1 text-xs text-muted-foreground">
                 任意です。投稿いただかなくても特典や対応に違いはありません。
               </p>
               <a
@@ -116,7 +116,7 @@ export default function ReviewSubmit() {
   return (
     <PublicShell header={header}>
       <h1 className="text-lg font-semibold">ご来店ありがとうございました</h1>
-      <p className="mb-5 text-[13px] text-muted">
+      <p className="mb-5 text-[13px] text-muted-foreground">
         {v.visit.date ? `${formatDateJa(v.visit.date)}のご来店` : 'ご来店'}
         {v.visit.menus.length ? ` ・ ${v.visit.menus.join('、')}` : ''}
         {v.staff ? ` ・ 担当 ${v.staff.displayName}` : ''}

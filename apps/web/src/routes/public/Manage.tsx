@@ -77,7 +77,7 @@ export default function Manage() {
         <div className="overflow-hidden rounded-2xl border border-border bg-surface">
           <div className="flex items-start justify-between gap-3 bg-primary-soft/60 px-4 py-3">
             <div>
-              <p className="text-xs text-muted">予約番号 {a.bookingReference}</p>
+              <p className="text-xs text-muted-foreground">予約番号 {a.bookingReference}</p>
               <p className="text-lg font-semibold">
                 {formatDateJa(zonedParts(a.startAt, tz).date, { year: true })}{' '}
                 {formatTime(a.startAt, tz)}〜
@@ -87,30 +87,30 @@ export default function Manage() {
           </div>
           <dl className="divide-y divide-border text-[13px]">
             <div className="flex justify-between gap-4 px-4 py-3">
-              <dt className="text-muted">担当</dt>
+              <dt className="text-muted-foreground">担当</dt>
               <dd className="text-right">
                 {a.staffName ? `${a.staffName}${a.isNominated ? '（指名）' : ''}` : '当日決定'}
               </dd>
             </div>
             <div className="px-4 py-3">
-              <dt className="mb-1 text-muted">メニュー</dt>
+              <dt className="mb-1 text-muted-foreground">メニュー</dt>
               {a.services.map((s, i) => (
                 <dd key={i} className="flex justify-between gap-4">
                   <span>
                     {s.name}{' '}
-                    <span className="text-xs text-muted">({formatDuration(s.durationMin)})</span>
+                    <span className="text-xs text-muted-foreground">({formatDuration(s.durationMin)})</span>
                   </span>
                   <span className="tabular">{formatYen(s.price)}</span>
                 </dd>
               ))}
             </div>
             <div className="flex justify-between gap-4 px-4 py-3">
-              <dt className="text-muted">お支払い目安</dt>
+              <dt className="text-muted-foreground">お支払い目安</dt>
               <dd className="font-semibold tabular">{formatYen(a.estimatedTotal)}</dd>
             </div>
             {a.customerNote ? (
               <div className="px-4 py-3">
-                <dt className="text-muted">ご要望</dt>
+                <dt className="text-muted-foreground">ご要望</dt>
                 <dd className="mt-0.5 whitespace-pre-wrap">{a.customerNote}</dd>
               </div>
             ) : null}
@@ -161,7 +161,7 @@ export default function Manage() {
                 >
                   予約をキャンセルする
                 </Button>
-                <p className="text-center text-xs text-muted">
+                <p className="text-center text-xs text-muted-foreground">
                   キャンセル・変更は {formatDateTime(a.cancelDeadline, tz)} まで可能です。
                 </p>
               </>

@@ -138,7 +138,7 @@ export function Dialog({
               {title}
             </h2>
             {description ? (
-              <p id={descId} className="mt-1 text-[13px] text-muted">
+              <p id={descId} className="mt-1 text-[13px] text-muted-foreground">
                 {description}
               </p>
             ) : null}
@@ -204,7 +204,7 @@ export function Drawer({
               {title}
             </h2>
             {description ? (
-              <div className="mt-0.5 text-[13px] text-muted">{description}</div>
+              <div className="mt-0.5 text-[13px] text-muted-foreground">{description}</div>
             ) : null}
           </div>
           {headerExtra}

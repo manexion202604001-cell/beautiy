@@ -1,182 +1,350 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router';
-import { z } from 'zod';
 import { authApi } from '../../api/auth';
-import { Alert, Button, Field, Input } from '../../components/ui';
+import { Button, Input, Label } from '../../components/shad';
 import { errorMessage } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
-import { useZodForm } from '../../lib/form';
-import { AuthShell } from './AuthShell';
+import { AuthCard, AuthErrorBox } from './AuthCard';
 
-const slug = z
-  .string()
-  .min(3, '3文字以上で入力してください')
-  .max(50)
-  .regex(/^[a-z0-9][a-z0-9-]*[a-z0-9]$/, '英小文字・数字・ハイフンのみ（先頭と末尾は英数字）');
+type OwnerType = 'individual' | 'company';
 
-const schema = z.object({
-  organizationName: z.string().trim().min(1, '法人名を入力してください').max(100),
-  organizationSlug: slug,
-  shopName: z.string().trim().min(1, '店舗名を入力してください').max(100),
-  shopSlug: slug,
-  ownerName: z.string().trim().min(1, 'お名前を入力してください').max(100),
-  email: z.string().trim().email('メールアドレスの形式が正しくありません'),
-  password: z.string().min(10, '10文字以上で入力してください').max(200),
-  phone: z.string().max(30).optional(),
-});
+/** Passwords are at least this long (API rule) */
+const MIN_PASSWORD = 10;
 
-function toSlug(s: string) {
-  return s
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 50);
-}
-
+/**
+ * 初期設定 (3 steps): business details → first shop → sign-in account. Creates the organization,
+ * its first shop and the owner account in one call when the last step is submitted.
+ */
 export default function Signup() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { acceptTokens } = useAuth();
-  const [error, setError] = useState<string | null>(null);
+  const [step, setStep] = useState(1);
+  const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const f = useZodForm(schema, {
-    organizationName: '',
-    organizationSlug: '',
-    shopName: '',
-    shopSlug: '',
-    ownerName: '',
-    email: '',
-    password: '',
-    phone: '',
-  });
 
-  const submit = f.handleSubmit(async (data) => {
-    setError(null);
+  const [ownerType, setOwnerType] = useState<OwnerType>('individual');
+  const [companyName, setCompanyName] = useState('');
+  const [companyPostalCode, setCompanyPostalCode] = useState('');
+  const [companyPhone, setCompanyPhone] = useState('');
+  const [companyAddress, setCompanyAddress] = useState('');
+  const [companyEmail, setCompanyEmail] = useState('');
+  const [storeName, setStoreName] = useState('');
+  const [storePostalCode, setStorePostalCode] = useState('');
+  const [storeAddress, setStoreAddress] = useState('');
+  const [storePhone, setStorePhone] = useState('');
+  const [storeEmail, setStoreEmail] = useState('');
+  const [ownerName, setOwnerName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+
+  const next = () => {
+    setError('');
+    if (step === 1) {
+      if (ownerType === 'company' && !companyName.trim()) {
+        setError('法人の場合は会社名を入力してください');
+        return;
+      }
+      setStep(2);
+    } else if (step === 2) {
+      if (!storeName.trim()) {
+        setError('店舗名は必須です');
+        return;
+      }
+      setStep(3);
+    }
+  };
+
+  const back = () => {
+    setError('');
+    setStep(step - 1);
+  };
+
+  const complete = async () => {
+    setError('');
+    if (!ownerName.trim()) {
+      setError('お名前は必須です');
+      return;
+    }
+    if (!email.trim()) {
+      setError('メールアドレスは必須です');
+      return;
+    }
+    if (password.length < MIN_PASSWORD) {
+      setError(`パスワードは${MIN_PASSWORD}文字以上にしてください`);
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError('パスワードが一致しません');
+      return;
+    }
     setBusy(true);
     try {
-      const res = await authApi.signup({ ...data, phone: data.phone || undefined });
+      const company = companyName.trim();
+      const res = await authApi.signup({
+        // a sole proprietor's business goes by the shop name
+        organizationName: ownerType === 'company' && company ? company : storeName.trim(),
+        shopName: storeName.trim(),
+        ownerName: ownerName.trim(),
+        email: email.trim(),
+        password,
+        phone: storePhone.trim() || undefined,
+        shopPostalCode: storePostalCode.trim() || undefined,
+        shopAddressLine: storeAddress.trim() || undefined,
+        shopEmail: storeEmail.trim() || undefined,
+        ownerProfile: {
+          ownerType,
+          companyName: company || undefined,
+          companyPostalCode: companyPostalCode.trim() || undefined,
+          companyPhone: companyPhone.trim() || undefined,
+          companyAddress: companyAddress.trim() || undefined,
+          companyEmail: companyEmail.trim() || undefined,
+        },
+      });
       if (res.auth.status === 'authenticated') {
         qc.clear();
         acceptTokens(res.auth);
-        navigate('/app/settings?welcome=1', { replace: true });
+        navigate('/app/settings-classic?welcome=1', { replace: true });
       } else navigate('/login');
     } catch (e) {
-      f.applyServerError(e);
-      setError(errorMessage(e));
+      setError(errorMessage(e) || 'エラーが発生しました');
     } finally {
       setBusy(false);
     }
-  });
+  };
 
   return (
-    <AuthShell
-      title="新規法人登録"
-      subtitle="法人・最初の店舗・オーナーアカウントを作成します。30秒で始められます。"
-      footer={
-        <>
-          アカウントをお持ちですか？{' '}
-          <Link to="/login" className="font-medium text-primary hover:underline">
-            ログイン
-          </Link>
-        </>
+    <AuthCard
+      className="py-8"
+      cardClassName="max-w-lg"
+      description={`初期設定（ステップ ${step}/3）`}
+      headerExtra={
+        <div className="mt-3 flex gap-1">
+          {[1, 2, 3].map((n) => (
+            <div
+              key={n}
+              className={`h-1.5 flex-1 rounded-full ${n <= step ? 'bg-primary' : 'bg-muted'}`}
+            />
+          ))}
+        </div>
       }
     >
-      <form onSubmit={submit} className="space-y-5" noValidate>
-        {error ? <Alert tone="danger">{error}</Alert> : null}
-        <fieldset className="space-y-3">
-          <legend className="mb-2 text-xs font-semibold uppercase tracking-wider text-subtle">
-            法人
-          </legend>
-          <Field label="法人名・屋号" required error={f.errors.organizationName}>
+      {error ? <AuthErrorBox className="mb-4">{error}</AuthErrorBox> : null}
+
+      {step === 1 ? (
+        <div className="sy-4">
+          <h3 className="font-medium">会社・事業者情報</h3>
+          <div className="sy-2">
+            <Label>事業形態</Label>
+            <div className="flex gap-3">
+              <Button
+                type="button"
+                variant={ownerType === 'individual' ? 'default' : 'outline'}
+                aria-pressed={ownerType === 'individual'}
+                className="flex-1"
+                onClick={() => setOwnerType('individual')}
+              >
+                個人事業主
+              </Button>
+              <Button
+                type="button"
+                variant={ownerType === 'company' ? 'default' : 'outline'}
+                aria-pressed={ownerType === 'company'}
+                className="flex-1"
+                onClick={() => setOwnerType('company')}
+              >
+                法人
+              </Button>
+            </div>
+          </div>
+          {ownerType === 'company' ? (
+            <div className="sy-2">
+              <Label htmlFor="companyName">会社名 *</Label>
+              <Input
+                id="companyName"
+                value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)}
+                placeholder="株式会社サンプル"
+              />
+            </div>
+          ) : null}
+          <div className="sy-2">
+            <Label htmlFor="companyPostalCode">郵便番号</Label>
             <Input
-              value={f.values.organizationName}
-              onChange={(e) => f.set('organizationName', e.target.value)}
-              placeholder="株式会社サロン"
-              autoFocus
+              id="companyPostalCode"
+              value={companyPostalCode}
+              onChange={(e) => setCompanyPostalCode(e.target.value)}
+              placeholder="000-0000"
             />
-          </Field>
-          <Field
-            label="法人ID（URL用）"
-            required
-            error={f.errors.organizationSlug}
-            hint="英小文字・数字・ハイフン"
-          >
+          </div>
+          <div className="sy-2">
+            <Label htmlFor="companyAddress">住所</Label>
             <Input
-              value={f.values.organizationSlug}
-              onChange={(e) => f.set('organizationSlug', toSlug(e.target.value))}
-              placeholder="my-salon"
+              id="companyAddress"
+              value={companyAddress}
+              onChange={(e) => setCompanyAddress(e.target.value)}
+              placeholder="東京都渋谷区..."
             />
-          </Field>
-        </fieldset>
-        <fieldset className="space-y-3">
-          <legend className="mb-2 text-xs font-semibold uppercase tracking-wider text-subtle">
-            最初の店舗
-          </legend>
-          <Field label="店舗名" required error={f.errors.shopName}>
+          </div>
+          <div className="sy-2">
+            <Label htmlFor="companyPhone">電話番号</Label>
             <Input
-              value={f.values.shopName}
-              onChange={(e) => f.set('shopName', e.target.value)}
-              placeholder="サロン 渋谷店"
-            />
-          </Field>
-          <Field
-            label="店舗ID（予約URL）"
-            required
-            error={f.errors.shopSlug}
-            hint={
-              f.values.shopSlug
-                ? `予約ページ: /book/${f.values.shopSlug}`
-                : '予約ページのURLになります'
-            }
-          >
-            <Input
-              value={f.values.shopSlug}
-              onChange={(e) => f.set('shopSlug', toSlug(e.target.value))}
-              placeholder="shibuya"
-            />
-          </Field>
-        </fieldset>
-        <fieldset className="space-y-3">
-          <legend className="mb-2 text-xs font-semibold uppercase tracking-wider text-subtle">
-            オーナー
-          </legend>
-          <Field label="お名前" required error={f.errors.ownerName}>
-            <Input
-              value={f.values.ownerName}
-              onChange={(e) => f.set('ownerName', e.target.value)}
-              autoComplete="name"
-            />
-          </Field>
-          <Field label="メールアドレス" required error={f.errors.email}>
-            <Input
-              type="email"
-              value={f.values.email}
-              onChange={(e) => f.set('email', e.target.value)}
-              autoComplete="email"
-            />
-          </Field>
-          <Field label="パスワード" required error={f.errors.password} hint="10文字以上">
-            <Input
-              type="password"
-              value={f.values.password}
-              onChange={(e) => f.set('password', e.target.value)}
-              autoComplete="new-password"
-            />
-          </Field>
-          <Field label="電話番号" optional error={f.errors.phone}>
-            <Input
+              id="companyPhone"
               type="tel"
-              value={f.values.phone ?? ''}
-              onChange={(e) => f.set('phone', e.target.value)}
-              autoComplete="tel"
+              value={companyPhone}
+              onChange={(e) => setCompanyPhone(e.target.value)}
+              placeholder="03-0000-0000"
             />
-          </Field>
-        </fieldset>
-        <Button type="submit" variant="primary" size="lg" className="w-full" loading={busy}>
-          登録してはじめる
-        </Button>
-      </form>
-    </AuthShell>
+          </div>
+          <div className="sy-2">
+            <Label htmlFor="companyEmail">メールアドレス</Label>
+            <Input
+              id="companyEmail"
+              type="email"
+              value={companyEmail}
+              onChange={(e) => setCompanyEmail(e.target.value)}
+              placeholder="info@example.com"
+            />
+          </div>
+          <Button className="w-full" onClick={next}>
+            次へ
+          </Button>
+        </div>
+      ) : null}
+
+      {step === 2 ? (
+        <div className="sy-4">
+          <h3 className="font-medium">店舗情報</h3>
+          <p className="text-sm text-muted-foreground">
+            最初の店舗を登録します。後から変更・追加できます。
+          </p>
+          <div className="sy-2">
+            <Label htmlFor="storeName">店舗名 *</Label>
+            <Input
+              id="storeName"
+              value={storeName}
+              onChange={(e) => setStoreName(e.target.value)}
+              placeholder="ビューティーサロン 渋谷店"
+            />
+          </div>
+          <div className="sy-2">
+            <Label htmlFor="storePostalCode">郵便番号</Label>
+            <Input
+              id="storePostalCode"
+              value={storePostalCode}
+              onChange={(e) => setStorePostalCode(e.target.value)}
+              placeholder="000-0000"
+            />
+          </div>
+          <div className="sy-2">
+            <Label htmlFor="storeAddress">住所</Label>
+            <Input
+              id="storeAddress"
+              value={storeAddress}
+              onChange={(e) => setStoreAddress(e.target.value)}
+              placeholder="東京都渋谷区..."
+            />
+          </div>
+          <div className="sy-2">
+            <Label htmlFor="storePhone">電話番号</Label>
+            <Input
+              id="storePhone"
+              type="tel"
+              value={storePhone}
+              onChange={(e) => setStorePhone(e.target.value)}
+              placeholder="03-0000-0000"
+            />
+          </div>
+          <div className="sy-2">
+            <Label htmlFor="storeEmail">メールアドレス</Label>
+            <Input
+              id="storeEmail"
+              type="email"
+              value={storeEmail}
+              onChange={(e) => setStoreEmail(e.target.value)}
+              placeholder="shop@example.com"
+            />
+          </div>
+          <div className="flex gap-3">
+            <Button variant="outline" className="flex-1" onClick={back}>
+              戻る
+            </Button>
+            <Button className="flex-1" onClick={next}>
+              次へ
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {step === 3 ? (
+        <div className="sy-4">
+          <h3 className="font-medium">アカウント設定</h3>
+          <p className="text-sm text-muted-foreground">
+            お名前・メールアドレス・パスワードを設定します。この情報で管理画面にログインします。
+          </p>
+          <div className="sy-2">
+            <Label htmlFor="ownerName">お名前 *</Label>
+            <Input
+              id="ownerName"
+              autoComplete="name"
+              value={ownerName}
+              onChange={(e) => setOwnerName(e.target.value)}
+              placeholder="山田 花子"
+            />
+          </div>
+          <div className="sy-2">
+            <Label htmlFor="email">メールアドレス *</Label>
+            <Input
+              id="email"
+              type="email"
+              autoComplete="username"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="email@example.com"
+            />
+          </div>
+          <div className="sy-2">
+            <Label htmlFor="password">新しいパスワード *</Label>
+            <Input
+              id="password"
+              type="password"
+              autoComplete="new-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder={`${MIN_PASSWORD}文字以上`}
+              minLength={MIN_PASSWORD}
+            />
+          </div>
+          <div className="sy-2">
+            <Label htmlFor="confirmPassword">パスワード（確認） *</Label>
+            <Input
+              id="confirmPassword"
+              type="password"
+              autoComplete="new-password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="パスワードを再入力"
+              minLength={MIN_PASSWORD}
+            />
+          </div>
+          <div className="flex gap-3">
+            <Button variant="outline" className="flex-1" onClick={back}>
+              戻る
+            </Button>
+            <Button className="flex-1" onClick={() => void complete()} disabled={busy}>
+              {busy ? '設定中...' : '設定完了'}
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="mt-4 text-center">
+        <Link to="/login" className="text-sm text-muted-foreground hover:underline">
+          アカウントをお持ちの方はログイン
+        </Link>
+      </div>
+    </AuthCard>
   );
 }

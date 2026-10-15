@@ -39,7 +39,13 @@ import {
 import { newIdempotencyKey } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth';
 import { formatAgo, formatDateTime } from '../../../lib/format';
-import { CsvImportDialog, MailSetupDialog, MailSetupGuide, ParseTestDialog } from './MailTools';
+import {
+  CsvImportDialog,
+  MailSetupDialog,
+  MailSetupGuide,
+  ParseTestDialog,
+  ReceivedMailsDialog,
+} from './MailTools';
 
 export const STATUS_LABEL: Record<string, string> = {
   active: '正常',
@@ -47,11 +53,22 @@ export const STATUS_LABEL: Record<string, string> = {
   degraded: '縮退中',
   disabled: '無効',
 };
-export const STATUS_TONE: Record<string, Tone> = { active: 'success', error: 'danger', degraded: 'warning', disabled: 'neutral' };
+export const STATUS_TONE: Record<string, Tone> = {
+  active: 'success',
+  error: 'danger',
+  degraded: 'warning',
+  disabled: 'neutral',
+};
 
 const POLICY_LABEL: Record<ConflictPolicy, { label: string; description: string }> = {
-  manual: { label: '手動で解決', description: '競合は「競合キュー」に入り、スタッフが判断します（推奨）' },
-  external_wins: { label: '外部を優先', description: '外部の予約を反映し、重なる自社予約は取消されます' },
+  manual: {
+    label: '手動で解決',
+    description: '競合は「競合キュー」に入り、スタッフが判断します（推奨）',
+  },
+  external_wins: {
+    label: '外部を優先',
+    description: '外部の予約を反映し、重なる自社予約は取消されます',
+  },
   internal_wins: { label: '自社を優先', description: '自社の予約を残し、外部の予約は反映しません' },
 };
 
@@ -71,10 +88,12 @@ export function AccountsTab() {
   const [disabling, setDisabling] = useState<Integration | null>(null);
   const [setupFor, setSetupFor] = useState<Integration | null>(null);
   const [parseFor, setParseFor] = useState<Integration | null>(null);
+  const [mailsFor, setMailsFor] = useState<Integration | null>(null);
   const [csvFor, setCsvFor] = useState<Integration | null>(null);
   const status = useSyncStatus();
   const manualOpen = (id: string) =>
-    status.data?.shops.flatMap((s) => s.accounts).find((x) => x.integrationAccountId === id)?.manualActionRequired ?? 0;
+    status.data?.shops.flatMap((s) => s.accounts).find((x) => x.integrationAccountId === id)
+      ?.manualActionRequired ?? 0;
   const shopName = (id: string | null) => shops.find((s) => s.id === id)?.name ?? '—';
 
   const refresh = () => {
@@ -84,12 +103,16 @@ export function AccountsTab() {
     mutationFn: (id: string) => integrationsApi.test(id),
     onSuccess: (r) =>
       r.ok
-        ? toast.success('接続に成功しました', r.latencyMs !== undefined ? `応答 ${r.latencyMs}ms` : undefined)
+        ? toast.success(
+            '接続に成功しました',
+            r.latencyMs !== undefined ? `応答 ${r.latencyMs}ms` : undefined,
+          )
         : toast.error('接続に失敗しました', r.message),
     onError: (e) => toast.error(e),
   });
   const resync = useMutation({
-    mutationFn: ({ id, mode }: { id: string; mode: 'delta' | 'full' }) => integrationsApi.resync(id, mode),
+    mutationFn: ({ id, mode }: { id: string; mode: 'delta' | 'full' }) =>
+      integrationsApi.resync(id, mode),
     onSuccess: (r, v) => {
       refresh();
       setFullFor(null);
@@ -121,108 +144,192 @@ export function AccountsTab() {
       {q.isLoading ? <InlineLoading /> : null}
       {q.error ? <ErrorState error={q.error} onRetry={() => void q.refetch()} /> : null}
       {q.data && !q.data.length ? (
-        <EmptyState icon="plug" title="外部連携はまだありません" description="予約媒体と接続すると、外部の予約を自動で取り込み、空き枠を反映できます。" />
+        <EmptyState
+          icon="plug"
+          title="外部連携はまだありません"
+          description="予約媒体と接続すると、外部の予約を自動で取り込み、空き枠を反映できます。"
+        />
       ) : null}
       <div className="grid gap-4 lg:grid-cols-2">
         {(q.data ?? []).map((a) => {
           const mail = isMailProvider(a.provider);
           const pending = mail ? manualOpen(a.id) : 0;
           return (
-          <Card key={a.id} className="flex flex-col gap-3" as="article">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="truncate text-[15px] font-semibold">{a.display_name}</p>
-                <p className="text-xs text-muted">
-                  {providerLabel(a.provider)} ・{shopName(a.shop_id)}
-                </p>
+            <Card key={a.id} className="flex flex-col gap-3" as="article">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-[15px] font-semibold">{a.display_name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {providerLabel(a.provider)} ・{shopName(a.shop_id)}
+                  </p>
+                </div>
+                <Badge tone={STATUS_TONE[a.status] ?? 'neutral'} dot>
+                  {STATUS_LABEL[a.status] ?? a.status}
+                </Badge>
               </div>
-              <Badge tone={STATUS_TONE[a.status] ?? 'neutral'} dot>
-                {STATUS_LABEL[a.status] ?? a.status}
-              </Badge>
-            </div>
-            <KeyValue
-              items={[
-                { label: '最終成功', value: a.last_success_at ? `${formatDateTime(a.last_success_at, tz)}（${formatAgo(a.last_success_at)}）` : '—' },
-                { label: '競合ルール', value: POLICY_LABEL[a.config.conflictPolicy]?.label ?? a.config.conflictPolicy },
-                ...(mail ? [{ label: '取り込み', value: '予約通知メール（新規・変更・キャンセル）' }] : []),
-                {
-                  label: '枠の反映',
-                  value: !a.config.pushBlocks
-                    ? '反映しない'
-                    : a.pushMode === 'manual'
-                      ? `スタッフへ枠止めを依頼${pending ? `（未対応 ${pending}件）` : ''}`
-                      : '外部へ反映する',
-                },
-                {
-                  label: '対応表',
-                  value: `スタッフ ${Object.keys(a.config.staffMap).length}件 ・メニュー ${Object.keys(a.config.menuMap).length}件`,
-                },
-              ]}
-            />
-            {a.last_error ? (
-              <Alert tone={a.status === 'degraded' ? 'warning' : 'danger'} title={`直近のエラー（連続${a.consecutive_failures}回）`}>
-                <span className="break-all">{a.last_error}</span>
-                {a.last_error_at ? <span className="ml-1 text-xs text-muted">{formatDateTime(a.last_error_at, tz)}</span> : null}
-              </Alert>
-            ) : null}
-            {pending ? (
-              <Alert tone="warning" title={`媒体で止める・再開する枠が ${pending} 件あります`}>
-                「媒体の枠止め」タブで確認し、{a.provider === 'lime_mail' ? 'LiME' : 'SALON BOARD'} で操作後に「対応済み」を押してください。
-              </Alert>
-            ) : null}
-            {mail ? (
-              <div className="mt-auto flex flex-wrap gap-2 border-t border-border pt-3">
-                <Button size="sm" icon="info" onClick={() => setSetupFor(a)}>
-                  設定手順・受信URL
-                </Button>
-                <Button size="sm" icon="mail" onClick={() => setParseFor(a)} disabled={a.status === 'disabled'}>
-                  解析テスト
-                </Button>
-                <Button size="sm" variant="ghost" icon="download" onClick={() => setCsvFor(a)} disabled={a.status === 'disabled'}>
-                  CSV取り込み
-                </Button>
-                <span className="flex-1" />
-                <IconButton icon="edit" label="設定を編集" size="sm" variant="secondary" onClick={() => setEditing(a)} />
-                {a.status === 'disabled' ? (
-                  <Button size="sm" variant="soft" onClick={() => setStatus.mutate({ id: a.id, status: 'active' })}>
-                    有効にする
+              <KeyValue
+                items={[
+                  {
+                    label: '最終成功',
+                    value: a.last_success_at
+                      ? `${formatDateTime(a.last_success_at, tz)}（${formatAgo(a.last_success_at)}）`
+                      : '—',
+                  },
+                  {
+                    label: '競合ルール',
+                    value: POLICY_LABEL[a.config.conflictPolicy]?.label ?? a.config.conflictPolicy,
+                  },
+                  ...(mail
+                    ? [{ label: '取り込み', value: '予約通知メール（新規・変更・キャンセル）' }]
+                    : []),
+                  {
+                    label: '枠の反映',
+                    value: !a.config.pushBlocks
+                      ? '反映しない'
+                      : a.pushMode === 'manual'
+                        ? `スタッフへ枠止めを依頼${pending ? `（未対応 ${pending}件）` : ''}`
+                        : '外部へ反映する',
+                  },
+                  {
+                    label: '対応表',
+                    value: `スタッフ ${Object.keys(a.config.staffMap).length}件 ・メニュー ${Object.keys(a.config.menuMap).length}件`,
+                  },
+                ]}
+              />
+              {a.last_error ? (
+                <Alert
+                  tone={a.status === 'degraded' ? 'warning' : 'danger'}
+                  title={`直近のエラー（連続${a.consecutive_failures}回）`}
+                >
+                  <span className="break-all">{a.last_error}</span>
+                  {a.last_error_at ? (
+                    <span className="ml-1 text-xs text-muted-foreground">
+                      {formatDateTime(a.last_error_at, tz)}
+                    </span>
+                  ) : null}
+                </Alert>
+              ) : null}
+              {pending ? (
+                <Alert tone="warning" title={`媒体で止める・再開する枠が ${pending} 件あります`}>
+                  「媒体の枠止め」タブで確認し、
+                  {a.provider === 'lime_mail' ? 'LiME' : 'SALON BOARD'}{' '}
+                  で操作後に「対応済み」を押してください。
+                </Alert>
+              ) : null}
+              {mail ? (
+                <div className="mt-auto flex flex-wrap gap-2 border-t border-border pt-3">
+                  <Button size="sm" icon="info" onClick={() => setSetupFor(a)}>
+                    設定手順・受信URL
                   </Button>
-                ) : (
-                  <IconButton icon="x" label="無効にする" size="sm" variant="secondary" onClick={() => setDisabling(a)} />
-                )}
-              </div>
-            ) : (
-            <div className="mt-auto flex flex-wrap gap-2 border-t border-border pt-3">
-              <Button size="sm" icon="plug" onClick={() => test.mutate(a.id)} loading={test.isPending && test.variables === a.id} disabled={a.status === 'disabled'}>
-                接続テスト
-              </Button>
-              <Button
-                size="sm"
-                icon="refresh"
-                onClick={() => resync.mutate({ id: a.id, mode: 'delta' })}
-                loading={resync.isPending && resync.variables?.id === a.id && resync.variables.mode === 'delta'}
-                disabled={a.status === 'disabled'}
-              >
-                差分同期
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => setFullFor(a)} disabled={a.status === 'disabled'}>
-                全件再同期
-              </Button>
-              <Button size="sm" variant="ghost" icon="list" onClick={() => setJobsFor(a)}>
-                同期履歴
-              </Button>
-              <span className="flex-1" />
-              <IconButton icon="edit" label="設定を編集" size="sm" variant="secondary" onClick={() => setEditing(a)} />
-              {a.status === 'disabled' ? (
-                <Button size="sm" variant="soft" onClick={() => setStatus.mutate({ id: a.id, status: 'active' })}>
-                  有効にする
-                </Button>
+                  <Button size="sm" icon="mail" onClick={() => setMailsFor(a)}>
+                    受信したメール
+                  </Button>
+                  <Button
+                    size="sm"
+                    icon="mail"
+                    onClick={() => setParseFor(a)}
+                    disabled={a.status === 'disabled'}
+                  >
+                    解析テスト
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    icon="download"
+                    onClick={() => setCsvFor(a)}
+                    disabled={a.status === 'disabled'}
+                  >
+                    CSV取り込み
+                  </Button>
+                  <span className="flex-1" />
+                  <IconButton
+                    icon="edit"
+                    label="設定を編集"
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => setEditing(a)}
+                  />
+                  {a.status === 'disabled' ? (
+                    <Button
+                      size="sm"
+                      variant="soft"
+                      onClick={() => setStatus.mutate({ id: a.id, status: 'active' })}
+                    >
+                      有効にする
+                    </Button>
+                  ) : (
+                    <IconButton
+                      icon="x"
+                      label="無効にする"
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => setDisabling(a)}
+                    />
+                  )}
+                </div>
               ) : (
-                <IconButton icon="x" label="無効にする" size="sm" variant="secondary" onClick={() => setDisabling(a)} />
+                <div className="mt-auto flex flex-wrap gap-2 border-t border-border pt-3">
+                  <Button
+                    size="sm"
+                    icon="plug"
+                    onClick={() => test.mutate(a.id)}
+                    loading={test.isPending && test.variables === a.id}
+                    disabled={a.status === 'disabled'}
+                  >
+                    接続テスト
+                  </Button>
+                  <Button
+                    size="sm"
+                    icon="refresh"
+                    onClick={() => resync.mutate({ id: a.id, mode: 'delta' })}
+                    loading={
+                      resync.isPending &&
+                      resync.variables?.id === a.id &&
+                      resync.variables.mode === 'delta'
+                    }
+                    disabled={a.status === 'disabled'}
+                  >
+                    差分同期
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setFullFor(a)}
+                    disabled={a.status === 'disabled'}
+                  >
+                    全件再同期
+                  </Button>
+                  <Button size="sm" variant="ghost" icon="list" onClick={() => setJobsFor(a)}>
+                    同期履歴
+                  </Button>
+                  <span className="flex-1" />
+                  <IconButton
+                    icon="edit"
+                    label="設定を編集"
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => setEditing(a)}
+                  />
+                  {a.status === 'disabled' ? (
+                    <Button
+                      size="sm"
+                      variant="soft"
+                      onClick={() => setStatus.mutate({ id: a.id, status: 'active' })}
+                    >
+                      有効にする
+                    </Button>
+                  ) : (
+                    <IconButton
+                      icon="x"
+                      label="無効にする"
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => setDisabling(a)}
+                    />
+                  )}
+                </div>
               )}
-            </div>
-            )}
-          </Card>
+            </Card>
           );
         })}
       </div>
@@ -230,11 +337,14 @@ export function AccountsTab() {
         <IntegrationDialog
           integration={editing === 'new' ? null : editing}
           onClose={() => setEditing(null)}
-          onCreated={(created) => (isMailProvider(created.provider) ? setSetupFor(created) : undefined)}
+          onCreated={(created) =>
+            isMailProvider(created.provider) ? setSetupFor(created) : undefined
+          }
         />
       ) : null}
       <MailSetupDialog integration={setupFor} onClose={() => setSetupFor(null)} />
       <ParseTestDialog integration={parseFor} onClose={() => setParseFor(null)} />
+      <ReceivedMailsDialog integration={mailsFor} onClose={() => setMailsFor(null)} />
       <CsvImportDialog integration={csvFor} onClose={() => setCsvFor(null)} />
       <SyncJobsDrawer integration={jobsFor} onClose={() => setJobsFor(null)} />
       <ConfirmDialog
@@ -260,13 +370,30 @@ export function AccountsTab() {
   );
 }
 
-function SyncJobsDrawer({ integration, onClose }: { integration: Integration | null; onClose: () => void }) {
+function SyncJobsDrawer({
+  integration,
+  onClose,
+}: {
+  integration: Integration | null;
+  onClose: () => void;
+}) {
   const { timezone: tz } = useAuth();
   const q = useSyncJobs(integration?.id ?? null);
   const items = q.data?.pages.flatMap((p) => p.items) ?? [];
-  const tone: Record<string, Tone> = { succeeded: 'success', failed: 'danger', running: 'info', queued: 'neutral' };
+  const tone: Record<string, Tone> = {
+    succeeded: 'success',
+    failed: 'danger',
+    running: 'info',
+    queued: 'neutral',
+  };
   return (
-    <Drawer open={!!integration} onClose={onClose} title="同期ジョブ履歴" description={integration?.display_name} width="lg">
+    <Drawer
+      open={!!integration}
+      onClose={onClose}
+      title="同期ジョブ履歴"
+      description={integration?.display_name}
+      width="lg"
+    >
       {q.isLoading ? <InlineLoading /> : null}
       {q.error ? <ErrorState error={q.error} /> : null}
       {q.data && !items.length ? <EmptyState icon="list" title="同期履歴はまだありません" /> : null}
@@ -276,22 +403,34 @@ function SyncJobsDrawer({ integration, onClose }: { integration: Integration | n
             <div className="flex flex-wrap items-center gap-2">
               <Badge tone={tone[j.state] ?? 'neutral'}>{j.state}</Badge>
               <span className="font-medium">{j.mode === 'full' ? '全件' : '差分'}</span>
-              <span className="text-xs text-muted">{j.triggered_by === 'manual' ? '手動' : j.triggered_by}</span>
-              <span className="ml-auto text-xs text-subtle tabular">{formatDateTime(j.created_at, tz)}</span>
+              <span className="text-xs text-muted-foreground">
+                {j.triggered_by === 'manual' ? '手動' : j.triggered_by}
+              </span>
+              <span className="ml-auto text-xs text-subtle tabular">
+                {formatDateTime(j.created_at, tz)}
+              </span>
             </div>
             {j.stats ? (
-              <p className="mt-1 text-xs text-muted">
+              <p className="mt-1 text-xs text-muted-foreground">
                 {Object.entries(j.stats)
                   .map(([k, v]) => `${STAT_LABEL[k] ?? k} ${v}`)
                   .join(' ・ ')}
               </p>
             ) : null}
             {j.error ? <p className="mt-1 break-all text-xs text-danger">{j.error}</p> : null}
-            {j.finished_at ? <p className="mt-0.5 text-[11px] text-subtle">完了 {formatDateTime(j.finished_at, tz)}</p> : null}
+            {j.finished_at ? (
+              <p className="mt-0.5 text-[11px] text-subtle">
+                完了 {formatDateTime(j.finished_at, tz)}
+              </p>
+            ) : null}
           </li>
         ))}
       </ul>
-      <LoadMore hasMore={!!q.hasNextPage} loading={q.isFetchingNextPage} onClick={() => void q.fetchNextPage()} />
+      <LoadMore
+        hasMore={!!q.hasNextPage}
+        loading={q.isFetchingNextPage}
+        onClick={() => void q.fetchNextPage()}
+      />
     </Drawer>
   );
 }
@@ -308,9 +447,12 @@ const STAT_LABEL: Record<string, string> = {
 };
 
 type MapRow = { key: string; value: string };
-const toRows = (m: Record<string, string>): MapRow[] => Object.entries(m).map(([key, value]) => ({ key, value }));
+const toRows = (m: Record<string, string>): MapRow[] =>
+  Object.entries(m).map(([key, value]) => ({ key, value }));
 const toMap = (rows: MapRow[]) =>
-  Object.fromEntries(rows.filter((r) => r.key.trim() && r.value).map((r) => [r.key.trim(), r.value]));
+  Object.fromEntries(
+    rows.filter((r) => r.key.trim() && r.value).map((r) => [r.key.trim(), r.value]),
+  );
 
 function IntegrationDialog({
   integration,
@@ -328,7 +470,9 @@ function IntegrationDialog({
   const [shopId, setShopId] = useState(integration?.shop_id ?? currentShopId ?? '');
   const [displayName, setDisplayName] = useState(integration?.display_name ?? '');
   const [credentials, setCredentials] = useState('');
-  const [policy, setPolicy] = useState<ConflictPolicy>(integration?.config.conflictPolicy ?? 'manual');
+  const [policy, setPolicy] = useState<ConflictPolicy>(
+    integration?.config.conflictPolicy ?? 'manual',
+  );
   const [pushBlocks, setPushBlocks] = useState(integration?.config.pushBlocks ?? false);
   const [pushTouched, setPushTouched] = useState(!!integration);
   const mail = isMailProvider(provider);
@@ -336,7 +480,9 @@ function IntegrationDialog({
   const [defaultMenuId, setDefaultMenuId] = useState(mailCfg?.defaultMenuId ?? '');
   const [autoMatch, setAutoMatch] = useState(mailCfg?.autoMatchNames ?? true);
   const [notifyEmails, setNotifyEmails] = useState((mailCfg?.notifyEmails ?? []).join(', '));
-  const [subjectIncludes, setSubjectIncludes] = useState((mailCfg?.subjectIncludes ?? []).join(', '));
+  const [subjectIncludes, setSubjectIncludes] = useState(
+    (mailCfg?.subjectIncludes ?? []).join(', '),
+  );
   const splitList = (v: string) =>
     v
       .split(/[,、\s]+/)
@@ -382,8 +528,21 @@ function IntegrationDialog({
           : {}),
       };
       return integration
-        ? integrationsApi.update(integration.id, { displayName: displayName.trim(), config, ...(creds ? { credentials: creds } : {}) })
-        : integrationsApi.create({ provider, shopId, displayName: displayName.trim(), config, ...(creds ? { credentials: creds } : {}) }, key);
+        ? integrationsApi.update(integration.id, {
+            displayName: displayName.trim(),
+            config,
+            ...(creds ? { credentials: creds } : {}),
+          })
+        : integrationsApi.create(
+            {
+              provider,
+              shopId,
+              displayName: displayName.trim(),
+              config,
+              ...(creds ? { credentials: creds } : {}),
+            },
+            key,
+          );
     },
     onSuccess: (saved) => {
       void qc.invalidateQueries({ queryKey: integrationKeys.all });
@@ -422,7 +581,14 @@ function IntegrationDialog({
     >
       <div className="space-y-5">
         <div className="grid gap-3 sm:grid-cols-3">
-          <Field label="連携先" hint={integration ? '作成後は変更できません' : PROVIDERS.find((p) => p.value === provider)?.description}>
+          <Field
+            label="連携先"
+            hint={
+              integration
+                ? '作成後は変更できません'
+                : PROVIDERS.find((p) => p.value === provider)?.description
+            }
+          >
             <Select
               value={provider}
               onChange={(e) => {
@@ -440,7 +606,11 @@ function IntegrationDialog({
             </Select>
           </Field>
           <Field label="店舗" required>
-            <Select value={shopId} onChange={(e) => setShopId(e.target.value)} disabled={!!integration}>
+            <Select
+              value={shopId}
+              onChange={(e) => setShopId(e.target.value)}
+              disabled={!!integration}
+            >
               <option value="">選択してください</option>
               {shops.map((s) => (
                 <option key={s.id} value={s.id}>
@@ -450,42 +620,60 @@ function IntegrationDialog({
             </Select>
           </Field>
           <Field label="表示名" required>
-            <Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} maxLength={100} placeholder="例: 予約媒体A（渋谷）" />
+            <Input
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              maxLength={100}
+              placeholder="例: 予約媒体A（渋谷）"
+            />
           </Field>
         </div>
         {mail ? null : (
-        <Field
-          label="認証情報（JSON）"
-          optional
-          error={credError}
-          hint={
-            integration?.hasCredentials
-              ? '保存済みの認証情報は表示されません。入力すると置き換えます（空欄なら変更なし）。'
-              : '暗号化して保存され、画面やAPIで再表示されることはありません。'
-          }
-        >
-          <Textarea
-            value={credentials}
-            onChange={(e) => {
-              setCredentials(e.target.value);
-              setCredError(null);
-            }}
-            rows={3}
-            className="font-mono text-xs"
-            placeholder={integration?.hasCredentials ? '••••••••（保存済み）' : '{"apiKey": "..."}'}
-            spellCheck={false}
-            autoComplete="off"
-          />
-        </Field>
+          <Field
+            label="認証情報（JSON）"
+            optional
+            error={credError}
+            hint={
+              integration?.hasCredentials
+                ? '保存済みの認証情報は表示されません。入力すると置き換えます（空欄なら変更なし）。'
+                : '暗号化して保存され、画面やAPIで再表示されることはありません。'
+            }
+          >
+            <Textarea
+              value={credentials}
+              onChange={(e) => {
+                setCredentials(e.target.value);
+                setCredError(null);
+              }}
+              rows={3}
+              className="font-mono text-xs"
+              placeholder={
+                integration?.hasCredentials ? '••••••••（保存済み）' : '{"apiKey": "..."}'
+              }
+              spellCheck={false}
+              autoComplete="off"
+            />
+          </Field>
         )}
         <fieldset className="space-y-2">
           <legend className="mb-1 text-[13px] font-medium">競合時のルール</legend>
           {(Object.keys(POLICY_LABEL) as ConflictPolicy[]).map((p) => (
-            <label key={p} className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-border p-3 text-[13px] has-[:checked]:border-primary has-[:checked]:bg-primary-soft/40">
-              <input type="radio" name="policy" className="mt-0.5 accent-[var(--primary)]" checked={policy === p} onChange={() => setPolicy(p)} />
+            <label
+              key={p}
+              className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-border p-3 text-[13px] has-[:checked]:border-primary has-[:checked]:bg-primary-soft/40"
+            >
+              <input
+                type="radio"
+                name="policy"
+                className="mt-0.5 accent-[var(--primary)]"
+                checked={policy === p}
+                onChange={() => setPolicy(p)}
+              />
               <span>
                 <span className="font-medium">{POLICY_LABEL[p].label}</span>
-                <span className="block text-xs text-muted">{POLICY_LABEL[p].description}</span>
+                <span className="block text-xs text-muted-foreground">
+                  {POLICY_LABEL[p].description}
+                </span>
               </span>
             </label>
           ))}
@@ -496,7 +684,11 @@ function IntegrationDialog({
             setPushBlocks(v);
             setPushTouched(true);
           }}
-          label={mail ? '他の経路で入った予約の枠止めを依頼する' : '自社の予約で埋まった枠を外部へ反映する'}
+          label={
+            mail
+              ? '他の経路で入った予約の枠止めを依頼する'
+              : '自社の予約で埋まった枠を外部へ反映する'
+          }
           description={
             mail
               ? '自社Web・LINE・電話・他媒体の予約が入ると、この媒体で止める枠を「媒体の枠止め」と通知メールでお知らせします（媒体に公開APIがないため操作はスタッフが行います）。'
@@ -505,7 +697,11 @@ function IntegrationDialog({
         />
         {mail ? (
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="既定メニュー" optional hint="メール記載のメニュー名を特定できないときに使います。未設定なら競合キューで確認します。">
+            <Field
+              label="既定メニュー"
+              optional
+              hint="メール記載のメニュー名を特定できないときに使います。未設定なら競合キューで確認します。"
+            >
               <Select value={defaultMenuId} onChange={(e) => setDefaultMenuId(e.target.value)}>
                 <option value="">設定しない</option>
                 {(menus.data ?? []).map((m) => (
@@ -515,21 +711,47 @@ function IntegrationDialog({
                 ))}
               </Select>
             </Field>
-            <Field label="枠止め依頼の通知先" optional hint="カンマ区切り・最大5件。空欄なら店舗のメールアドレスへ送ります。" error={emailsInvalid ? 'メールアドレスの形式を確認してください' : null}>
-              <Input value={notifyEmails} onChange={(e) => setNotifyEmails(e.target.value)} placeholder="front@example.com" />
+            <Field
+              label="枠止め依頼の通知先"
+              optional
+              hint="カンマ区切り・最大5件。空欄なら店舗のメールアドレスへ送ります。"
+              error={emailsInvalid ? 'メールアドレスの形式を確認してください' : null}
+            >
+              <Input
+                value={notifyEmails}
+                onChange={(e) => setNotifyEmails(e.target.value)}
+                placeholder="front@example.com"
+              />
             </Field>
-            <Field label="件名フィルタ" optional hint="この語を件名に含むメールだけ取り込みます（カンマ区切り）。空欄なら予約メールを自動判定。">
-              <Input value={subjectIncludes} onChange={(e) => setSubjectIncludes(e.target.value)} placeholder="SALON BOARD" />
+            <Field
+              label="件名フィルタ"
+              optional
+              hint="この語を件名に含むメールだけ取り込みます（カンマ区切り）。空欄なら予約メールを自動判定。"
+            >
+              <Input
+                value={subjectIncludes}
+                onChange={(e) => setSubjectIncludes(e.target.value)}
+                placeholder="SALON BOARD"
+              />
             </Field>
             <div className="self-end">
-              <Switch checked={autoMatch} onChange={setAutoMatch} label="スタッフ・メニューを名前で自動判定" description="対応表にない名前は、自社の名前と一意に一致すれば自動で対応付けます。" />
+              <Switch
+                checked={autoMatch}
+                onChange={setAutoMatch}
+                label="スタッフ・メニューを名前で自動判定"
+                description="対応表にない名前は、自社の名前と一意に一致すれば自動で対応付けます。"
+              />
             </div>
           </div>
         ) : null}
         <div className="grid gap-5 lg:grid-cols-2">
           <MapEditor
             title="スタッフ対応表"
-            description={mail ? 'メールに記載のスタッフ名 → 自社スタッフ（名前が違う場合のみ）' : '外部のスタイリストコード → 自社スタッフ'}
+            description={
+              mail
+                ? 'メールに記載のスタッフ名 → 自社スタッフ（名前が違う場合のみ）'
+                : '外部のスタイリストコード → 自社スタッフ'
+            }
             rows={staffRows}
             onChange={setStaffRows}
             options={(staff.data ?? []).map((s) => ({ id: s.id, label: s.display_name }))}
@@ -537,7 +759,11 @@ function IntegrationDialog({
           />
           <MapEditor
             title="メニュー対応表"
-            description={mail ? 'メールに記載のメニュー名 → 自社メニュー（名前が違う場合のみ）' : '外部のメニューコード → 自社メニュー'}
+            description={
+              mail
+                ? 'メールに記載のメニュー名 → 自社メニュー（名前が違う場合のみ）'
+                : '外部のメニューコード → 自社メニュー'
+            }
             rows={menuRows}
             onChange={setMenuRows}
             options={(menus.data ?? []).map((m) => ({ id: m.id, label: m.name }))}
@@ -547,14 +773,18 @@ function IntegrationDialog({
         {integration && mail ? <MailSetupGuide integration={integration} /> : null}
         {integration && !mail ? (
           <div className="rounded-xl bg-surface-2 p-3 text-[13px]">
-            <p className="text-xs text-muted">Webhook URL（連携先の管理画面に登録）</p>
+            <p className="text-xs text-muted-foreground">Webhook URL（連携先の管理画面に登録）</p>
             <div className="mt-1 flex items-center gap-2">
               <code className="min-w-0 flex-1 break-all text-xs">{integration.webhookUrl}</code>
               <IconButton
                 icon="copy"
                 label="Webhook URLをコピー"
                 size="sm"
-                onClick={() => void copyText(integration.webhookUrl).then((ok) => (ok ? toast2.success('コピーしました') : toast2.error('コピーできませんでした')))}
+                onClick={() =>
+                  void copyText(integration.webhookUrl).then((ok) =>
+                    ok ? toast2.success('コピーしました') : toast2.error('コピーできませんでした'),
+                  )
+                }
               />
             </div>
           </div>
@@ -579,11 +809,13 @@ function MapEditor({
   options: { id: string; label: string }[];
   placeholder: string;
 }) {
-  const dupKeys = new Set(rows.map((r) => r.key.trim()).filter((k, i, a) => k && a.indexOf(k) !== i));
+  const dupKeys = new Set(
+    rows.map((r) => r.key.trim()).filter((k, i, a) => k && a.indexOf(k) !== i),
+  );
   return (
     <fieldset className="space-y-2">
       <legend className="text-[13px] font-medium">{title}</legend>
-      <p className="text-xs text-muted">{description}</p>
+      <p className="text-xs text-muted-foreground">{description}</p>
       {rows.map((r, i) => (
         <div key={i} className="flex items-center gap-2">
           <Input
@@ -592,10 +824,12 @@ function MapEditor({
             value={r.key}
             placeholder={placeholder}
             invalid={dupKeys.has(r.key.trim())}
-            onChange={(e) => onChange(rows.map((x, j) => (j === i ? { ...x, key: e.target.value } : x)))}
+            onChange={(e) =>
+              onChange(rows.map((x, j) => (j === i ? { ...x, key: e.target.value } : x)))
+            }
             className="w-32!"
           />
-          <span className="text-muted" aria-hidden>
+          <span className="text-muted-foreground" aria-hidden>
             →
           </span>
           <div className="min-w-0 flex-1">
@@ -603,7 +837,9 @@ function MapEditor({
               selectSize="sm"
               aria-label={`${title} 対応先 ${i + 1}`}
               value={r.value}
-              onChange={(e) => onChange(rows.map((x, j) => (j === i ? { ...x, value: e.target.value } : x)))}
+              onChange={(e) =>
+                onChange(rows.map((x, j) => (j === i ? { ...x, value: e.target.value } : x)))
+              }
             >
               <option value="">選択してください</option>
               {options.map((o) => (
@@ -613,11 +849,25 @@ function MapEditor({
               ))}
             </Select>
           </div>
-          <IconButton icon="x" label="行を削除" size="sm" onClick={() => onChange(rows.filter((_, j) => j !== i))} />
+          <IconButton
+            icon="x"
+            label="行を削除"
+            size="sm"
+            onClick={() => onChange(rows.filter((_, j) => j !== i))}
+          />
         </div>
       ))}
-      {dupKeys.size ? <p className="text-xs text-danger">同じ外部コードが重複しています（後の行が優先されます）</p> : null}
-      <Button size="xs" variant="ghost" icon="plus" onClick={() => onChange([...rows, { key: '', value: '' }])}>
+      {dupKeys.size ? (
+        <p className="text-xs text-danger">
+          同じ外部コードが重複しています（後の行が優先されます）
+        </p>
+      ) : null}
+      <Button
+        size="xs"
+        variant="ghost"
+        icon="plus"
+        onClick={() => onChange([...rows, { key: '', value: '' }])}
+      >
         行を追加
       </Button>
     </fieldset>

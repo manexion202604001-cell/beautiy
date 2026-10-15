@@ -69,6 +69,15 @@ export interface BookingSettings {
   requireApproval: boolean;
   maxServicesPerBooking: number;
   autoAssignFree: boolean;
+  /** 予約受付設定 › 受付開始: until the last day of this month + N months (null = horizonDays) */
+  advanceMonths: number | null;
+  /** 受付締切: same_day = leadTimeMin before the start, days_before = cutoffTime, cutoffDaysBefore days earlier */
+  cutoffType: 'same_day' | 'days_before';
+  cutoffDaysBefore: number;
+  cutoffTime: string;
+  calcMethod: 'calendar' | 'business_days';
+  acceptSameStartTime: boolean;
+  acceptOutsideHours: boolean;
 }
 
 export interface ShopSettings {
@@ -87,6 +96,12 @@ export interface ShopSettings {
     requireOpenRegister: boolean;
   };
   review: { autoRequest: boolean; requestDelayHours: number; googleReviewUrl?: string };
+  /** 席数アラート (店舗設定): cap on bookings at the same time; limit 0 = not set */
+  seats: { alertEnabled: boolean; limit: number };
+  /** 予約受付設定 › 祝日の営業時間 */
+  hours: { holidayEnabled: boolean; holidayClosed: boolean; holidayOpenTime: string; holidayCloseTime: string };
+  /** 予約受付設定 › 受付可能数 (null = no limit); weekdays[0] = Sunday */
+  capacity: { default: number | null; weekdays: (number | null)[]; holiday: number | null };
 }
 
 export interface Shop {
@@ -149,8 +164,10 @@ export interface Staff {
   hired_on: string | null;
   retired_on: string | null;
   created_at: string;
+  /** profile photo (short-lived link); null when none was uploaded */
+  avatar_url?: string | null;
   role: { id: string; key: string; name: string } | null;
-  shops: { shop_id: string; is_primary: boolean; started_on: string | null }[];
+  shops: { shop_id: string; is_primary: boolean; started_on: string | null; is_visible_to_customer: boolean }[];
 }
 
 export interface Role {
@@ -200,6 +217,12 @@ export interface CustomerListItem {
   created_at: string;
   display_name: string;
   tags: Tag[];
+  /** list responses only */
+  primary_staff_name?: string | null;
+  has_line?: boolean;
+  /** 'line' = still named after the LINE display name (no real name registered) */
+  name_source?: 'line' | null;
+  acquisition_source?: string | null;
 }
 
 export interface CustomerDetail extends CustomerListItem {
@@ -207,6 +230,10 @@ export interface CustomerDetail extends CustomerListItem {
   address: string | null;
   occupation: string | null;
   acquisition_source: string | null;
+  /** free-text note on the profile */
+  memo: string | null;
+  /** 会員番号 shared by records linked as the same person */
+  member_no: string | null;
   attributes: Record<string, unknown>;
   merged_into_id: string | null;
   no_show_count: number;
@@ -255,6 +282,10 @@ export interface DuplicatePairCustomer {
   birthday: string | null;
   last_visit_at: string | null;
   visit_count: number;
+  created_at?: string;
+  primary_staff_name?: string | null;
+  /** LINE profile when the record is linked to a LINE friend */
+  line?: { display_name: string | null; picture_url: string | null } | null;
 }
 
 export interface DuplicatePair {
@@ -340,6 +371,7 @@ export interface CustomerInput {
   postalCode?: string | null;
   address?: string | null;
   occupation?: string | null;
+  memo?: string | null;
   acquisitionSource?: string | null;
   primaryShopId?: string | null;
   primaryStaffId?: string | null;
@@ -354,6 +386,10 @@ export interface MenuCategory {
   shop_id: string | null;
   name: string;
   sort_order: number;
+  /** '#rrggbb' colour of this category's reservations on the calendar */
+  color: string | null;
+  /** top-level category of a child; the child's name is stored in full as 「親：子」 */
+  parent_id?: string | null;
 }
 
 /** GET /menus?shopId= (effective menus, camelCase) */
@@ -378,6 +414,18 @@ export interface EffectiveMenu {
   isOverridden: boolean;
   resourceRequirements: { resourceType: string; offsetMin: number; durationMin: number | null }[];
   staffIds: string[];
+  /** 'regular' 通常メニュー / 'coupon' クーポン (a bookable menu with its own price and duration) */
+  menuType?: 'regular' | 'coupon';
+  couponType?: 'all' | 'new' | 'repeat' | null;
+  presentationCondition?: string | null;
+  usageCondition?: string | null;
+  /** last bookable day 'YYYY-MM-DD' */
+  expiryDate?: string | null;
+  priceTilde?: boolean;
+  subCategoryIds?: string[];
+  imageFileId?: string | null;
+  /** short-lived signed URL of the menu picture */
+  imageUrl?: string | null;
 }
 
 /** GET /menus/:id (raw row + relations) */
@@ -398,6 +446,15 @@ export interface MenuDetail {
   new_customer_only: boolean;
   sort_order: number;
   status: 'active' | 'inactive';
+  menu_type?: 'regular' | 'coupon';
+  coupon_type?: 'all' | 'new' | 'repeat' | null;
+  presentation_condition?: string | null;
+  usage_condition?: string | null;
+  expiry_date?: string | null;
+  price_tilde?: boolean;
+  sub_category_ids?: string[];
+  image_file_id?: string | null;
+  image_url?: string | null;
   resourceRequirements: {
     resource_type: string;
     offset_min: number;
@@ -430,6 +487,14 @@ export interface MenuInput {
   resourceRequirements?: { resourceType: string; offsetMin: number; durationMin?: number | null }[];
   staffIds?: string[];
   status?: 'active' | 'inactive';
+  menuType?: 'regular' | 'coupon';
+  couponType?: 'all' | 'new' | 'repeat' | null;
+  presentationCondition?: string | null;
+  usageCondition?: string | null;
+  expiryDate?: string | null;
+  priceTilde?: boolean;
+  subCategoryIds?: string[];
+  imageFileId?: string | null;
 }
 
 export interface Resource {
@@ -588,6 +653,8 @@ export interface AppointmentListItem {
   is_new_customer: boolean | null;
   services: { menu_id: string | null; name: string; duration_min: number; price: number }[];
   media_sync?: AppointmentMediaSync;
+  /** the customer has submitted a consent / counselling form for this visit */
+  has_consent?: boolean;
 }
 
 export interface AppointmentDetail {
@@ -646,6 +713,7 @@ export interface AppointmentDetail {
     end_at: string;
   }[];
   media_sync?: AppointmentMediaSync;
+  has_consent?: boolean;
 }
 
 export interface AppointmentEvent {
@@ -692,6 +760,8 @@ export interface CreateAppointmentInput {
   staffNote?: string | null;
   status?: 'tentative' | 'confirmed';
   allowOutsideSchedule?: boolean;
+  /** total treatment time when the end time is edited by hand (5-minute steps) */
+  durationMin?: number;
 }
 
 export interface UpdateAppointmentInput {
@@ -705,6 +775,7 @@ export interface UpdateAppointmentInput {
   customerNote?: string | null;
   staffNote?: string | null;
   allowOutsideSchedule?: boolean;
+  durationMin?: number;
 }
 
 // ---------------------------------------------------------------- public
@@ -721,7 +792,12 @@ export interface PublicShopInfo {
     address_line: string | null;
     description: string | null;
   };
-  booking: Omit<BookingSettings, 'autoAssignFree'>;
+  booking: Omit<BookingSettings, 'autoAssignFree'> & {
+    /** last day open for online booking (受付開始) */
+    lastBookableDate?: string;
+    /** 受付締切 in words when it is not 「N分前まで」 (前日以前に締め切る) */
+    deadlineNote?: string | null;
+  };
   businessHours: BusinessHour[];
   exceptions: CalendarException[];
   staff: {
@@ -742,6 +818,8 @@ export interface PublicShopInfo {
     price: number;
     isConsultation: boolean;
     newCustomerOnly: boolean;
+    /** show 「～」 after the price (a starting price) */
+    priceTilde?: boolean;
     staffIds: string[];
   }[];
   coupons: {

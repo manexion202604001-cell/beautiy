@@ -54,7 +54,7 @@ export default function Roles() {
         title="権限ロール"
         description="ロールごとに操作できる機能の一覧です。システムロールの権限も調整でき、独自のカスタムロールを作成できます（オーナーは常に全権限）。"
         back={
-          <Link to="/app/staff" className="text-[13px] text-muted hover:text-fg">
+          <Link to="/app/staff" className="text-[13px] text-muted-foreground hover:text-fg">
             ← スタッフ一覧
           </Link>
         }
@@ -81,7 +81,7 @@ export default function Roles() {
             <tr className="border-b border-border">
               <th
                 scope="col"
-                className="sticky left-0 z-20 min-w-[14rem] bg-surface px-4 py-3 text-left text-xs font-medium text-muted"
+                className="sticky left-0 z-20 min-w-[14rem] bg-surface px-4 py-3 text-left text-xs font-medium text-muted-foreground"
               >
                 権限
               </th>
@@ -182,7 +182,7 @@ function GroupRows({
         <th
           scope="rowgroup"
           colSpan={roles.length + 1}
-          className="sticky left-0 px-4 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted"
+          className="sticky left-0 px-4 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground"
         >
           {group}
         </th>
@@ -276,7 +276,7 @@ function RoleDialog({
       dismissable={!saving}
       footer={
         <>
-          <span className="mr-auto text-[13px] text-muted">{perms.length}個の権限を選択中</span>
+          <span className="mr-auto text-[13px] text-muted-foreground">{perms.length}個の権限を選択中</span>
           <Button variant="ghost" onClick={onClose} disabled={saving}>
             キャンセル
           </Button>

@@ -131,7 +131,7 @@ export default function PosHome() {
                 </div>
               ) : null}
               {appts.data && !waiting.length ? (
-                <p className="px-5 pb-5 text-[13px] text-muted">会計待ちの予約はありません。</p>
+                <p className="px-5 pb-5 text-[13px] text-muted-foreground">会計待ちの予約はありません。</p>
               ) : null}
               {waiting.length ? (
                 <ul className="divide-y divide-border border-t border-border">
@@ -144,7 +144,7 @@ export default function PosHome() {
                         <p className="truncate text-sm font-medium">
                           {a.customer_name || '顧客未登録'}
                         </p>
-                        <p className="truncate text-xs text-muted">
+                        <p className="truncate text-xs text-muted-foreground">
                           {a.staff_name ?? '担当未定'} ・ {a.services.map((s) => s.name).join('・')}{' '}
                           ・ 目安 {formatYen(a.estimated_total)}
                         </p>
@@ -189,14 +189,14 @@ export default function PosHome() {
                       to={`/app/pos/checkout/${t.id}`}
                       className="flex items-center gap-3 px-5 py-3 hover:bg-surface-2/60"
                     >
-                      <span className="w-12 shrink-0 text-sm tabular text-muted">
+                      <span className="w-12 shrink-0 text-sm tabular text-muted-foreground">
                         {formatTime(t.completed_at ?? t.created_at, tz)}
                       </span>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium">
                           {t.customer_name || 'お客様（未登録）'}
                         </p>
-                        <p className="truncate text-xs text-muted">
+                        <p className="truncate text-xs text-muted-foreground">
                           {t.transaction_number ? `No.${t.transaction_number}` : '番号未発行'} ・{' '}
                           {t.staff_name ?? '担当なし'}
                         </p>

@@ -228,7 +228,7 @@ function LineRow({
           </Badge>
           <span className="truncate text-sm font-medium">{item.name}</span>
         </div>
-        <p className="mt-0.5 text-xs text-muted">
+        <p className="mt-0.5 text-xs text-muted-foreground">
           {positive ? (
             <>
               {formatYen(item.unit_price)} × {item.quantity} ・ 税{taxRateText(item.tax_rate_bp)}
@@ -479,7 +479,7 @@ function MenuPickerDialog({
       <div className="mt-4 space-y-4">
         {[...groups.entries()].map(([cat, list]) => (
           <section key={cat}>
-            <h3 className="mb-1.5 text-xs font-semibold text-muted">{cat}</h3>
+            <h3 className="mb-1.5 text-xs font-semibold text-muted-foreground">{cat}</h3>
             <ul className="grid gap-2 sm:grid-cols-2">
               {list.map((m) => (
                 <li key={m.id}>
@@ -490,7 +490,7 @@ function MenuPickerDialog({
                   >
                     <span className="min-w-0">
                       <span className="block truncate text-sm font-medium">{m.name}</span>
-                      <span className="text-xs text-muted">{m.durationMin}分</span>
+                      <span className="text-xs text-muted-foreground">{m.durationMin}分</span>
                     </span>
                     <span className="shrink-0 text-sm tabular">
                       {formatYen(
@@ -506,7 +506,7 @@ function MenuPickerDialog({
           </section>
         ))}
         {menus.data && !active.length ? (
-          <p className="text-[13px] text-muted">該当するメニューがありません</p>
+          <p className="text-[13px] text-muted-foreground">該当するメニューがありません</p>
         ) : null}
       </div>
     </Dialog>
@@ -573,7 +573,7 @@ function ProductPickerDialog({
               >
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-medium">{p.name}</span>
-                  <span className="text-xs text-muted">
+                  <span className="text-xs text-muted-foreground">
                     {[p.brand, p.sku ? `SKU ${p.sku}` : null, p.barcode]
                       .filter(Boolean)
                       .join(' ・ ')}
@@ -586,7 +586,7 @@ function ProductPickerDialog({
           );
         })}
         {products.data && !list.length ? (
-          <li className="px-3 py-4 text-[13px] text-muted">該当する商品がありません</li>
+          <li className="px-3 py-4 text-[13px] text-muted-foreground">該当する商品がありません</li>
         ) : null}
       </ul>
     </Dialog>
@@ -781,7 +781,7 @@ function CouponPickerDialog({
             >
               <span className="min-w-0">
                 <span className="block truncate text-sm font-medium">{c.name}</span>
-                <span className="text-xs text-muted">
+                <span className="text-xs text-muted-foreground">
                   {c.discount_type === 'percent'
                     ? `${c.discount_value}%OFF`
                     : c.discount_type === 'fixed_price'
@@ -796,7 +796,7 @@ function CouponPickerDialog({
           </li>
         ))}
         {coupons.data && !list.length ? (
-          <li className="text-[13px] text-muted">利用できるクーポンがありません</li>
+          <li className="text-[13px] text-muted-foreground">利用できるクーポンがありません</li>
         ) : null}
       </ul>
     </Dialog>

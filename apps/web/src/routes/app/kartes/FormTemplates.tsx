@@ -84,7 +84,7 @@ export default function FormTemplates() {
         back={
           <Link
             to="/app/kartes"
-            className="inline-flex items-center gap-1 text-[13px] text-muted hover:text-fg"
+            className="inline-flex items-center gap-1 text-[13px] text-muted-foreground hover:text-fg"
           >
             <Icon name="chevron-left" size={16} /> カルテ
           </Link>
@@ -116,15 +116,15 @@ export default function FormTemplates() {
           if (!list.length) return null;
           return (
             <section key={kind}>
-              <h2 className="mb-2 text-sm font-semibold text-muted">{FORM_KIND_LABEL[kind]}</h2>
+              <h2 className="mb-2 text-sm font-semibold text-muted-foreground">{FORM_KIND_LABEL[kind]}</h2>
               <ul className="divide-y divide-border rounded-2xl border border-border bg-surface">
                 {list.map((t) => (
                   <li key={t.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium">
-                        {t.name} <span className="text-xs text-muted">v{t.version}</span>
+                        {t.name} <span className="text-xs text-muted-foreground">v{t.version}</span>
                       </p>
-                      <p className="text-xs text-muted">
+                      <p className="text-xs text-muted-foreground">
                         項目 {t.fields.length} ・ {t.requires_signature ? '署名あり' : '署名なし'}{' '}
                         ・ {t.shop_id ? '店舗独自' : '法人共通'} ・ 更新{' '}
                         {formatDateTime(t.updated_at, tz)}
@@ -199,7 +199,7 @@ function VersionsDialog({ template, onClose }: { template: FormTemplate; onClose
           <li key={v.id} className="flex items-center justify-between gap-3 py-2 text-[13px]">
             <span>
               v{v.version} ・ 項目 {v.fields.length}
-              <span className="block text-xs text-muted">{formatDateTime(v.created_at, tz)}</span>
+              <span className="block text-xs text-muted-foreground">{formatDateTime(v.created_at, tz)}</span>
             </span>
             <Badge size="sm" tone={v.status === 'active' ? 'success' : 'neutral'}>
               {FORM_STATUS_LABEL[v.status]}
@@ -342,7 +342,7 @@ function TemplateDialog({
             <DynamicField key={f.key} field={f} value={undefined} onChange={() => undefined} />
           ))}
           {sig ? (
-            <p className="rounded-xl border border-dashed border-border p-6 text-center text-xs text-muted">
+            <p className="rounded-xl border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
               署名欄
             </p>
           ) : null}

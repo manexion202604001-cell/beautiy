@@ -255,7 +255,7 @@ export function CouponDialog({
         </div>
         <fieldset>
           <legend className="mb-1 text-[13px] font-semibold">対象メニュー</legend>
-          <p className="mb-2 text-xs text-muted">選択しない場合は全メニューが対象です。</p>
+          <p className="mb-2 text-xs text-muted-foreground">選択しない場合は全メニューが対象です。</p>
           <div className="grid max-h-48 gap-2 overflow-y-auto rounded-xl border border-border p-3 sm:grid-cols-2">
             {(menus.data ?? []).map((m) => (
               <Checkbox

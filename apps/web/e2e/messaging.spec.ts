@@ -4,7 +4,7 @@ import { loginAsStaff, nav } from './helpers';
 test('send a 1:1 message from the customer page and see it in the conversation', async ({ page }) => {
   await loginAsStaff(page);
   await nav(page, '/app/customers');
-  await page.locator('tbody tr').first().click();
+  await page.locator('[data-customer]').first().click();
   await expect(page.getByRole('tablist', { name: '顧客情報' })).toBeVisible();
   await page.getByRole('tab', { name: 'メッセージ' }).click();
 

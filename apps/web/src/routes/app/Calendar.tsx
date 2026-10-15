@@ -389,7 +389,7 @@ function DayView({
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-[13px] text-muted">
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-[13px] text-muted-foreground">
         <span>
           {formatDateJa(date, { year: true })}
           {isToday ? (
@@ -436,7 +436,7 @@ function DayView({
                 <Avatar name={c.name} color={c.color} size={28} />
                 <div className="min-w-0">
                   <p className="truncate text-[13px] font-semibold text-fg">{c.name}</p>
-                  <p className="truncate text-[11px] text-muted">
+                  <p className="truncate text-[11px] text-muted-foreground">
                     {working.length
                       ? working
                           .map((r) => `${formatTime(r.start, tz)}-${formatTime(r.end, tz)}`)
@@ -454,7 +454,7 @@ function DayView({
             {hours.map((m) => (
               <div
                 key={m}
-                className="absolute right-2 -translate-y-1/2 text-[11px] text-muted tabular"
+                className="absolute right-2 -translate-y-1/2 text-[11px] text-muted-foreground tabular"
                 style={{ top: (m - startMin) * PX_PER_MIN + (m === startMin ? 8 : 0) }}
               >
                 {minutesToHhmm(m)}
@@ -552,7 +552,7 @@ function DayView({
 function BlockView({ block, top, height }: { block: ScheduleBlock; top: number; height: number }) {
   return (
     <div
-      className="absolute inset-x-1 z-[1] overflow-hidden rounded-md border border-dashed border-border-strong bg-surface-3/80 px-2 py-1 text-[11px] text-muted"
+      className="absolute inset-x-1 z-[1] overflow-hidden rounded-md border border-dashed border-border-strong bg-surface-3/80 px-2 py-1 text-[11px] text-muted-foreground"
       style={{ top, height: Math.max(18, height) }}
       title={block.reason ?? 'ブロック'}
     >
@@ -617,7 +617,7 @@ function ApptBlock({
         {a.customer_name || '顧客未登録'}
       </p>
       {h > 48 ? (
-        <p className="truncate text-[11px] text-muted">
+        <p className="truncate text-[11px] text-muted-foreground">
           {a.services.map((s) => s.name).join('・')}
         </p>
       ) : null}
@@ -650,7 +650,7 @@ function MediaBadges({ a }: { a: AppointmentListItem }) {
 function Legend() {
   return (
     <div
-      className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted"
+      className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground"
       aria-label="凡例"
     >
       <span className="inline-flex items-center gap-1.5">
@@ -731,7 +731,7 @@ function WeekView({
               >
                 {Number(d.slice(8))}日（{WEEKDAYS_JA[wd]}）
               </span>
-              <span className="text-xs text-muted tabular">{list.length}件</span>
+              <span className="text-xs text-muted-foreground tabular">{list.length}件</span>
             </button>
             <ul className="flex-1 space-y-1 p-2">
               {list.map((a) => (
@@ -758,7 +758,7 @@ function WeekView({
                     >
                       {a.customer_name || '顧客未登録'}
                     </span>
-                    <span className="block truncate text-[11px] text-muted">
+                    <span className="block truncate text-[11px] text-muted-foreground">
                       {a.staff_name ?? '担当未定'}
                     </span>
                     <span className="mt-0.5 flex flex-wrap gap-1 empty:hidden">
@@ -877,7 +877,7 @@ function MonthView({
             role="columnheader"
             className={cn(
               'border-b border-border bg-surface-2 px-2 py-1.5 text-center text-xs font-semibold',
-              i === 0 ? 'text-danger' : i === 6 ? 'text-info' : 'text-muted',
+              i === 0 ? 'text-danger' : i === 6 ? 'text-info' : 'text-muted-foreground',
             )}
           >
             {w}
@@ -919,7 +919,7 @@ function MonthView({
                   {Number(d.slice(8))}
                 </span>
                 {list.length ? (
-                  <span className="text-[11px] text-muted tabular">{list.length}件</span>
+                  <span className="text-[11px] text-muted-foreground tabular">{list.length}件</span>
                 ) : null}
               </button>
               <ul className="space-y-0.5">
@@ -946,7 +946,7 @@ function MonthView({
                 <button
                   type="button"
                   onClick={() => onPickDay(d)}
-                  className="mt-0.5 rounded px-1 text-left text-[11px] text-muted hover:bg-surface-2"
+                  className="mt-0.5 rounded px-1 text-left text-[11px] text-muted-foreground hover:bg-surface-2"
                 >
                   +{list.length - MONTH_CELL_MAX}件
                 </button>
@@ -996,7 +996,7 @@ function SearchResults({
   return (
     <section aria-label="検索結果" className="rounded-2xl border border-border bg-surface">
       <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-2.5">
-        <p className="text-[13px] text-muted">
+        <p className="text-[13px] text-muted-foreground">
           「{q}」の予約 <span className="font-semibold text-fg tabular">{list.length}件</span>
           <span className="ml-2 text-xs text-subtle">
             （{formatDateJa(from)} 〜 {formatDateJa(to)}）
@@ -1025,11 +1025,11 @@ function SearchResults({
                   )}
                 >
                   {a.customer_name || '顧客未登録'}
-                  <span className="ml-2 text-xs font-normal text-muted">
+                  <span className="ml-2 text-xs font-normal text-muted-foreground">
                     {a.services.map((s) => s.name).join('・')}
                   </span>
                 </span>
-                <span className="text-xs text-muted">{a.staff_name ?? '担当未定'}</span>
+                <span className="text-xs text-muted-foreground">{a.staff_name ?? '担当未定'}</span>
                 <span className="flex flex-wrap items-center gap-1">
                   <StatusBadge status={a.status} size="sm" />
                   <MediaBadges a={a} />

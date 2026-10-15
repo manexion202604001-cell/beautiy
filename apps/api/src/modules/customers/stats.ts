@@ -74,9 +74,35 @@ export async function recomputeCustomerStats(ctx: Ctx, customerId: string): Prom
     avgCycle = Math.round(((last.getTime() - first.getTime()) / 86_400_000 / (visitCount - 1)) * 100) / 100;
   }
 
+  // 担当: a customer nobody is in charge of yet gets the staff member of the latest completed
+  // reservation (one with a nomination first). A staff member already set is never replaced here.
+  const inCharge = await ctx.trx
+    .selectFrom('appointments as a')
+    .innerJoin('staffs as s', 's.id', 'a.staff_id')
+    .innerJoin('customers as c', 'c.id', 'a.customer_id')
+    .select(['a.staff_id', 'a.shop_id'])
+    .where('a.customer_id', '=', customerId)
+    .where('a.status', '=', 'completed')
+    .where('a.deleted_at', 'is', null)
+    .where('s.deleted_at', 'is', null)
+    .where('s.status', '=', 'active')
+    .where('c.primary_staff_id', 'is', null)
+    .orderBy('a.is_nominated', 'desc')
+    .orderBy('a.start_at', 'desc')
+    .limit(1)
+    .executeTakeFirst();
+  if (inCharge?.staff_id) {
+    await ctx.trx
+      .insertInto('customer_shop_relations')
+      .values({ organization_id: ctx.actor.organizationId, customer_id: customerId, shop_id: inCharge.shop_id, staff_id: inCharge.staff_id, relation_type: 'primary_staff' })
+      .onConflict((oc) => oc.doNothing())
+      .execute();
+  }
+
   await ctx.trx
     .updateTable('customers')
     .set({
+      ...(inCharge?.staff_id ? { primary_staff_id: inCharge.staff_id } : {}),
       first_visit_at: first,
       last_visit_at: last,
       visit_count: visitCount,

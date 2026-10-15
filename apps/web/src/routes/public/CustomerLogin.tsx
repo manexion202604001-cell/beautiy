@@ -127,7 +127,7 @@ export function CustomerLogin({
           </>
         ) : (
           <>
-            <p className="text-[13px] text-muted">
+            <p className="text-[13px] text-muted-foreground">
               {challenge?.channel === 'email' ? 'メール' : 'SMS'}
               で届いた6桁のコードを入力してください。
             </p>
@@ -192,7 +192,7 @@ export function CustomerLogin({
         電話番号・メールでログイン
       </Button>
       {!compact ? (
-        <p className="pt-1 text-center text-xs text-muted">
+        <p className="pt-1 text-center text-xs text-muted-foreground">
           ログインすると、予約の確認・変更やお客様情報の入力を省略できます。
         </p>
       ) : null}

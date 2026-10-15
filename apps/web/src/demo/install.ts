@@ -98,7 +98,7 @@ function showNotice() {
   el.style.cssText =
     'position:fixed;left:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:9999;' +
     'padding:6px 12px;border-radius:999px;font:12px/1.4 system-ui,sans-serif;pointer-events:none;' +
-    'background:rgba(15,118,110,.92);color:#fff;box-shadow:0 2px 8px rgba(0,0,0,.2)';
+    'background:rgba(221,64,122,.92);color:#fff;box-shadow:0 2px 8px rgba(0,0,0,.2)';
   document.body.appendChild(el);
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', showNotice);

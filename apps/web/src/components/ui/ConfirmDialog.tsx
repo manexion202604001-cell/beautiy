@@ -85,7 +85,7 @@ export function ConfirmDialog({
         </Field>
       ) : null}
       {!children && !reason ? (
-        <p className="text-[13px] text-muted">この操作を実行してよろしいですか？</p>
+        <p className="text-[13px] text-muted-foreground">この操作を実行してよろしいですか？</p>
       ) : null}
     </Dialog>
   );

@@ -61,7 +61,7 @@ export default function ShopReviews() {
           <div className="text-center">
             <p className="text-4xl font-semibold tabular">{summary.average?.toFixed(1)}</p>
             <Stars value={summary.average} />
-            <p className="text-xs text-muted">{summary.count}件</p>
+            <p className="text-xs text-muted-foreground">{summary.count}件</p>
           </div>
           <div className="min-w-0 flex-1">
             <RatingBars distribution={summary.distribution} count={summary.count} />

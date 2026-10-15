@@ -86,6 +86,8 @@ src/
 - 顧客の名寄せは `modules/customers/identity.ts` の `resolveCustomer()`、統計再計算は `customers/stats.ts` の `recomputeCustomerStats()`。
 - Webhook は `lib/webhooks.ts` の `registerWebhookProvider(name, { verify, process })`。ルート `/v1/webhooks/:provider` / `/v1/webhooks/:provider/:key` は integrations モジュールが提供（JSON / urlencoded / multipart を受け付ける）。
 - 予約と予約媒体の関係（取り込み元・枠止めの状態）を他モジュールから読むときは `modules/integrations/api.ts` の `appointmentMediaSync()`。
+- 予約の件数など、他モジュールが予約について読む値は `modules/appointments/api.ts`（例: 店舗削除前の `countUpcomingAppointments()`）。
+- 設備（名称 + 数量）は `modules/catalog/equipment.ts`（`/v1/equipment`）。中身は `resources`（1台 = 1行、`resource_type` = 設備名）で、メニューとの紐付けは `menu_resource_requirements.resource_type`。
 - 公開APIのない予約媒体は `pushMode: 'manual'` / `inboundEmail: true` の Adapter にする（予約通知メールで取り込み、枠止めはスタッフ作業。ADR 0010）。
 - 署名付き一時リンクは `lib/access-tokens.ts`。ファイルは `lib/storage.ts` (DBにはメタデータのみ)。
 
@@ -103,7 +105,7 @@ src/
 
 ## 7. DB / マイグレーション
 
-- 既存マイグレーションは編集しない。追加は新ファイル。モジュール別番号帯: pos/payments 0100-0109, messaging 0110-0119, kartes/files 0120-0129, integrations/ops 0130-0139, reviews/marketing/commerce 0140-0149, analytics/ai 0150-0159, migration 0160-0169, SALOGIC 置き換え対応（docs/salogic-parity.md。予約・顧客・カタログなど番号帯のないモジュールへの追加） 0170-0179。
+- 既存マイグレーションは編集しない。追加は新ファイル。モジュール別番号帯: pos/payments 0100-0109, messaging 0110-0119, kartes/files 0120-0129, integrations/ops 0130-0139, reviews/marketing/commerce 0140-0149, analytics/ai 0150-0159, migration 0160-0169, SALOGIC 置き換え対応（docs/salogic-parity.md。予約・顧客・カタログなど番号帯のないモジュールへの追加） 0170-0189。
 - 追加テーブルに `organization_id` を持たせる場合、RLS ポリシーをそのマイグレーション内で作成する (0090 と同じ形式)。
 - 適用: `pnpm db:migrate` (dev DB) → 型生成: `pnpm db:codegen`。`db:reset` は共有 dev DB を消すので並行作業中は使わない。
 

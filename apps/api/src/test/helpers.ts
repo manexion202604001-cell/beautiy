@@ -536,3 +536,11 @@ export function daysAgo(n: number) {
 export function setClock(d: Date | null) {
   _messagingClock.now = d ? () => new Date(d) : () => new Date();
 }
+
+/**
+ * Switch the marketing quiet hours (21:00–09:00 local) off or on. Tests that send marketing messages
+ * but are not about quiet hours switch them off, so that they pass whatever hour the suite runs at.
+ */
+export function setQuietHours(on: boolean) {
+  _messagingClock.quietHours = on;
+}

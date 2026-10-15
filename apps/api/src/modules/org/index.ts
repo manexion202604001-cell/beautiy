@@ -2,6 +2,8 @@ import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { booleanQuery, idParam, uuid } from '../../lib/schemas.js';
 import * as svc from './service.js';
+import { settingsRoutes } from './settings.js';
+import { staffScreenRoutes } from './staff-screen.js';
 import {
   createShopSchema,
   createStaffSchema,
@@ -54,8 +56,8 @@ const plugin: FastifyPluginAsyncZod = async (app) => {
   app.put('/staff/:id/role', { schema: { tags: ['org'], summary: '権限変更(監査対象)', params: idParam, body: z.object({ roleId: uuid }) } }, (req) =>
     req.tx((ctx) => svc.changeStaffRole(ctx, req.params.id, req.body.roleId)),
   );
-  app.put('/staff/:id/shops', { schema: { tags: ['org'], summary: '所属店舗設定', params: idParam, body: z.object({ shopIds: z.array(uuid) }) } }, (req) =>
-    req.tx((ctx) => svc.setStaffShops(ctx, req.params.id, req.body.shopIds)),
+  app.put('/staff/:id/shops', { schema: { tags: ['org'], summary: '所属店舗設定', params: idParam, body: z.object({ shopIds: z.array(uuid), primaryShopId: uuid.optional() }) } }, (req) =>
+    req.tx((ctx) => svc.setStaffShops(ctx, req.params.id, req.body.shopIds, req.body.primaryShopId)),
   );
   app.post('/staff/:id/transfer', { schema: { tags: ['org'], summary: '異動(顧客担当関係の引継ぎ)', params: idParam, body: transferStaffSchema } }, (req) =>
     req.tx((ctx) => svc.transferStaff(ctx, req.params.id, req.body)),
@@ -77,6 +79,11 @@ const plugin: FastifyPluginAsyncZod = async (app) => {
     await req.tx((ctx) => svc.deleteRole(ctx, req.params.id));
     return reply.status(204).send();
   });
+
+  // ---------------------------------------------------------------- 設定 screen (shop removal, staff visibility, invitations)
+  await app.register(settingsRoutes);
+  // ---------------------------------------------------------------- スタッフ screen (directory, photo / nickname / LINE通知, login, order)
+  await app.register(staffScreenRoutes);
 };
 
 export default plugin;

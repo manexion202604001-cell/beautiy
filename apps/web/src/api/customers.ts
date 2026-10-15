@@ -30,9 +30,48 @@ export interface CustomerSearch {
   limit?: number;
 }
 
+/** 名前重複: records sharing one normalized full name (the first is the one recommended to keep) */
+export interface NameDuplicateCustomer {
+  id: string;
+  name: string;
+  name_kana: string | null;
+  phone: string | null;
+  store_name: string | null;
+  staff_name: string | null;
+  visit_count: number;
+  member_no: string | null;
+}
+export interface NameDuplicateGroup {
+  normalized_name: string;
+  customers: NameDuplicateCustomer[];
+}
+
+export interface AssignedStaff {
+  staff_id: string;
+  staff_name: string;
+  is_primary: boolean;
+  visit_count: number;
+}
+export interface LinkedCustomer {
+  id: string;
+  store_name: string | null;
+  staff_name: string | null;
+  visit_count: number;
+  last_visit_at: string | null;
+  last_reservation_at: string | null;
+}
+/** What the customer screen shows beside the profile */
+export interface CustomerOverview {
+  name_source: 'line' | null;
+  member_no: string | null;
+  line: { display_name: string | null; picture_url: string | null } | null;
+  assigned_staff: AssignedStaff[];
+  linked_customers: LinkedCustomer[];
+}
+
 export const customersApi = {
   search: (q: CustomerSearch & { cursor?: string }) =>
-    api.get<Page<CustomerListItem>>('/customers', { ...q }),
+    api.get<Page<CustomerListItem> & { total: number }>('/customers', { ...q }),
   get: (id: string) => api.get<CustomerDetail>(`/customers/${id}`),
   create: (input: CustomerInput, idempotencyKey = newIdempotencyKey()) =>
     api.post<{ customer: CustomerDetail; duplicateCandidates: DuplicateCandidate[] }>(
@@ -65,12 +104,22 @@ export const customersApi = {
       { sourceCustomerId, ...(reason ? { reason } : {}) },
       { idempotencyKey },
     ),
+  nameDuplicates: (q: { search?: string; limit?: number; offset?: number } = {}) =>
+    api.get<{ groups: NameDuplicateGroup[]; total: number }>('/customers/name-duplicates', { ...q }),
+  dismissNameDuplicate: (normalizedName: string) =>
+    api.post<{ dismissed: number }>('/customers/name-duplicates/dismiss', { normalizedName }),
+  linkMaster: (customerIds: string[]) =>
+    api.post<{ member_no: string; customerIds: string[] }>('/customers/link-master', {
+      customerIds,
+    }),
+  overview: (id: string) => api.get<CustomerOverview>(`/customers/${id}/overview`),
   mergeLogs: (id: string) => api.get<MergeLog[]>(`/customers/${id}/merge-logs`),
   undoMerge: (logId: string) =>
     api.post<{ mergeLogId: string; sourceId: string; targetId: string }>(
       `/customer-merges/${logId}/undo`,
     ),
-  visits: (id: string) => api.get<CustomerVisit[]>(`/customers/${id}/visits`),
+  visits: (id: string, limit?: number) =>
+    api.get<CustomerVisit[]>(`/customers/${id}/visits`, limit ? { limit } : undefined),
   legacyVisits: (id: string) => api.get<LegacyVisit[]>(`/customers/${id}/legacy-visits`),
   timeline: (id: string) => api.get<TimelineEntry[]>(`/customers/${id}/timeline`),
   setTags: (id: string, tagIds: string[]) => api.put<Tag[]>(`/customers/${id}/tags`, { tagIds }),
@@ -102,6 +151,7 @@ export const customerKeys = {
   duplicates: (id: string) => ['customers', 'duplicates', id] as const,
   mergeLogs: (id: string) => ['customers', 'merge-logs', id] as const,
   pairs: ['customers', 'pairs'] as const,
+  overview: (id: string) => ['customers', 'overview', id] as const,
   tags: ['tags'] as const,
 };
 

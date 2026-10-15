@@ -82,7 +82,7 @@ export function KarteAssets({ karte, writable }: { karte: KarteDetail; writable:
     }
   };
 
-  const groups = (['photo_before', 'photo_after', 'photo', 'sketch', 'document'] as AssetType[])
+  const groups = (['photo_before', 'photo_after', 'photo', 'sketch', 'face_drawing', 'document'] as AssetType[])
     .map((t) => ({ t, items: karte.assets.filter((a) => a.asset_type === t) }))
     .filter((g) => g.items.length);
 
@@ -139,12 +139,12 @@ export function KarteAssets({ karte, writable }: { karte: KarteDetail; writable:
         </div>
       ) : null}
       {!karte.assets.length ? (
-        <p className="text-[13px] text-muted">画像はまだありません。</p>
+        <p className="text-[13px] text-muted-foreground">画像はまだありません。</p>
       ) : null}
       <div className="space-y-4">
         {groups.map((g) => (
           <section key={g.t}>
-            <h3 className="mb-1.5 text-xs font-semibold text-muted">{ASSET_TYPE_LABEL[g.t]}</h3>
+            <h3 className="mb-1.5 text-xs font-semibold text-muted-foreground">{ASSET_TYPE_LABEL[g.t]}</h3>
             <ul className="grid grid-cols-2 gap-2">
               {g.items.map((a) => (
                 <li key={a.id} className="overflow-hidden rounded-xl border border-border">
@@ -162,7 +162,7 @@ export function KarteAssets({ karte, writable }: { karte: KarteDetail; writable:
                         loading="lazy"
                       />
                     ) : (
-                      <span className="flex aspect-square items-center justify-center bg-surface-2 text-xs text-muted">
+                      <span className="flex aspect-square items-center justify-center bg-surface-2 text-xs text-muted-foreground">
                         {a.file_name ?? '書類'}
                       </span>
                     )}
@@ -175,7 +175,7 @@ export function KarteAssets({ karte, writable }: { karte: KarteDetail; writable:
                     ) : (
                       <Badge size="sm">非共有</Badge>
                     )}
-                    <span className="min-w-0 flex-1 truncate text-[11px] text-muted">
+                    <span className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">
                       {a.caption ?? ''}
                     </span>
                     {writable ? (

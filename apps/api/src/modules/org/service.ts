@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import {
   accessibleShopIds,
@@ -18,6 +18,7 @@ import { emit } from '../../lib/events.js';
 import { runOrgSeeders } from '../../lib/org-seeders.js';
 import { mergeShopSettings, parseShopSettings } from '../../lib/shop-settings.js';
 import { config } from '../../config.js';
+import { staffAvatarUrls } from './avatars.js';
 import type {
   CreateShopInput,
   CreateStaffInput,
@@ -27,6 +28,11 @@ import type {
   UpdateShopInput,
   UpdateStaffInput,
 } from './schemas.js';
+
+/** URL id for an organization / shop created without one (changeable later in the shop settings) */
+export function generateSlug(prefix: 'org' | 'shop'): string {
+  return `${prefix}-${randomBytes(5).toString('hex')}`;
+}
 
 // ---------------------------------------------------------------- organization
 
@@ -45,10 +51,11 @@ export async function signup(input: SignupInput) {
       .values({
         id: organizationId,
         name: input.organizationName,
-        slug: input.organizationSlug,
+        slug: input.organizationSlug ?? generateSlug('org'),
         plan: input.plan ?? 'standard',
         status: 'trial',
         timezone: input.timezone ?? 'Asia/Tokyo',
+        settings: JSON.stringify(input.ownerProfile ? { ownerProfile: input.ownerProfile } : {}),
       })
       .execute();
 
@@ -60,9 +67,12 @@ export async function signup(input: SignupInput) {
       .values({
         organization_id: organizationId,
         name: input.shopName,
-        slug: input.shopSlug,
+        slug: input.shopSlug ?? generateSlug('shop'),
         timezone: input.timezone ?? 'Asia/Tokyo',
         phone: input.phone ?? null,
+        email: input.shopEmail ?? null,
+        postal_code: input.shopPostalCode ?? null,
+        address_line: input.shopAddressLine ?? null,
         settings: JSON.stringify(parseShopSettings({})),
       })
       .returning('id')
@@ -152,7 +162,10 @@ export async function updateOrganization(ctx: Ctx, input: UpdateOrganizationInpu
       name: input.name,
       timezone: input.timezone,
       invoice_registration_number: input.invoiceRegistrationNumber,
-      settings: input.settings ? JSON.stringify({ ...(before.settings as object), ...input.settings }) : undefined,
+      settings:
+        input.settings || input.ownerProfile
+          ? JSON.stringify({ ...(before.settings as object), ...(input.settings ?? {}), ...(input.ownerProfile ? { ownerProfile: input.ownerProfile } : {}) })
+          : undefined,
     })
     .where('id', '=', ctx.actor.organizationId)
     .returning(['id', 'name', 'slug', 'plan', 'status', 'currency', 'timezone', 'invoice_registration_number', 'settings', 'created_at'])
@@ -204,7 +217,7 @@ export async function createShop(ctx: Ctx, input: CreateShopInput) {
     .values({
       organization_id: ctx.actor.organizationId,
       name: input.name,
-      slug: input.slug,
+      slug: input.slug ?? generateSlug('shop'),
       timezone: input.timezone ?? 'Asia/Tokyo',
       phone: input.phone ?? null,
       email: input.email ?? null,
@@ -292,20 +305,23 @@ const staffColumns = [
   'staffs.created_at',
 ] as const;
 
-async function attachStaffRelations<T extends { id: string; role_id: string }>(ctx: Ctx, rows: T[]) {
+async function attachStaffRelations<T extends { id: string; role_id: string; public_profile: unknown }>(ctx: Ctx, rows: T[]) {
   if (rows.length === 0) return [];
   const ids = rows.map((r) => r.id);
-  const [assignments, roles] = await Promise.all([
+  const [assignments, roles, avatars] = await Promise.all([
     ctx.trx
       .selectFrom('staff_shop_assignments')
-      .select(['staff_id', 'shop_id', 'is_primary', 'started_on'])
+      .select(['staff_id', 'shop_id', 'is_primary', 'started_on', 'is_visible_to_customer'])
       .where('staff_id', 'in', ids)
       .where('ended_on', 'is', null)
       .execute(),
     ctx.trx.selectFrom('roles').select(['id', 'key', 'name']).where('id', 'in', [...new Set(rows.map((r) => r.role_id))]).execute(),
+    staffAvatarUrls(ctx, rows),
   ]);
   return rows.map((r) => ({
     ...r,
+    /** profile photo (short-lived link), null when none was uploaded */
+    avatar_url: avatars.get(r.id) ?? null,
     role: roles.find((x) => x.id === r.role_id) ?? null,
     shops: assignments.filter((a) => a.staff_id === r.id).map(({ staff_id: _s, ...a }) => a),
   }));
@@ -508,7 +524,8 @@ export async function transferStaff(ctx: Ctx, staffId: string, input: TransferSt
 
   const ended = await ctx.trx
     .updateTable('staff_shop_assignments')
-    .set({ ended_on: input.effectiveDate ?? today })
+    // never before the start date: the app clock (UTC date) can be a day behind the database's current_date
+    .set({ ended_on: sql<string>`greatest(started_on, ${input.effectiveDate ?? today}::date)` })
     .where('staff_id', '=', staffId)
     .where('shop_id', '=', input.fromShopId)
     .where('ended_on', 'is', null)
@@ -569,14 +586,33 @@ export async function transferStaff(ctx: Ctx, staffId: string, input: TransferSt
   return { staff: await getStaff(ctx, staffId), affectedCustomers };
 }
 
-export async function setStaffShops(ctx: Ctx, staffId: string, shopIds: string[]) {
+/**
+ * 所属店舗設定. `primaryShopId` (optional) marks the main shop; without it the current main shop is
+ * kept when still assigned, otherwise the longest-held remaining assignment becomes the main one.
+ */
+export async function setStaffShops(ctx: Ctx, staffId: string, shopIds: string[], primaryShopId?: string) {
   requirePermission(ctx.actor, 'staff.manage');
   for (const s of shopIds) assertShopAccess(ctx.actor, s);
+  if (primaryShopId && !shopIds.includes(primaryShopId)) throw Errors.validation('主店舗は所属店舗の中から選んでください');
+  await getStaff(ctx, staffId);
+  if (shopIds.length) {
+    // shops must exist in this organization (RLS-scoped lookup), not merely be reachable by the actor
+    const known = await ctx.trx.selectFrom('shops').select('id').where('id', 'in', shopIds).where('deleted_at', 'is', null).execute();
+    const missing = shopIds.find((id) => !known.some((k) => k.id === id));
+    if (missing) throw Errors.notFound('店舗', missing);
+  }
   const current = await ctx.trx.selectFrom('staff_shop_assignments').select(['id', 'shop_id']).where('staff_id', '=', staffId).where('ended_on', 'is', null).execute();
   const today = new Date().toISOString().slice(0, 10);
   const toEnd = current.filter((c) => !shopIds.includes(c.shop_id));
   for (const c of toEnd) assertShopAccess(ctx.actor, c.shop_id);
-  if (toEnd.length) await ctx.trx.updateTable('staff_shop_assignments').set({ ended_on: today }).where('id', 'in', toEnd.map((c) => c.id)).execute();
+  // never end before the start date (CHECK ended_on >= started_on), whatever the server clock says
+  if (toEnd.length) {
+    await ctx.trx
+      .updateTable('staff_shop_assignments')
+      .set({ ended_on: sql<string>`greatest(started_on, ${today}::date)`, is_primary: false })
+      .where('id', 'in', toEnd.map((c) => c.id))
+      .execute();
+  }
   const toAdd = shopIds.filter((s) => !current.some((c) => c.shop_id === s));
   if (toAdd.length) {
     await ctx.trx
@@ -584,9 +620,27 @@ export async function setStaffShops(ctx: Ctx, staffId: string, shopIds: string[]
       .values(toAdd.map((shopId) => ({ organization_id: ctx.actor.organizationId, staff_id: staffId, shop_id: shopId })))
       .execute();
   }
+  await ensurePrimaryShop(ctx, staffId, primaryShopId);
   invalidateActorCache(staffId);
   await audit(ctx, { action: 'staff.shops_update', resourceType: 'staff', resourceId: staffId, before: current.map((c) => c.shop_id), after: shopIds });
   return getStaff(ctx, staffId);
+}
+
+/** Exactly one active assignment is the main shop (when the staff has any) */
+export async function ensurePrimaryShop(ctx: Ctx, staffId: string, primaryShopId?: string) {
+  const active = await ctx.trx
+    .selectFrom('staff_shop_assignments')
+    .select(['id', 'shop_id', 'is_primary'])
+    .where('staff_id', '=', staffId)
+    .where('ended_on', 'is', null)
+    .orderBy('started_on')
+    .orderBy('created_at')
+    .execute();
+  if (!active.length) return;
+  const target = (primaryShopId && active.find((a) => a.shop_id === primaryShopId)) || active.find((a) => a.is_primary) || active[0]!;
+  const demote = active.filter((a) => a.is_primary && a.id !== target.id).map((a) => a.id);
+  if (demote.length) await ctx.trx.updateTable('staff_shop_assignments').set({ is_primary: false }).where('id', 'in', demote).execute();
+  if (!target.is_primary) await ctx.trx.updateTable('staff_shop_assignments').set({ is_primary: true }).where('id', '=', target.id).execute();
 }
 
 // ---------------------------------------------------------------- roles

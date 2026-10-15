@@ -141,7 +141,7 @@ export function FormResponseDrawer({ id, onClose }: { id: string | null; onClose
             >
               文書ハッシュ {verify.hashMatches ? '一致' : '不一致'} ・ 署名{' '}
               {verify.signature.present ? (verify.signature.intact ? '正常' : '不一致') : 'なし'}
-              <span className="mt-1 block break-all font-mono text-[11px] text-muted">
+              <span className="mt-1 block break-all font-mono text-[11px] text-muted-foreground">
                 {verify.documentHash}
               </span>
             </Alert>
@@ -165,7 +165,7 @@ export function FormResponseDrawer({ id, onClose }: { id: string | null; onClose
           {r.template_snapshot.bodyMarkdown ? (
             <details className="rounded-xl border border-border p-3 text-[13px]">
               <summary className="cursor-pointer font-medium">同意事項（提出時の版）</summary>
-              <p className="mt-2 whitespace-pre-wrap leading-relaxed text-muted">
+              <p className="mt-2 whitespace-pre-wrap leading-relaxed text-muted-foreground">
                 {r.template_snapshot.bodyMarkdown}
               </p>
             </details>

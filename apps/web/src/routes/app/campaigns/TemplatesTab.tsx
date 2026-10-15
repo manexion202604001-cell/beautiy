@@ -136,7 +136,7 @@ export function TemplatesTab() {
                 <Td>{CHANNEL_LABEL[t.channel]}</Td>
                 <Td className="hidden md:table-cell">{TEMPLATE_CATEGORY_LABEL[t.category] ?? t.category}</Td>
                 <Td className="hidden max-w-md lg:table-cell">
-                  <p className="line-clamp-2 text-xs text-muted">{t.body}</p>
+                  <p className="line-clamp-2 text-xs text-muted-foreground">{t.body}</p>
                 </Td>
                 <Td>
                   <Badge tone={t.status === 'active' ? 'success' : 'neutral'}>{t.status === 'active' ? '有効' : '無効'}</Badge>
@@ -305,7 +305,7 @@ function TemplateDialog({
           </Field>
           {!readOnly ? (
             <div>
-              <p className="mb-1.5 text-xs font-medium text-muted">変数を挿入（クリックでカーソル位置に追加）</p>
+              <p className="mb-1.5 text-xs font-medium text-muted-foreground">変数を挿入（クリックでカーソル位置に追加）</p>
               <div className="flex flex-wrap gap-1.5" role="group" aria-label="変数">
                 {TEMPLATE_VARIABLES.map((v) => (
                   <button
@@ -339,7 +339,7 @@ function TemplateDialog({
             </Alert>
           ) : null}
           {preview.data?.variables.length ? (
-            <p className="text-xs text-muted">使用中の変数: {preview.data.variables.join(', ')}</p>
+            <p className="text-xs text-muted-foreground">使用中の変数: {preview.data.variables.join(', ')}</p>
           ) : null}
         </div>
       </div>

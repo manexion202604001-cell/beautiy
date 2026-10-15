@@ -11,6 +11,8 @@ export const SOURCES = [
 ] as const;
 export const STATUSES = ['tentative', 'confirmed', 'checked_in', 'in_service', 'completed', 'cancelled', 'no_show'] as const;
 
+const customDuration = z.number().int().min(5).max(720).multipleOf(5);
+
 export const createAppointmentSchema = z.object({
   shopId: uuid,
   customerId: uuid.nullable().optional(),
@@ -27,6 +29,8 @@ export const createAppointmentSchema = z.object({
   status: z.enum(['tentative', 'confirmed']).optional(),
   /** staff override: allow booking outside configured shifts/business hours (never allows double booking) */
   allowOutsideSchedule: z.boolean().optional(),
+  /** staff override of the total treatment time (end time edited by hand); default = sum of the menus */
+  durationMin: customDuration.optional(),
 });
 export type CreateAppointmentInput = z.infer<typeof createAppointmentSchema>;
 
@@ -41,6 +45,8 @@ export const updateAppointmentSchema = z.object({
   customerNote: z.string().max(2000).nullable().optional(),
   staffNote: z.string().max(2000).nullable().optional(),
   allowOutsideSchedule: z.boolean().optional(),
+  /** new total treatment time; omitted = keep a hand-edited duration, or follow the menus */
+  durationMin: customDuration.optional(),
 });
 export type UpdateAppointmentInput = z.infer<typeof updateAppointmentSchema>;
 

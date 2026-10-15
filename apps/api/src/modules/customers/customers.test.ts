@@ -51,6 +51,16 @@ describe('customers', () => {
     const mine = await t.owner.get(`/v1/customers?staffId=${t.ownerStaffId}`);
     expect(mine.body.items.map((c: { id: string }) => c.id)).toEqual([assigned.id]);
     expect((await t.owner.get('/v1/customers')).body.items).toHaveLength(2);
+
+    // totals follow the filters (not the page size), and each row names the staff in charge
+    expect(unassigned.body.total).toBe(1);
+    const firstPage = await t.owner.get('/v1/customers?limit=1');
+    expect(firstPage.body.items).toHaveLength(1);
+    expect(firstPage.body.total).toBe(2);
+    expect((await t.owner.get(`/v1/customers?limit=1&cursor=${firstPage.body.nextCursor}`)).body.total).toBe(2);
+    expect(mine.body.items[0]).toMatchObject({ has_line: false });
+    expect(typeof mine.body.items[0].primary_staff_name).toBe('string');
+    expect(unassigned.body.items[0].primary_staff_name).toBeNull();
   });
 
   it('audits customer detail views', async () => {

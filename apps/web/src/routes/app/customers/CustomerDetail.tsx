@@ -120,7 +120,7 @@ export default function CustomerDetail() {
 
   return (
     <div className="space-y-5">
-      <Link to="/app/customers" className="text-[13px] text-muted hover:text-fg">
+      <Link to="/app/customers" className="text-[13px] text-muted-foreground hover:text-fg">
         ← 顧客一覧
       </Link>
 
@@ -153,7 +153,7 @@ export default function CustomerDetail() {
                 {c.status === 'blocked' ? <Badge tone="danger">予約受付停止</Badge> : null}
                 {c.visit_count === 0 ? <Badge tone="info">新規</Badge> : null}
               </h1>
-              <p className="text-[13px] text-muted">
+              <p className="text-[13px] text-muted-foreground">
                 {[
                   `${c.last_name_kana} ${c.first_name_kana}`.trim(),
                   c.gender ? GENDER_LABEL[c.gender] : null,
@@ -163,7 +163,7 @@ export default function CustomerDetail() {
                   .filter(Boolean)
                   .join(' ・ ')}
               </p>
-              <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-muted">
+              <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-muted-foreground">
                 {c.phone ? (
                   <a
                     href={`tel:${c.phone}`}
@@ -328,7 +328,7 @@ export default function CustomerDetail() {
 function StatItem({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div className="min-w-0">
-      <dt className="text-xs text-muted">{label}</dt>
+      <dt className="text-xs text-muted-foreground">{label}</dt>
       <dd className="mt-0.5 truncate text-lg font-semibold tracking-tight tabular">{value}</dd>
       {sub ? <dd className="truncate text-xs text-subtle">{sub}</dd> : null}
     </div>
@@ -419,14 +419,14 @@ function ProfileTab({ c }: { c: Customer }) {
                       ? `担当: ${r.staff_name ?? '—'}`
                       : '来店店舗'}
                   </span>
-                  <span className="text-xs text-muted">
+                  <span className="text-xs text-muted-foreground">
                     {formatDate(r.started_at, tz, { weekday: false })}〜
                   </span>
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="text-[13px] text-muted">担当関係はまだありません</p>
+            <p className="text-[13px] text-muted-foreground">担当関係はまだありません</p>
           )}
         </Card>
         <Card>
@@ -441,14 +441,14 @@ function ProfileTab({ c }: { c: Customer }) {
                     </Badge>
                     {i.display_name ?? i.external_id}
                   </span>
-                  <span className="text-xs text-muted">
+                  <span className="text-xs text-muted-foreground">
                     {formatDate(i.linked_at, tz, { weekday: false })}
                   </span>
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="text-[13px] text-muted">LINEなどの外部IDは連携されていません</p>
+            <p className="text-[13px] text-muted-foreground">LINEなどの外部IDは連携されていません</p>
           )}
         </Card>
       </div>
@@ -484,13 +484,13 @@ function VisitsTab({ id, onOpen }: { id: string; onOpen: (id: string) => void })
                   <p className="text-[13px] font-medium tabular">
                     {formatDate(v.start_at, tz, { weekday: false })}
                   </p>
-                  <p className="text-xs text-muted tabular">{formatTime(v.start_at, tz)}〜</p>
+                  <p className="text-xs text-muted-foreground tabular">{formatTime(v.start_at, tz)}〜</p>
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[13px] font-medium">
                     {v.services.map((s) => s.name).join('・') || '—'}
                   </p>
-                  <p className="truncate text-xs text-muted">
+                  <p className="truncate text-xs text-muted-foreground">
                     {v.shop_name} ・ {v.staff_name ?? '担当未定'}
                     {v.is_nominated ? '（指名）' : ''} ・ {SOURCE_LABEL[v.source] ?? v.source}
                   </p>
@@ -520,7 +520,7 @@ function LegacyVisitList({ visits }: { visits: LegacyVisit[] }) {
     <section aria-labelledby="legacy-visits-title">
       <h3 id="legacy-visits-title" className="mb-2 text-[13px] font-semibold">
         {source}の来店履歴{' '}
-        <span className="font-normal text-muted">（{visits.length}件・移行データ）</span>
+        <span className="font-normal text-muted-foreground">（{visits.length}件・移行データ）</span>
       </h3>
       <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-surface">
         {visits.map((v) => (
@@ -530,7 +530,7 @@ function LegacyVisitList({ visits }: { visits: LegacyVisit[] }) {
             </p>
             <div className="min-w-0 flex-1">
               <p className="whitespace-pre-line text-[13px] font-medium">{v.menu_text || '—'}</p>
-              <p className="truncate text-xs text-muted">
+              <p className="truncate text-xs text-muted-foreground">
                 {[v.shop_name, v.staff_name ?? '担当不明'].filter(Boolean).join(' ・ ')}
                 {v.external_id ? ` ・ 伝票 ${v.external_id}` : ''}
               </p>
@@ -613,12 +613,12 @@ function TimelineTab({ id, onOpen }: { id: string; onOpen: (id: string) => void 
           const meta = KIND_META[e.kind] ?? { label: e.kind, icon: 'edit' as const };
           return (
             <li key={`${e.kind}-${e.id}`} className="relative">
-              <span className="absolute -left-[37px] flex h-6 w-6 items-center justify-center rounded-full border border-border bg-surface text-muted">
+              <span className="absolute -left-[37px] flex h-6 w-6 items-center justify-center rounded-full border border-border bg-surface text-muted-foreground">
                 <Icon name={meta.icon} size={13} />
               </span>
               <div className="flex flex-wrap items-baseline gap-x-2">
                 <span className="text-[13px] font-medium">{meta.label}</span>
-                <span className="text-xs text-muted">{formatDateTime(e.at, tz)}</span>
+                <span className="text-xs text-muted-foreground">{formatDateTime(e.at, tz)}</span>
               </div>
               {e.kind === 'appointment' ? (
                 <button
@@ -629,7 +629,7 @@ function TimelineTab({ id, onOpen }: { id: string; onOpen: (id: string) => void 
                   {timelineSummary(e)}
                 </button>
               ) : (
-                <p className="text-[13px] text-muted">{timelineSummary(e)}</p>
+                <p className="text-[13px] text-muted-foreground">{timelineSummary(e)}</p>
               )}
             </li>
           );
@@ -725,7 +725,7 @@ function MemosTab({ id, readOnly }: { id: string; readOnly: boolean }) {
               ピン留め
             </label>
           </div>
-          <p className="mt-2 text-xs text-muted">
+          <p className="mt-2 text-xs text-muted-foreground">
             「自分のみ」のメモはオーナーを含む他のスタッフには表示されません。
           </p>
           <Button
@@ -749,7 +749,7 @@ function MemosTab({ id, readOnly }: { id: string; readOnly: boolean }) {
           return (
             <Card key={m.id} className={cn('!p-4', m.pinned && 'border-warning/50')}>
               <div className="flex items-start justify-between gap-3">
-                <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
+                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                   <span className="font-medium text-fg">{m.staff_name ?? 'スタッフ'}</span>
                   <span>{formatAgo(m.created_at)}</span>
                   {m.visibility === 'private' ? (
@@ -888,7 +888,7 @@ function TagsTab({ c }: { c: Customer }) {
   return (
     <Card>
       <h2 className="text-[15px] font-semibold">タグ</h2>
-      <p className="mt-0.5 text-[13px] text-muted">
+      <p className="mt-0.5 text-[13px] text-muted-foreground">
         クリックで付け外しできます。タグは顧客検索・セグメント配信に使えます。
       </p>
       <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="タグ">
@@ -923,7 +923,7 @@ function TagsTab({ c }: { c: Customer }) {
           );
         })}
         {tags.data && !tags.data.length ? (
-          <p className="text-[13px] text-muted">タグがまだありません</p>
+          <p className="text-[13px] text-muted-foreground">タグがまだありません</p>
         ) : null}
       </div>
       {writable ? (
@@ -1033,7 +1033,7 @@ function DuplicatesTab({ c }: { c: Customer }) {
         <Card padded={false}>
           <div className="p-5 pb-3">
             <h2 className="text-[15px] font-semibold">重複候補</h2>
-            <p className="mt-0.5 text-[13px] text-muted">
+            <p className="mt-0.5 text-[13px] text-muted-foreground">
               電話・メールの完全一致、または氏名の類似＋生年月日/電話番号下4桁の一致で検出しています。
             </p>
           </div>
@@ -1048,7 +1048,7 @@ function DuplicatesTab({ c }: { c: Customer }) {
             </div>
           ) : null}
           {dups.data && !dups.data.length ? (
-            <p className="border-t border-border px-5 py-4 text-[13px] text-muted">
+            <p className="border-t border-border px-5 py-4 text-[13px] text-muted-foreground">
               重複候補は見つかりませんでした。
             </p>
           ) : null}
@@ -1063,7 +1063,7 @@ function DuplicatesTab({ c }: { c: Customer }) {
                     >
                       {d.displayName || '（氏名未登録）'}
                     </Link>
-                    <p className="text-xs text-muted">
+                    <p className="text-xs text-muted-foreground">
                       {[
                         d.phone,
                         d.email,
@@ -1116,12 +1116,12 @@ function DuplicatesTab({ c }: { c: Customer }) {
       <Card padded={false}>
         <div className="p-5 pb-3">
           <h2 className="text-[15px] font-semibold">統合履歴</h2>
-          <p className="mt-0.5 text-[13px] text-muted">
+          <p className="mt-0.5 text-[13px] text-muted-foreground">
             統合は取り消し（Undo）できます。後から関連する統合を行った場合は、新しいものから順に取り消してください。
           </p>
         </div>
         {logs.data && !logs.data.length ? (
-          <p className="border-t border-border px-5 py-4 text-[13px] text-muted">
+          <p className="border-t border-border px-5 py-4 text-[13px] text-muted-foreground">
             統合履歴はありません。
           </p>
         ) : null}
@@ -1139,7 +1139,7 @@ function DuplicatesTab({ c }: { c: Customer }) {
                         相手の顧客を開く
                       </Link>
                     </p>
-                    <p className="text-xs text-muted">
+                    <p className="text-xs text-muted-foreground">
                       {formatDateTime(l.merged_at, tz)} ・{' '}
                       {staff.data?.find((s) => s.id === l.merged_by)?.display_name ?? '—'}
                       {l.reason ? ` ・ 理由: ${l.reason}` : ''}
@@ -1167,7 +1167,7 @@ function DuplicatesTab({ c }: { c: Customer }) {
           onMerged={(targetId) => {
             setPreview(null);
             void qc.invalidateQueries({ queryKey: customerKeys.all });
-            if (targetId !== c.id) navigate(`/app/customers/${targetId}?tab=duplicates`);
+            if (targetId !== c.id) navigate(`/app/customers-classic/${targetId}?tab=duplicates`);
           }}
         />
       ) : null}
@@ -1287,7 +1287,7 @@ function MergeDialog({
           </div>
           <div className="overflow-x-auto rounded-xl border border-border">
             <table className="w-full text-[13px]">
-              <thead className="bg-surface-2 text-xs text-muted">
+              <thead className="bg-surface-2 text-xs text-muted-foreground">
                 <tr>
                   <th className="px-3 py-2 text-left font-medium">項目</th>
                   <th
@@ -1314,7 +1314,7 @@ function MergeDialog({
                   const b = r.a(o);
                   return (
                     <tr key={r.label} className={a !== b ? 'bg-warning-soft/30' : undefined}>
-                      <td className="px-3 py-2 text-muted">{r.label}</td>
+                      <td className="px-3 py-2 text-muted-foreground">{r.label}</td>
                       <td className={cn('px-3 py-2', target === 'current' && 'font-medium')}>
                         {a}
                       </td>
@@ -1338,7 +1338,7 @@ function MergeDialog({
               maxLength={500}
             />
           </div>
-          <p className="mt-3 text-xs text-muted">
+          <p className="mt-3 text-xs text-muted-foreground">
             統合は監査ログに記録され、統合履歴から取り消すことができます。
           </p>
         </>

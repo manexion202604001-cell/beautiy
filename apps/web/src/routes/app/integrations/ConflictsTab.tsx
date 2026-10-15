@@ -67,19 +67,19 @@ export function StatusTab() {
                 <li key={a.integrationAccountId} className="rounded-xl border border-border p-3 text-[13px]">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-medium">{a.displayName}</span>
-                    <span className="text-xs text-muted">{providerLabel(a.provider)}</span>
+                    <span className="text-xs text-muted-foreground">{providerLabel(a.provider)}</span>
                     <Badge size="sm" tone={STATUS_TONE[a.status] ?? 'neutral'} className="ml-auto">
                       {STATUS_LABEL[a.status] ?? a.status}
                     </Badge>
                   </div>
                   <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-                    <dt className="text-muted">最終成功</dt>
+                    <dt className="text-muted-foreground">最終成功</dt>
                     <dd>{a.lastSuccessAt ? `${formatDateTime(a.lastSuccessAt, tz)}（${formatAgo(a.lastSuccessAt)}）` : '—'}</dd>
-                    <dt className="text-muted">連続失敗</dt>
+                    <dt className="text-muted-foreground">連続失敗</dt>
                     <dd>{a.consecutiveFailures}回</dd>
-                    <dt className="text-muted">未反映の枠</dt>
+                    <dt className="text-muted-foreground">未反映の枠</dt>
                     <dd>{a.pushBlocks ? `${a.unsyncedBlocks}件` : '枠反映なし'}</dd>
-                    <dt className="text-muted">直近のジョブ</dt>
+                    <dt className="text-muted-foreground">直近のジョブ</dt>
                     <dd>{a.lastJob ? `${a.lastJob.mode === 'full' ? '全件' : '差分'} ${a.lastJob.state}（${formatAgo(a.lastJob.createdAt)}）` : '—'}</dd>
                   </dl>
                   {a.lastError ? <p className="mt-2 break-all text-xs text-danger">{a.lastError}</p> : null}
@@ -150,13 +150,13 @@ function ConflictItem({ c, onResolve }: { c: SyncConflict; onResolve: (r: Resolu
       <div className="flex flex-wrap items-center gap-2">
         <Badge tone="danger">{CONFLICT_TYPE_LABEL[c.conflict_type] ?? c.conflict_type}</Badge>
         <span className="text-[13px] font-medium">{c.integration_name ?? providerLabel(c.provider ?? '')}</span>
-        {c.external_id ? <code className="text-xs text-muted">外部ID {c.external_id}</code> : null}
+        {c.external_id ? <code className="text-xs text-muted-foreground">外部ID {c.external_id}</code> : null}
         <span className="ml-auto text-xs text-subtle">{formatDateTime(c.created_at, tz)}</span>
       </div>
       <dl className="mt-3 grid max-w-xl grid-cols-[9rem_1fr] gap-x-4 gap-y-1 text-[13px]">
         {b?.start && b.end ? (
           <>
-            <dt className="text-xs text-muted">外部予約の日時</dt>
+            <dt className="text-xs text-muted-foreground">外部予約の日時</dt>
             <dd>
               {formatDateTime(b.start, tz).split(' ')[0]} {formatTimeRange(b.start, b.end, tz)}
             </dd>
@@ -164,25 +164,25 @@ function ConflictItem({ c, onResolve }: { c: SyncConflict; onResolve: (r: Resolu
         ) : null}
         {b?.customer?.name || b?.customer?.kana ? (
           <>
-            <dt className="text-xs text-muted">お客様</dt>
+            <dt className="text-xs text-muted-foreground">お客様</dt>
             <dd>{b.customer.name ?? b.customer.kana}</dd>
           </>
         ) : null}
         {b?.staffExternalId ? (
           <>
-            <dt className="text-xs text-muted">外部スタッフコード</dt>
+            <dt className="text-xs text-muted-foreground">外部スタッフコード</dt>
             <dd>{b.staffExternalId}</dd>
           </>
         ) : null}
         {b?.menuExternalIds?.length ? (
           <>
-            <dt className="text-xs text-muted">外部メニューコード</dt>
+            <dt className="text-xs text-muted-foreground">外部メニューコード</dt>
             <dd>{b.menuExternalIds.join(', ')}</dd>
           </>
         ) : null}
         {c.appointment_id ? (
           <>
-            <dt className="text-xs text-muted">関連する自社予約</dt>
+            <dt className="text-xs text-muted-foreground">関連する自社予約</dt>
             <dd>
               <Link className="text-primary hover:underline" to={`/app/calendar?appt=${c.appointment_id}`}>
                 予約を開く
@@ -191,7 +191,7 @@ function ConflictItem({ c, onResolve }: { c: SyncConflict; onResolve: (r: Resolu
           </>
         ) : null}
       </dl>
-      {message ? <p className="mt-2 text-xs text-muted">{message}</p> : null}
+      {message ? <p className="mt-2 text-xs text-muted-foreground">{message}</p> : null}
       {c.state === 'open' ? (
         <div className="mt-3 flex flex-wrap gap-2 border-t border-border pt-3">
           <Button size="sm" onClick={() => onResolve('keep_internal')}>
@@ -208,7 +208,7 @@ function ConflictItem({ c, onResolve }: { c: SyncConflict; onResolve: (r: Resolu
           </Button>
         </div>
       ) : (
-        <p className="mt-3 text-xs text-muted">
+        <p className="mt-3 text-xs text-muted-foreground">
           {c.resolution ? RESOLUTION_LABEL[c.resolution] : '—'} ・{c.resolved_at ? formatDateTime(c.resolved_at, tz) : ''}
         </p>
       )}

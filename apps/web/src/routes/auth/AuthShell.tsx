@@ -72,9 +72,9 @@ export function AuthShell({
             <span className="text-lg font-semibold tracking-tight text-fg">Salon OS</span>
           </div>
           <h1 className="text-2xl font-semibold tracking-tight text-fg">{title}</h1>
-          {subtitle ? <p className="mt-1.5 text-[13px] text-muted">{subtitle}</p> : null}
+          {subtitle ? <p className="mt-1.5 text-[13px] text-muted-foreground">{subtitle}</p> : null}
           <div className="mt-7">{children}</div>
-          {footer ? <div className="mt-8 text-center text-[13px] text-muted">{footer}</div> : null}
+          {footer ? <div className="mt-8 text-center text-[13px] text-muted-foreground">{footer}</div> : null}
         </div>
       </main>
     </div>

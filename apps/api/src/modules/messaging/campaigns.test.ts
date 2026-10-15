@@ -12,13 +12,19 @@ import {
   makeMessagingJobsDue,
   runJobs,
   setClock,
+  setQuietHours,
   updateCustomer,
   type Tenant,
 } from '../../test/helpers.js';
 import { lineMock } from './providers/line.js';
 
 beforeEach(() => lineMock.reset());
-afterEach(() => setClock(null));
+// marketing sends are deferred at night; keep the tests independent of the hour they run at
+beforeEach(() => setQuietHours(false));
+afterEach(() => {
+  setClock(null);
+  setQuietHours(true);
+});
 
 const ALL = { type: 'visit_count', gte: 0 };
 
@@ -142,6 +148,7 @@ describe('campaigns', () => {
     expect((await t.owner.post(`/v1/campaigns/${future.body.id}/cancel`)).status).toBe(422);
 
     // 22:30 local → marketing deferred to 09:00
+    setQuietHours(true);
     const day = jstDate(5);
     setClock(new Date(`${day}T22:30:00+09:00`));
     const night = await t.owner.post('/v1/campaigns', { name: '夜', segmentRule: ALL, body: '夜の配信' });

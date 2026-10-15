@@ -13,7 +13,7 @@ export interface LegendItem {
 /** Legend: mirrors the mark (line key for lines, swatch for bars). Text stays in text tokens. */
 export function Legend({ items, className }: { items: LegendItem[]; className?: string }) {
   return (
-    <ul className={cn('viz flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted', className)}>
+    <ul className={cn('viz flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground', className)}>
       {items.map((it) => (
         <li key={it.label} className="inline-flex items-center gap-1.5">
           {it.shape === 'line' ? (
@@ -49,7 +49,7 @@ export function ChartTooltip({
       className="pointer-events-none absolute z-10 min-w-36 max-w-64 rounded-lg border border-border bg-surface px-3 py-2 text-xs shadow-card"
       style={{ top, ...(right ? { right: width - x + 12 } : { left: x + 12 }) }}
     >
-      <p className="mb-1 font-medium text-muted">{title}</p>
+      <p className="mb-1 font-medium text-muted-foreground">{title}</p>
       <ul className="space-y-0.5">
         {rows.map((r) => (
           <li key={r.label} className="flex items-center gap-2">
@@ -57,7 +57,7 @@ export function ChartTooltip({
               <span className="inline-block h-0.5 w-3 shrink-0 rounded-full" style={{ background: r.color }} aria-hidden />
             ) : null}
             <span className="font-semibold text-fg tabular">{r.value}</span>
-            <span className="truncate text-muted">{r.label}</span>
+            <span className="truncate text-muted-foreground">{r.label}</span>
           </li>
         ))}
       </ul>
@@ -91,13 +91,13 @@ export function StatTile({
   const bad = delta !== null && delta !== undefined && delta !== 0 && !good;
   return (
     <div className={cn('viz min-w-0 rounded-2xl border border-border bg-surface p-4 shadow-card', className)}>
-      <p className="text-xs text-muted">{label}</p>
+      <p className="text-xs text-muted-foreground">{label}</p>
       <p className="mt-1 truncate text-xl font-semibold tracking-tight text-fg">{value}</p>
       {hasDelta ? (
         <p className="mt-0.5 flex items-center gap-1 text-xs">
           <span
             className="font-medium"
-            style={{ color: good ? 'var(--viz-up)' : bad ? 'var(--viz-down)' : 'var(--muted)' }}
+            style={{ color: good ? 'var(--viz-up)' : bad ? 'var(--viz-down)' : 'var(--muted-foreground)' }}
           >
             <span aria-hidden>{delta === null || delta === 0 ? '' : delta > 0 ? '▲ ' : '▼ '}</span>
             {formatDelta(delta)}
@@ -135,7 +135,7 @@ export function ChartCard({
       <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <h2 className="text-[15px] font-semibold text-fg">{title}</h2>
-          {description ? <p className="mt-0.5 text-[13px] text-muted">{description}</p> : null}
+          {description ? <p className="mt-0.5 text-[13px] text-muted-foreground">{description}</p> : null}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {actions}

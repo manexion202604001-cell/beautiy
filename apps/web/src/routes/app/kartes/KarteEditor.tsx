@@ -280,7 +280,7 @@ function Editor({ karte }: { karte: KarteDetail | null }) {
         back={
           <Link
             to={f.customer ? `/app/customers/${f.customer.id}?tab=kartes` : '/app/kartes'}
-            className="inline-flex items-center gap-1 text-[13px] text-muted hover:text-fg"
+            className="inline-flex items-center gap-1 text-[13px] text-muted-foreground hover:text-fg"
           >
             <Icon name="chevron-left" size={16} />{' '}
             {f.customer ? `${customerName || f.customer.name} 様` : 'カルテ'}
@@ -554,7 +554,7 @@ function Editor({ karte }: { karte: KarteDetail | null }) {
                 })}
               </ul>
             ) : (
-              <p className="text-[13px] text-muted">薬剤の記録はありません。</p>
+              <p className="text-[13px] text-muted-foreground">薬剤の記録はありません。</p>
             )}
           </Card>
 
@@ -602,7 +602,7 @@ function Editor({ karte }: { karte: KarteDetail | null }) {
           ) : (
             <Card>
               <CardHeader title="写真・共有" />
-              <p className="text-[13px] text-muted">
+              <p className="text-[13px] text-muted-foreground">
                 カルテを作成すると、ビフォー/アフター写真の追加とお客様への共有ができます。
               </p>
             </Card>

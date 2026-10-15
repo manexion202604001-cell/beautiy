@@ -35,7 +35,7 @@ export function CopyLink({ url, label = 'リンク' }: { url: string; label?: st
         href={url}
         target="_blank"
         rel="noreferrer"
-        className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border text-muted hover:bg-surface-2"
+        className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border text-muted-foreground hover:bg-surface-2"
         aria-label="新しいタブで開く"
         title="新しいタブで開く"
       >

@@ -50,7 +50,7 @@ export function SalesTab({ f }: { f: AnalyticsFilters }) {
         <CsvButton report="sales" query={q} />
       </div>
       {!full ? (
-        <p className="text-[13px] text-muted">あなたの担当売上のみを表示しています（店舗全体の数値は表示されません）。</p>
+        <p className="text-[13px] text-muted-foreground">あなたの担当売上のみを表示しています（店舗全体の数値は表示されません）。</p>
       ) : null}
       {r.isLoading ? <InlineLoading /> : null}
       {r.error ? <ErrorState error={r.error} onRetry={() => void r.refetch()} /> : null}

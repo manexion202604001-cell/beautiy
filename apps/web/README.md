@@ -67,7 +67,7 @@ pnpm --filter @salon/web dev        # http://localhost:5173 （/v1 → http://lo
 
 ### E2E の前提条件
 
-1. API がシード済み DB で起動していること（既定 `http://localhost:4100`、`DEV_EXPOSE_OTP=true` 推奨）。
+1. API がシード済み DB で起動していること（既定 `http://localhost:4100`、`DEV_EXPOSE_OTP=true` 推奨）。全テストは 1 つのアドレスから大量にアクセスするので `RATE_LIMIT_MAX=100000` を付ける（既定の 1 分 300 回を超えると「リクエストが多すぎます」で失敗する）。メール取り込みと通知のテストにはワーカー（`pnpm --filter @salon/api dev:worker`、同じ `DATABASE_URL` と `API_BASE_URL=http://localhost:4100`）も必要。
 2. Web 開発サーバーは未起動なら Playwright が `vite --port 5173` で自動起動します（`E2E_BASE_URL` を指定すると既存サーバーを利用）。
 3. Chromium: `PLAYWRIGHT_BROWSERS_PATH`（例 `/opt/pw-browsers`）にインストール済みのブラウザを使用します。`@playwright/test` は 1.56.1（chromium-1194）に固定しています。別のバイナリを使う場合は `PW_CHROMIUM_PATH=/path/to/chrome`。
 4. `playwright install` は不要です。

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { paginationQuery } from '../../lib/pagination.js';
-import { booleanQuery, isoDateTime, uuid } from '../../lib/schemas.js';
+import { booleanQuery, isoDateTime, optionalString, uuid } from '../../lib/schemas.js';
 
 export const CHANNELS = ['line', 'email', 'sms'] as const;
 export type Channel = (typeof CHANNELS)[number];
@@ -103,8 +103,14 @@ export const sendMessageSchema = z
     channel: channelEnum.optional(),
     shopId: uuid.nullable().optional(),
     vars: z.record(z.string(), z.unknown()).optional(),
+    /**
+     * false = record the message on the thread without delivering it (channel 'note'): the staff
+     * member's words stay in the conversation, the customer receives nothing. Default: deliver.
+     */
+    deliver: z.boolean().optional(),
   })
-  .refine((v) => v.body || v.templateId, { message: '本文またはテンプレートを指定してください' });
+  .refine((v) => v.body || v.templateId, { message: '本文またはテンプレートを指定してください' })
+  .refine((v) => v.deliver !== false || (!!v.body && !v.templateId && !v.channel), { message: '記録のみのメッセージは本文だけを指定してください', path: ['deliver'] });
 export type SendMessageInput = z.infer<typeof sendMessageSchema>;
 
 export const listMessagesSchema = paginationQuery.extend({
@@ -115,7 +121,16 @@ export const listMessagesSchema = paginationQuery.extend({
 export const inboxSchema = paginationQuery.extend({
   shopId: uuid.optional(),
   unreadOnly: booleanQuery,
+  /** 自分宛のみ: customers whose 最近の担当 (latest completed reservation, else the staff set on the customer) is the caller */
+  mine: booleanQuery,
+  /** customer name / kana search */
+  q: optionalString,
 });
+
+export const unreadCountSchema = z.object({ shopId: uuid.optional() });
+
+export const threadSchema = z.object({ customerId: uuid, shopId: uuid.optional() });
+export const markThreadReadSchema = z.object({ customerId: uuid });
 
 // ---------------------------------------------------------------- segments (rule validated in segments.ts)
 

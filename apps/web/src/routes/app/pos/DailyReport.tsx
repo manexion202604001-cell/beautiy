@@ -42,7 +42,7 @@ export default function DailyReport() {
         back={
           <Link
             to="/app/pos"
-            className="inline-flex items-center gap-1 text-[13px] text-muted hover:text-fg"
+            className="inline-flex items-center gap-1 text-[13px] text-muted-foreground hover:text-fg"
           >
             <Icon name="chevron-left" size={16} /> 会計
           </Link>
@@ -90,7 +90,7 @@ export default function DailyReport() {
                   {r.byMethod.map((m) => (
                     <li key={`${m.method}-${m.label}`} className="flex justify-between py-2">
                       <span>
-                        {m.label} <span className="text-xs text-muted">{m.count}件</span>
+                        {m.label} <span className="text-xs text-muted-foreground">{m.count}件</span>
                       </span>
                       <span className="tabular">{formatYen(m.amount)}</span>
                     </li>
@@ -106,7 +106,7 @@ export default function DailyReport() {
                   ))}
                 </ul>
               ) : (
-                <p className="text-[13px] text-muted">この日の支払はありません。</p>
+                <p className="text-[13px] text-muted-foreground">この日の支払はありません。</p>
               )}
             </Card>
             <Card>
@@ -119,13 +119,13 @@ export default function DailyReport() {
                   ['指名', r.customers.nominated],
                 ].map(([label, n]) => (
                   <div key={label} className="rounded-xl bg-surface-2 p-3">
-                    <p className="text-xs text-muted">{label}</p>
+                    <p className="text-xs text-muted-foreground">{label}</p>
                     <p className="text-xl font-semibold tabular">{n}</p>
                   </div>
                 ))}
               </div>
               <div className="mt-4">
-                <p className="mb-1 text-xs font-medium text-muted">税率別</p>
+                <p className="mb-1 text-xs font-medium text-muted-foreground">税率別</p>
                 {taxBreakdownRows(r.taxByRate).map((t) => (
                   <p key={t.rateBp} className="flex justify-between text-[13px]">
                     <span>{t.label}</span>
@@ -186,7 +186,7 @@ export default function DailyReport() {
                 </TBody>
               </Table>
             ) : (
-              <p className="text-[13px] text-muted">この日のレジ記録はありません。</p>
+              <p className="text-[13px] text-muted-foreground">この日のレジ記録はありません。</p>
             )}
           </Card>
         </div>
@@ -199,7 +199,7 @@ export default function DailyReport() {
 }
 
 function StaffTable({ rows }: { rows: DailyReportStaffRow[] }) {
-  if (!rows.length) return <p className="text-[13px] text-muted">売上はありません。</p>;
+  if (!rows.length) return <p className="text-[13px] text-muted-foreground">売上はありません。</p>;
   return (
     <Table caption="担当者別売上">
       <THead>

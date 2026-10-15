@@ -1,8 +1,8 @@
 import { assertShopAccess, requirePermission, type Ctx } from '../../auth/actor.js';
 import { audit } from '../../lib/audit.js';
 import { Errors } from '../../lib/errors.js';
-import { getShop } from '../org/service.js';
-import { loadScheduleData, shopOpenRanges, staffWorkRanges, datesBetween } from './calendar.js';
+import { getShop, getStaff } from '../org/service.js';
+import { loadScheduleData, parseStaffReservation, shopOpenRanges, staffWorkRanges, datesBetween, type StaffReservationSettings } from './calendar.js';
 
 const trimTime = (t: string | null) => (t ? t.slice(0, 5) : t);
 
@@ -91,8 +91,136 @@ export async function replaceWeeklySchedule(ctx: Ctx, staffId: string, shopId: s
       .values(rows.map((r) => ({ organization_id: ctx.actor.organizationId, staff_id: staffId, shop_id: shopId, weekday: r.weekday, start_time: r.startTime, end_time: r.endTime })))
       .execute();
   }
+  // rows saved from the pattern editor: "every day off" is no longer what was asked for
+  await ctx.trx.updateTable('staff_booking_settings').set({ weekly_all_closed: false }).where('staff_id', '=', staffId).where('shop_id', '=', shopId).execute();
   await audit(ctx, { action: 'staff.weekly_schedule_update', resourceType: 'staff', resourceId: staffId, shopId, after: rows });
   return getWeeklySchedule(ctx, staffId, shopId);
+}
+
+// ---------------------------------------------------------------- スタッフ別設定 (営業時間 / 予約設定)
+
+export interface StaffDayHours {
+  weekday: number;
+  openTime: string;
+  closeTime: string;
+  isClosed: boolean;
+}
+
+async function staffBookingRow(ctx: Ctx, staffId: string, shopId: string) {
+  return ctx.trx.selectFrom('staff_booking_settings').select(['id', 'weekly_all_closed', 'reservation']).where('staff_id', '=', staffId).where('shop_id', '=', shopId).executeTakeFirst();
+}
+
+async function upsertStaffBookingRow(ctx: Ctx, staffId: string, shopId: string, values: { weekly_all_closed?: boolean; reservation?: string | null }) {
+  await ctx.trx
+    .insertInto('staff_booking_settings')
+    .values({ organization_id: ctx.actor.organizationId, staff_id: staffId, shop_id: shopId, ...values })
+    .onConflict((oc) => oc.columns(['staff_id', 'shop_id']).doUpdateSet(values))
+    .execute();
+}
+
+/** One row per weekday out of (possibly split) time ranges: earliest start – latest end */
+function dayRows(rows: { weekday: number; start: string; end: string }[], fallback: { weekday: number; start: string; end: string }[]): StaffDayHours[] {
+  return [0, 1, 2, 3, 4, 5, 6].map((weekday) => {
+    const mine = rows.filter((r) => r.weekday === weekday);
+    // a day off keeps showing the shop's hours (greyed out), ready for when 休み is unticked
+    const shown = mine.length ? mine : fallback.filter((r) => r.weekday === weekday);
+    return {
+      weekday,
+      openTime: shown.length ? shown.map((r) => r.start).sort()[0]! : '09:00',
+      closeTime: shown.length ? shown.map((r) => r.end).sort().at(-1)! : '19:00',
+      isClosed: mine.length === 0,
+    };
+  });
+}
+
+/**
+ * スタッフ別 営業時間: one row per weekday. `configured` false = nothing saved for this staff
+ * member, the shop's hours apply (and are what is returned).
+ */
+export async function getStaffBusinessHours(ctx: Ctx, staffId: string, shopId: string): Promise<{ configured: boolean; hours: StaffDayHours[] }> {
+  requirePermission(ctx.actor, 'schedule.read');
+  await getStaff(ctx, staffId);
+  const [weekly, shopHours, row] = await Promise.all([getWeeklySchedule(ctx, staffId, shopId), getBusinessHours(ctx, shopId), staffBookingRow(ctx, staffId, shopId)]);
+  const shop = shopHours.map((h) => ({ weekday: h.weekday, start: h.open_time, end: h.close_time }));
+  const configured = weekly.length > 0 || !!row?.weekly_all_closed;
+  const own = weekly.map((w) => ({ weekday: w.weekday, start: w.start_time, end: w.end_time }));
+  return { configured, hours: dayRows(configured ? own : shop, shop) };
+}
+
+async function writeStaffHours(ctx: Ctx, staffId: string, shopId: string, rows: { weekday: number; startTime: string; endTime: string }[]) {
+  const isSelf = ctx.actor.kind === 'staff' && ctx.actor.staffId === staffId;
+  if (!isSelf) requirePermission(ctx.actor, 'schedule.manage');
+  assertShopAccess(ctx.actor, shopId);
+  await getStaff(ctx, staffId);
+  for (const r of rows) if (r.endTime <= r.startTime) throw Errors.validation('終了時刻は開始時刻より後にしてください', r);
+  await ctx.trx.deleteFrom('staff_weekly_schedules').where('staff_id', '=', staffId).where('shop_id', '=', shopId).execute();
+  if (rows.length) {
+    await ctx.trx
+      .insertInto('staff_weekly_schedules')
+      .values(rows.map((r) => ({ organization_id: ctx.actor.organizationId, staff_id: staffId, shop_id: shopId, weekday: r.weekday, start_time: r.startTime, end_time: r.endTime })))
+      .execute();
+  }
+  await upsertStaffBookingRow(ctx, staffId, shopId, { weekly_all_closed: rows.length === 0 });
+  await audit(ctx, { action: 'staff.business_hours_update', resourceType: 'staff', resourceId: staffId, shopId, after: rows });
+}
+
+export async function replaceStaffBusinessHours(ctx: Ctx, staffId: string, shopId: string, hours: StaffDayHours[]) {
+  const open = hours.filter((h) => !h.isClosed);
+  await writeStaffHours(ctx, staffId, shopId, open.map((h) => ({ weekday: h.weekday, startTime: h.openTime, endTime: h.closeTime })));
+  return getStaffBusinessHours(ctx, staffId, shopId);
+}
+
+/** サロンの営業時間を反映: the staff member's hours become a copy of the shop's weekly hours */
+export async function copyShopHoursToStaff(ctx: Ctx, staffId: string, shopId: string) {
+  const shopHours = await getBusinessHours(ctx, shopId);
+  await writeStaffHours(ctx, staffId, shopId, shopHours.map((h) => ({ weekday: h.weekday, startTime: h.open_time, endTime: h.close_time })));
+  return getStaffBusinessHours(ctx, staffId, shopId);
+}
+
+/**
+ * スタッフ別 予約設定. `individual` false = nothing saved, the shop's 予約受付設定 apply; the values
+ * returned are then what the shop's rules amount to, as a starting point for the form.
+ */
+export async function getStaffReservationSettings(ctx: Ctx, staffId: string, shopId: string): Promise<{ individual: boolean; settings: StaffReservationSettings }> {
+  requirePermission(ctx.actor, 'schedule.read');
+  await getStaff(ctx, staffId);
+  const [shop, row] = await Promise.all([getShop(ctx, shopId), staffBookingRow(ctx, staffId, shopId)]);
+  const own = parseStaffReservation(row?.reservation);
+  if (own) return { individual: true, settings: own };
+  const b = shop.settings.booking;
+  return {
+    individual: false,
+    settings: {
+      advanceBookingDays: b.advanceMonths !== null ? Math.min(730, b.advanceMonths * 31) : b.horizonDays,
+      sameDayCutoffHours: b.cutoffType === 'same_day' ? Math.min(24, Math.floor(b.leadTimeMin / 60)) : 0,
+      maxConcurrent: 1,
+      acceptSameStartTime: b.acceptSameStartTime,
+      acceptOutsideHours: b.acceptOutsideHours,
+    },
+  };
+}
+
+export async function replaceStaffReservationSettings(ctx: Ctx, staffId: string, shopId: string, input: StaffReservationSettings | null) {
+  requirePermission(ctx.actor, 'schedule.manage');
+  assertShopAccess(ctx.actor, shopId);
+  await getStaff(ctx, staffId);
+  const before = await staffBookingRow(ctx, staffId, shopId);
+  await upsertStaffBookingRow(ctx, staffId, shopId, { reservation: input ? JSON.stringify(input) : null });
+  await audit(ctx, { action: 'staff.reservation_settings_update', resourceType: 'staff', resourceId: staffId, shopId, before: before?.reservation ?? null, after: input });
+  return getStaffReservationSettings(ctx, staffId, shopId);
+}
+
+/** Which staff of the shop have their own 営業時間 / 予約設定 (スタッフ別設定 list) */
+export async function staffSettingsOverview(ctx: Ctx, shopId: string) {
+  requirePermission(ctx.actor, 'schedule.read');
+  assertShopAccess(ctx.actor, shopId);
+  const [weekly, rows] = await Promise.all([
+    ctx.trx.selectFrom('staff_weekly_schedules').select('staff_id').distinct().where('shop_id', '=', shopId).execute(),
+    ctx.trx.selectFrom('staff_booking_settings').select(['staff_id', 'weekly_all_closed', 'reservation']).where('shop_id', '=', shopId).execute(),
+  ]);
+  const hours = new Set([...weekly.map((w) => w.staff_id), ...rows.filter((r) => r.weekly_all_closed).map((r) => r.staff_id)]);
+  const reservation = new Set(rows.filter((r) => parseStaffReservation(r.reservation)).map((r) => r.staff_id));
+  return { hours: [...hours], reservation: [...reservation] };
 }
 
 export async function listShifts(ctx: Ctx, shopId: string, from: string, to: string) {

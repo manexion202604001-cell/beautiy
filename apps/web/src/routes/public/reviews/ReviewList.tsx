@@ -17,13 +17,13 @@ export function PublicReviewItem({ r }: { r: PublicReview }) {
       {r.body ? (
         <p className="mt-1 whitespace-pre-wrap text-[13px] leading-relaxed">{r.body}</p>
       ) : null}
-      <p className="mt-1.5 text-xs text-muted">
+      <p className="mt-1.5 text-xs text-muted-foreground">
         {r.nickname} 様{r.staff_name ? ` ・ 担当 ${r.staff_name}` : ''}
         {r.source === 'google' ? ' ・ Google' : ''}
       </p>
       {r.reply_body ? (
         <div className="mt-2 rounded-xl bg-surface-2 p-3 text-[13px]">
-          <p className="mb-0.5 text-xs font-medium text-muted">サロンより</p>
+          <p className="mb-0.5 text-xs font-medium text-muted-foreground">サロンより</p>
           <p className="whitespace-pre-wrap">{r.reply_body}</p>
         </div>
       ) : null}
@@ -50,7 +50,7 @@ export function ShopReviewsSummary({ slug }: { slug: string }) {
       <span className="text-2xl font-semibold tabular">{s.average?.toFixed(1)}</span>
       <span className="min-w-0 flex-1">
         <Stars value={s.average} size={14} />
-        <span className="block text-xs text-muted">口コミ {s.count}件</span>
+        <span className="block text-xs text-muted-foreground">口コミ {s.count}件</span>
       </span>
       <span className="text-[13px] font-medium text-primary">口コミを見る ›</span>
     </Link>

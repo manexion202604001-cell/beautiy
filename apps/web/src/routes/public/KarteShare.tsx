@@ -44,7 +44,7 @@ export default function KarteShare() {
   return (
     <PublicShell header={<ShopHeader name={k.shop.name} sub="施術のご報告" />}>
       <h1 className="text-lg font-semibold">{formatDateJa(k.visitDate, { year: true })}のご来店</h1>
-      <p className="mb-5 text-[13px] text-muted">
+      <p className="mb-5 text-[13px] text-muted-foreground">
         担当 {k.staff.displayName ?? '—'}
         {k.title ? ` ・ ${k.title}` : ''}
       </p>
@@ -67,7 +67,7 @@ export default function KarteShare() {
                   className="aspect-[3/4] w-full object-cover"
                   loading="lazy"
                 />
-                <figcaption className="px-3 py-1.5 text-xs text-muted">
+                <figcaption className="px-3 py-1.5 text-xs text-muted-foreground">
                   <span className="font-semibold text-fg">{label}</span> {a.caption ?? ''}
                 </figcaption>
               </figure>
@@ -91,7 +91,7 @@ export default function KarteShare() {
                   loading="lazy"
                 />
                 {a.caption ? (
-                  <figcaption className="px-3 py-1.5 text-xs text-muted">{a.caption}</figcaption>
+                  <figcaption className="px-3 py-1.5 text-xs text-muted-foreground">{a.caption}</figcaption>
                 ) : null}
               </figure>
             ))}
@@ -105,7 +105,7 @@ export default function KarteShare() {
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-[13px]">
             {k.fields.map((f) => (
               <div key={f.key} className="contents">
-                <dt className="text-muted">{f.label}</dt>
+                <dt className="text-muted-foreground">{f.label}</dt>
                 <dd>{f.display}</dd>
               </div>
             ))}
@@ -121,7 +121,7 @@ export default function KarteShare() {
           ) : null}
           {k.homecare.products.length ? (
             <>
-              <h3 className="mb-1.5 mt-4 text-xs font-semibold text-muted">おすすめの商品</h3>
+              <h3 className="mb-1.5 mt-4 text-xs font-semibold text-muted-foreground">おすすめの商品</h3>
               <ul className="space-y-2">
                 {k.homecare.products.map((p) => (
                   <li
@@ -130,7 +130,7 @@ export default function KarteShare() {
                   >
                     <span className="min-w-0">
                       <span className="block truncate text-sm font-medium">{p.name}</span>
-                      {p.brand ? <span className="text-xs text-muted">{p.brand}</span> : null}
+                      {p.brand ? <span className="text-xs text-muted-foreground">{p.brand}</span> : null}
                     </span>
                     <a
                       href={`/store/products/${p.id}`}

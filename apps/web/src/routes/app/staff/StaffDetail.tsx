@@ -47,7 +47,7 @@ export default function StaffDetail() {
   const st = STAFF_STATUS[s.status];
   return (
     <div className="space-y-5">
-      <Link to="/app/staff" className="text-[13px] text-muted hover:text-fg">
+      <Link to="/app/staff-classic" className="text-[13px] text-muted-foreground hover:text-fg">
         ← スタッフ一覧
       </Link>
       <Card>
@@ -59,7 +59,7 @@ export default function StaffDetail() {
               {st ? <Badge tone={st.tone}>{st.label}</Badge> : null}
               {s.role ? <Badge tone="primary">{s.role.name}</Badge> : null}
             </h1>
-            <p className="text-[13px] text-muted">
+            <p className="text-[13px] text-muted-foreground">
               {[
                 s.title,
                 EMPLOYMENT_LABEL[s.employment_type],
@@ -73,7 +73,7 @@ export default function StaffDetail() {
             </p>
           </div>
           <div className="text-right text-[13px]">
-            <p className="text-muted">指名料</p>
+            <p className="text-muted-foreground">指名料</p>
             <p className="text-lg font-semibold tabular">{formatYen(s.nomination_fee)}</p>
           </div>
         </div>
@@ -279,7 +279,7 @@ function ProfileTab({ s, editable }: { s: Staff; editable: boolean }) {
           </div>
         </div>
         <div className="mt-4">
-          <p className="mb-1.5 text-xs text-muted">カレンダーの色</p>
+          <p className="mb-1.5 text-xs text-muted-foreground">カレンダーの色</p>
           <div className="flex gap-1.5" role="radiogroup" aria-label="カレンダーの色">
             {STAFF_COLORS.map((c) => (
               <button
@@ -296,11 +296,11 @@ function ProfileTab({ s, editable }: { s: Staff; editable: boolean }) {
             ))}
           </div>
         </div>
-        <p className="mt-4 text-xs text-muted">登録日: {formatDate(s.created_at)}</p>
+        <p className="mt-4 text-xs text-muted-foreground">登録日: {formatDate(s.created_at)}</p>
       </Card>
       <Card>
         <h2 className="text-[15px] font-semibold">公開プロフィール</h2>
-        <p className="mb-4 mt-0.5 text-[13px] text-muted">
+        <p className="mb-4 mt-0.5 text-[13px] text-muted-foreground">
           予約ページのスタイリスト選択に表示されます。
         </p>
         <div className="space-y-4">
@@ -393,7 +393,7 @@ function RoleTab({ s }: { s: Staff }) {
   return (
     <Card className="max-w-2xl">
       <h2 className="text-[15px] font-semibold">権限ロール</h2>
-      <p className="mb-4 mt-0.5 text-[13px] text-muted">
+      <p className="mb-4 mt-0.5 text-[13px] text-muted-foreground">
         ロールによって操作できる機能が決まります。権限の変更は監査ログに記録されます。
       </p>
       {!manage ? (
@@ -427,8 +427,8 @@ function RoleTab({ s }: { s: Staff }) {
       {next ? (
         <div className="mt-4 rounded-xl bg-surface-2/60 p-3">
           <p className="text-[13px] font-medium">{next.name}</p>
-          {next.description ? <p className="text-xs text-muted">{next.description}</p> : null}
-          <p className="mt-1 text-xs text-muted">{next.permissions.length}個の権限</p>
+          {next.description ? <p className="text-xs text-muted-foreground">{next.description}</p> : null}
+          <p className="mt-1 text-xs text-muted-foreground">{next.permissions.length}個の権限</p>
         </div>
       ) : null}
       <ConfirmDialog
@@ -478,7 +478,7 @@ function ShopsTab({ s }: { s: Staff }) {
     <div className="grid gap-5 lg:grid-cols-2">
       <Card>
         <h2 className="text-[15px] font-semibold">所属店舗</h2>
-        <p className="mb-4 mt-0.5 text-[13px] text-muted">
+        <p className="mb-4 mt-0.5 text-[13px] text-muted-foreground">
           兼務する店舗をすべて選択します。所属店舗のカレンダー・顧客にアクセスできます。
         </p>
         <div className="space-y-2.5">
@@ -514,7 +514,7 @@ function ShopsTab({ s }: { s: Staff }) {
       </Card>
       <Card>
         <h2 className="text-[15px] font-semibold">異動</h2>
-        <p className="mb-4 mt-0.5 text-[13px] text-muted">
+        <p className="mb-4 mt-0.5 text-[13px] text-muted-foreground">
           店舗を異動させ、担当していた顧客の引き継ぎ方法を選べます（引き継ぎ・別スタッフへ再割当・担当解除）。
         </p>
         <Button
@@ -635,7 +635,7 @@ function TransferDialog({ s, onClose }: { s: Staff; onClose: () => void }) {
               { value: 'unassign', label: '担当を外す' },
             ]}
           />
-          <p className="mt-2 text-xs text-muted">
+          <p className="mt-2 text-xs text-muted-foreground">
             {policy === 'keep'
               ? '顧客の担当スタッフは変わりません（異動先でも担当を続けます）。'
               : policy === 'reassign'
@@ -742,7 +742,7 @@ function ScheduleTab({ s }: { s: Staff }) {
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-[15px] font-semibold">基本の勤務パターン</h2>
-          <p className="mt-0.5 text-[13px] text-muted">
+          <p className="mt-0.5 text-[13px] text-muted-foreground">
             毎週の出勤日と時間です。日ごとの変更は「シフト」画面で行います。
           </p>
         </div>
@@ -803,7 +803,7 @@ function ScheduleTab({ s }: { s: Staff }) {
                       disabled={!editable}
                       className="w-28"
                     />
-                    <span className="text-muted">〜</span>
+                    <span className="text-muted-foreground">〜</span>
                     <label className="sr-only" htmlFor={`ws-e-${wd}`}>
                       {WEEKDAYS_JA[wd]}曜 終了
                     </label>
@@ -825,7 +825,7 @@ function ScheduleTab({ s }: { s: Staff }) {
           })}
         </ul>
       ) : null}
-      <p className="mt-3 text-xs text-muted">
+      <p className="mt-3 text-xs text-muted-foreground">
         ※
         すべて「休み」で保存すると未設定扱いとなり、営業時間に従います。特定日の休みは「シフト」画面で登録してください。
       </p>

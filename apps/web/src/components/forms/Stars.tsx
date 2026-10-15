@@ -97,7 +97,7 @@ export function StarInput({
           </button>
         ))}
       </div>
-      <p className="mt-1 h-5 text-[13px] text-muted" aria-live="polite">
+      <p className="mt-1 h-5 text-[13px] text-muted-foreground" aria-live="polite">
         {value ? words[value] : ''}
       </p>
     </div>
@@ -119,14 +119,14 @@ export function RatingBars({
         const pct = count ? Math.round((n / count) * 100) : 0;
         return (
           <li key={k} className="flex items-center gap-2 text-xs">
-            <span className="w-6 shrink-0 text-muted tabular">★{k}</span>
+            <span className="w-6 shrink-0 text-muted-foreground tabular">★{k}</span>
             <span className="h-2 flex-1 overflow-hidden rounded-full bg-surface-3" aria-hidden>
               <span
                 className="block h-full rounded-full bg-[#f5a623]"
                 style={{ width: `${pct}%` }}
               />
             </span>
-            <span className="w-14 shrink-0 text-right text-muted tabular">
+            <span className="w-14 shrink-0 text-right text-muted-foreground tabular">
               {n}件<span className="sr-only">（{pct}%）</span>
             </span>
           </li>

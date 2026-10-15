@@ -6,6 +6,8 @@ import type { SegmentRule } from '../routes/app/campaigns/segment-dsl';
 /** Messaging (1:1 messages, templates, segments, campaigns, automations, preferences, LINE). */
 
 export type Channel = 'line' | 'email' | 'sms';
+/** channel of a stored message: a delivery channel, or 'note' = recorded on the thread, never delivered */
+export type MessageChannel = Channel | 'note';
 export type MessageStatus =
   | 'queued'
   | 'sending'
@@ -16,7 +18,12 @@ export type MessageStatus =
   | 'cancelled'
   | 'received';
 
-export const CHANNEL_LABEL: Record<Channel, string> = { line: 'LINE', email: 'メール', sms: 'SMS' };
+export const CHANNEL_LABEL: Record<MessageChannel, string> = {
+  line: 'LINE',
+  email: 'メール',
+  sms: 'SMS',
+  note: '記録のみ',
+};
 
 export const MESSAGE_STATUS_LABEL: Record<string, string> = {
   queued: '送信待ち',
@@ -39,13 +46,14 @@ export const SKIP_REASON_LABEL: Record<string, string> = {
   no_line_identity: 'LINE未連携',
   no_contact: '送信可能な連絡先がありません',
   template_disabled: 'テンプレートが無効',
+  note_only: '記録のみ（お客様には送信していません）',
 };
 
 export interface Message {
   id: string;
   shop_id: string | null;
   customer_id: string | null;
-  channel: Channel;
+  channel: MessageChannel;
   direction: 'inbound' | 'outbound';
   category: string;
   message_type: string;
@@ -73,11 +81,22 @@ export interface InboxItem {
   created_at: string;
   body: string | null;
   direction: 'inbound' | 'outbound';
-  channel: Channel;
+  channel: MessageChannel;
   status: MessageStatus;
   message_type: string;
   unread_count: number;
   customer_name: string;
+  /** 最近の担当: staff of the latest completed visit (nominated first), else the staff set on the customer */
+  customer_staff_name: string | null;
+  /** LINE profile picture */
+  customer_avatar: string | null;
+}
+
+/** Header of one conversation (GET /messages/thread) */
+export interface ThreadInfo {
+  customer: { id: string; name: string; status: string; staff_name: string | null };
+  /** linked LINE account; `deliverable` = a LINE message sent now would reach the customer */
+  line: { display_name: string | null; picture_url: string | null; deliverable: boolean } | null;
 }
 
 export type TemplateCategory = 'transactional' | 'marketing' | 'followup' | 'review' | 'other';
@@ -312,8 +331,20 @@ export interface LineChannelInput {
 
 export const messagingApi = {
   // 1:1
-  inbox: (q: { shopId?: string; unreadOnly?: boolean; cursor?: string; limit?: number }) =>
-    api.get<Page<InboxItem>>('/messages/inbox', { ...q }),
+  inbox: (q: {
+    shopId?: string;
+    unreadOnly?: boolean;
+    mine?: boolean;
+    q?: string;
+    cursor?: string;
+    limit?: number;
+  }) => api.get<Page<InboxItem>>('/messages/inbox', { ...q }),
+  thread: (q: { customerId: string; shopId?: string }) =>
+    api.get<ThreadInfo>('/messages/thread', { ...q }),
+  /** mark every unread message of the customer as read */
+  readThread: (customerId: string) =>
+    api.post<{ ok: true; updated: number }>('/messages/read-thread', { customerId }),
+  unreadCount: (q: { shopId?: string }) => api.get<{ count: number }>('/messages/unread-count', { ...q }),
   conversation: (q: { customerId: string; cursor?: string; limit?: number }) =>
     api.get<Page<Message>>('/messages', { ...q }),
   send: (
@@ -323,6 +354,8 @@ export const messagingApi = {
       templateId?: string;
       channel?: Channel;
       shopId?: string | null;
+      /** false = record on the thread only (nothing is delivered to the customer) */
+      deliver?: boolean;
     },
     idempotencyKey = newIdempotencyKey(),
   ) => api.post<Message>('/messages/send', input, { idempotencyKey }),
@@ -433,7 +466,9 @@ export const publicMessagingApi = {
 export const messagingKeys = {
   all: ['messaging'] as const,
   inbox: (q: object) => ['messaging', 'inbox', q] as const,
+  unreadCount: (q: object) => ['messaging', 'unread-count', q] as const,
   conversation: (customerId: string) => ['messaging', 'conversation', customerId] as const,
+  thread: (q: object) => ['messaging', 'thread', q] as const,
   templates: (q: object = {}) => ['messaging', 'templates', q] as const,
   segments: ['messaging', 'segments'] as const,
   campaigns: (q: object = {}) => ['messaging', 'campaigns', q] as const,
@@ -442,7 +477,20 @@ export const messagingKeys = {
   lineChannels: ['messaging', 'line-channels'] as const,
 };
 
-export function useInbox(q: { shopId?: string; unreadOnly?: boolean }, enabled = true) {
+/** Total unread inbound messages (dashboard card / navigation badge) */
+export function useUnreadCount(q: { shopId?: string }, enabled = true) {
+  return useQuery({
+    queryKey: messagingKeys.unreadCount(q),
+    queryFn: () => messagingApi.unreadCount(q),
+    enabled,
+    refetchInterval: 30_000,
+  });
+}
+
+export function useInbox(
+  q: { shopId?: string; unreadOnly?: boolean; mine?: boolean; q?: string },
+  enabled = true,
+) {
   return useInfiniteQuery({
     queryKey: messagingKeys.inbox(q),
     queryFn: ({ pageParam }) => messagingApi.inbox({ ...q, cursor: pageParam, limit: 30 }),

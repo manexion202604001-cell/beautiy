@@ -15,6 +15,9 @@ import {
   createSegmentSchema,
   createTemplateSchema,
   inboxSchema,
+  markThreadReadSchema,
+  threadSchema,
+  unreadCountSchema,
   lineLinkTokenSchema,
   listCampaignsSchema,
   listMessagesSchema,
@@ -83,6 +86,11 @@ const plugin: FastifyPluginAsyncZod = async (app) => {
   );
   app.get('/messages', { schema: { tags, summary: '顧客とのメッセージ履歴(配信ログ)', querystring: listMessagesSchema } }, (req) => req.tx((ctx) => conversations.listConversation(ctx, req.query)));
   app.get('/messages/inbox', { schema: { tags, summary: '受信箱(顧客ごとの最新メッセージ・未読数)', querystring: inboxSchema } }, (req) => req.tx((ctx) => conversations.inbox(ctx, req.query)));
+  app.get('/messages/unread-count', { schema: { tags, summary: '未読の受信メッセージ数', querystring: unreadCountSchema } }, (req) => req.tx((ctx) => conversations.unreadCount(ctx, req.query)));
+  app.get('/messages/thread', { schema: { tags, summary: '会話のヘッダ(顧客・担当・LINE連携と送信可否)', querystring: threadSchema } }, (req) => req.tx((ctx) => conversations.threadInfo(ctx, req.query)));
+  app.post('/messages/read-thread', { schema: { tags, summary: '顧客の未読メッセージをすべて既読にする', body: markThreadReadSchema } }, (req) =>
+    req.tx((ctx) => conversations.markThreadRead(ctx, req.body.customerId)),
+  );
   app.get('/messages/:id', { schema: { tags, params: idParam } }, (req) => req.tx((ctx) => conversations.getMessage(ctx, req.params.id)));
   app.post('/messages/:id/read', { schema: { tags, summary: '既読にする', params: idParam } }, (req) => req.tx((ctx) => conversations.markRead(ctx, req.params.id)));
   app.post('/messages/:id/retry', { config: { idempotent: true }, schema: { tags, summary: '送信失敗メッセージの再送', params: idParam } }, (req) =>

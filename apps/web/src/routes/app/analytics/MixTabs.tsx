@@ -123,7 +123,7 @@ export function StaffTab({ f }: { f: AnalyticsFilters }) {
         />
         <CsvButton report="staff" query={q} />
       </div>
-      {d?.ownOnly ? <p className="text-[13px] text-muted">あなた自身の数値のみを表示しています。</p> : null}
+      {d?.ownOnly ? <p className="text-[13px] text-muted-foreground">あなた自身の数値のみを表示しています。</p> : null}
       {r.isLoading ? <InlineLoading /> : null}
       {r.error ? <ErrorState error={r.error} onRetry={() => void r.refetch()} /> : null}
       {d ? (
@@ -144,7 +144,7 @@ export function StaffTab({ f }: { f: AnalyticsFilters }) {
                   valueFormat={metric === 'nominated' ? (n) => `${n.toFixed(1)}%` : formatYen}
                 />
               ) : (
-                <p className="text-[13px] text-muted">この期間のデータはありません。</p>
+                <p className="text-[13px] text-muted-foreground">この期間のデータはありません。</p>
               )
             }
           />

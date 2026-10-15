@@ -4,4 +4,6 @@
  */
 export const clock = {
   now: (): Date => new Date(),
+  /** Marketing quiet hours (21:00–09:00 local) are applied. Only tests switch this off. */
+  quietHours: true,
 };

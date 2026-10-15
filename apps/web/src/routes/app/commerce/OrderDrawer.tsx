@@ -189,16 +189,16 @@ export function OrderDrawer({ id, onClose }: { id: string | null; onClose: () =>
                 <span>
                   {i.name}
                   {i.tax_rate_bp === 800 ? (
-                    <span className="ml-1 text-xs text-muted">※軽減</span>
+                    <span className="ml-1 text-xs text-muted-foreground">※軽減</span>
                   ) : null}
-                  <span className="block text-xs text-muted">
+                  <span className="block text-xs text-muted-foreground">
                     {formatYen(i.unit_price)} × {i.quantity}
                   </span>
                 </span>
                 <span className="tabular">{formatYen(i.amount)}</span>
               </li>
             ))}
-            <li className="flex justify-between px-3 py-2 text-muted">
+            <li className="flex justify-between px-3 py-2 text-muted-foreground">
               <span>送料</span>
               <span className="tabular">{formatYen(o.shipping_fee)}</span>
             </li>
@@ -208,7 +208,7 @@ export function OrderDrawer({ id, onClose }: { id: string | null; onClose: () =>
             </li>
           </ul>
           <div>
-            <p className="text-xs text-muted">
+            <p className="text-xs text-muted-foreground">
               内消費税 {formatYen(o.tax_total)}（送料の税を含む）
             </p>
             <TaxBreakdown breakdown={breakdown} />
@@ -269,7 +269,7 @@ export function OrderDrawer({ id, onClose }: { id: string | null; onClose: () =>
                 </li>
               ))}
               {!o.payments.length ? (
-                <li className="px-3 py-2 text-muted">決済はありません</li>
+                <li className="px-3 py-2 text-muted-foreground">決済はありません</li>
               ) : null}
             </ul>
           </section>

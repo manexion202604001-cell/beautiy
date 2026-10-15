@@ -335,4 +335,31 @@ describe('Hot Pepper / LiME booking-notification mail sync', () => {
     expect(external.media_sync.blocks).toEqual([]);
     expect(list.find((a) => a.id === appt.id)!.media_sync.blocks).toHaveLength(1);
   });
+
+  it('lists the mails a connector received, including the medium\'s address-verification mail', async () => {
+    const { t, hp } = await setup();
+    const token = tokenOf(hp);
+    const date = nextWeekday(WED);
+    const verify = {
+      subject: '【SALON BOARD】予約お知らせメールアドレスの認証',
+      text: '下記のURLにアクセスして認証を完了してください。\nhttps://salonboard.com/verify?key=abc',
+      from: 'noreply@salonboard.com',
+      messageId: `<verify-${Math.random()}@salonboard.example>`,
+    };
+    expect((await post(token, verify)).status).toBe(200);
+    expect((await post(token, bookingMail('BE00000901', date, '13:00'))).status).toBe(200);
+    await runJobs();
+
+    const res = await t.owner.get(`/v1/integrations/${hp.id}/received-mails`);
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(2);
+    const v = res.body.find((m: { subject: string }) => m.subject.includes('認証'));
+    expect(v).toMatchObject({ status: 'ignored', from: 'noreply@salonboard.com' });
+    expect(v.text).toContain('https://salonboard.com/verify?key=abc');
+    expect(res.body.find((m: { subject: string }) => m.subject.includes('予約連絡'))).toMatchObject({ status: 'processed' });
+
+    // another salon cannot read them
+    const other = await createTenant();
+    expect((await other.owner.get(`/v1/integrations/${hp.id}/received-mails`)).status).toBe(404);
+  });
 });

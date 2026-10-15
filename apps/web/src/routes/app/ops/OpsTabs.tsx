@@ -93,7 +93,7 @@ export function OpsDashboardTab({ onOpen }: { onOpen: (tab: 'jobs' | 'webhooks')
               ))}
             </ul>
           ) : (
-            <p className="text-[13px] text-muted">失敗したジョブはありません。</p>
+            <p className="text-[13px] text-muted-foreground">失敗したジョブはありません。</p>
           )}
         </Card>
         <Card>
@@ -104,7 +104,7 @@ export function OpsDashboardTab({ onOpen }: { onOpen: (tab: 'jobs' | 'webhooks')
                 <li key={w.id} className="py-2">
                   <div className="flex items-center gap-2">
                     <span className="font-medium">{w.provider}</span>
-                    <code className="text-xs text-muted">{w.event_type ?? '—'}</code>
+                    <code className="text-xs text-muted-foreground">{w.event_type ?? '—'}</code>
                     <span className="ml-auto text-xs text-subtle">{formatAgo(w.received_at)}</span>
                   </div>
                   {w.last_error ? <p className="mt-0.5 line-clamp-2 break-all text-xs text-danger">{w.last_error}</p> : null}
@@ -112,7 +112,7 @@ export function OpsDashboardTab({ onOpen }: { onOpen: (tab: 'jobs' | 'webhooks')
               ))}
             </ul>
           ) : (
-            <p className="text-[13px] text-muted">失敗したWebhookはありません。</p>
+            <p className="text-[13px] text-muted-foreground">失敗したWebhookはありません。</p>
           )}
         </Card>
         <Card>
@@ -133,7 +133,7 @@ export function OpsDashboardTab({ onOpen }: { onOpen: (tab: 'jobs' | 'webhooks')
               ))}
             </ul>
           ) : (
-            <p className="text-[13px] text-muted">エラーのある連携はありません。</p>
+            <p className="text-[13px] text-muted-foreground">エラーのある連携はありません。</p>
           )}
         </Card>
         <Card>
@@ -147,14 +147,14 @@ export function OpsDashboardTab({ onOpen }: { onOpen: (tab: 'jobs' | 'webhooks')
                       スレッドを開く
                     </Link>
                   ) : null}
-                  <span className="text-xs text-muted">{m.channel}</span>
+                  <span className="text-xs text-muted-foreground">{m.channel}</span>
                   <span className="min-w-0 flex-1 truncate text-xs text-danger">{m.error ?? '—'}</span>
                   <span className="text-xs text-subtle">{formatAgo(m.updated_at)}</span>
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="text-[13px] text-muted">送信失敗はありません。</p>
+            <p className="text-[13px] text-muted-foreground">送信失敗はありません。</p>
           )}
         </Card>
       </div>
@@ -345,7 +345,7 @@ export function WebhooksTab() {
               <Tr key={w.id}>
                 <Td>
                   <button type="button" className="text-left hover:underline" onClick={() => setDetail(w)}>
-                    <span className="font-medium">{w.provider}</span> <code className="text-xs text-muted">{w.event_type ?? '—'}</code>
+                    <span className="font-medium">{w.provider}</span> <code className="text-xs text-muted-foreground">{w.event_type ?? '—'}</code>
                   </button>
                 </Td>
                 <Td>

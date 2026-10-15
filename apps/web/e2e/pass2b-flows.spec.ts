@@ -21,7 +21,8 @@ test('staff flows', async ({ page }) => {
   await loginAsStaff(page);
 
   // --- messages: thread + AI draft (accept copies into the composer, never sends)
-  await nav(page, '/app/messages');
+  // (AI drafts live on the previous inbox, kept at /app/messages-classic)
+  await nav(page, '/app/messages-classic');
   await settle(page);
   await page.getByRole('complementary', { name: '受信箱' }).getByRole('button').first().click();
   await settle(page);
@@ -37,7 +38,7 @@ test('staff flows', async ({ page }) => {
 
   // --- customer page: messages tab with preferences + LINE QR
   await nav(page, '/app/customers');
-  await page.locator('tbody tr').first().click();
+  await page.locator('[data-customer]').first().click();
   await page.getByRole('tab', { name: 'メッセージ' }).click();
   await settle(page);
   await shot(page, 'customer-messages', true);
@@ -168,11 +169,15 @@ test('stylist sees only own analytics (analytics.read_own)', async ({ page }) =>
   await page.setViewportSize({ width: 1440, height: 900 });
   await loginAsStaff(page, 'stylist1@example.com', 'password-1234');
   const nav0 = page.getByRole('navigation', { name: 'メインメニュー' });
-  await expect(nav0.getByRole('link', { name: '分析' })).toBeVisible();
   await expect(nav0.getByRole('link', { name: 'メッセージ' })).toBeVisible();
-  await expect(nav0.getByRole('link', { name: '配信' })).toHaveCount(0);
-  await expect(nav0.getByRole('link', { name: '外部連携' })).toHaveCount(0);
-  await expect(nav0.getByRole('link', { name: '運用・監査' })).toHaveCount(0);
+  // features outside the main menu are listed on 設定 › その他の機能, filtered by permission
+  await nav(page, '/app/system');
+  await page.getByRole('tab', { name: 'その他の機能' }).click();
+  const more = page.getByRole('main');
+  await expect(more.getByRole('link', { name: /分析/ })).toBeVisible();
+  await expect(more.getByRole('link', { name: /配信/ })).toHaveCount(0);
+  await expect(more.getByRole('link', { name: /外部連携/ })).toHaveCount(0);
+  await expect(more.getByRole('link', { name: /運用・監査/ })).toHaveCount(0);
   await nav(page, '/app/analytics');
   const tabs = page.getByRole('tablist', { name: '分析メニュー' });
   await expect(tabs.getByRole('tab', { name: '売上' })).toBeVisible();

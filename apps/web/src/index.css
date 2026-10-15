@@ -1,25 +1,47 @@
 @import 'tailwindcss';
 
 /* -----------------------------------------------------------------------------
- * Salon OS design tokens (original palette: deep teal + warm stone neutrals)
- * Light/dark via CSS variables. data-theme="light|dark" overrides the OS setting.
+ * Design tokens. Radius and token names follow the shadcn/ui convention
+ * (background / foreground / card / primary / muted / accent / border / input / ring) so the
+ * staff screens can use the same class names as the system they replace. Light theme only.
+ * Colours: pink on white (primary pink, pale-pink hover / muted surfaces, pink-tinted borders).
+ * The second block keeps the older Salon OS token names as aliases for screens not yet ported.
  * -------------------------------------------------------------------------- */
 :root {
   color-scheme: light;
-  --bg: #f6f5f2;
-  --surface: #ffffff;
-  --surface-2: #f2f0eb;
-  --surface-3: #e8e5de;
-  --border: #e3dfd7;
-  --border-strong: #cdc7bb;
-  --fg: #1c1917;
-  --muted: #6b645b;
-  --subtle: #958d81;
-  --primary: #0f766e;
-  --primary-hover: #115e59;
-  --primary-soft: #e2f1ee;
-  --primary-fg: #ffffff;
-  --accent: #c2410c;
+  --background: hsl(0 0% 100%);
+  --foreground: hsl(222.2 84% 4.9%);
+  --card: hsl(0 0% 100%);
+  --card-foreground: hsl(222.2 84% 4.9%);
+  --popover: hsl(0 0% 100%);
+  --popover-foreground: hsl(222.2 84% 4.9%);
+  --primary: hsl(338 70% 56%);
+  --primary-foreground: hsl(0 0% 100%);
+  --secondary: hsl(340 45% 96.5%);
+  --secondary-foreground: hsl(222.2 47.4% 11.2%);
+  --muted: hsl(340 45% 96.5%);
+  --muted-foreground: hsl(215.4 16.3% 46.9%);
+  --accent: hsl(340 45% 96.5%);
+  --accent-foreground: hsl(222.2 47.4% 11.2%);
+  --destructive: hsl(0 84.2% 60.2%);
+  --destructive-foreground: hsl(210 40% 98%);
+  --border: hsl(340 28% 91.5%);
+  --input: hsl(340 28% 91.5%);
+  --ring: hsl(338 70% 56%);
+  --radius: 0.5rem;
+
+  /* legacy aliases */
+  --bg: #fefafc;
+  --surface: var(--card);
+  --surface-2: var(--muted);
+  --surface-3: #f1dfe6;
+  --border-strong: #dcc3cd;
+  --fg: var(--foreground);
+  --subtle: #94a3b8;
+  --primary-hover: color-mix(in srgb, var(--primary) 90%, transparent);
+  --primary-soft: hsl(338 70% 95%);
+  --primary-fg: var(--primary-foreground);
+  --highlight: #c2410c;
   --danger: #dc2626;
   --danger-soft: #fdecec;
   --warning: #b45309;
@@ -28,92 +50,45 @@
   --success-soft: #e6f5eb;
   --info: #2563eb;
   --info-soft: #e8eefe;
-  --ring: #14b8a6;
-  --shadow: 0 1px 2px rgb(28 25 23 / 0.06), 0 4px 16px rgb(28 25 23 / 0.06);
-  --overlay: rgb(28 25 23 / 0.45);
-  --grid-line: #ece9e3;
-  --closed: repeating-linear-gradient(135deg, #efece6 0 6px, #e8e4dc 6px 12px);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
-    color-scheme: dark;
-    --bg: #121211;
-    --surface: #1b1a18;
-    --surface-2: #242320;
-    --surface-3: #2f2d29;
-    --border: #35322d;
-    --border-strong: #4b463e;
-    --fg: #f3f0ea;
-    --muted: #aaa398;
-    --subtle: #7f786d;
-    --primary: #2dd4bf;
-    --primary-hover: #5eead4;
-    --primary-soft: #11332f;
-    --primary-fg: #04201d;
-    --accent: #fb923c;
-    --danger: #f87171;
-    --danger-soft: #3a1717;
-    --warning: #fbbf24;
-    --warning-soft: #352a10;
-    --success: #4ade80;
-    --success-soft: #11301c;
-    --info: #60a5fa;
-    --info-soft: #14233f;
-    --ring: #2dd4bf;
-    --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 6px 20px rgb(0 0 0 / 0.35);
-    --overlay: rgb(0 0 0 / 0.6);
-    --grid-line: #262420;
-    --closed: repeating-linear-gradient(135deg, #1f1e1b 0 6px, #191816 6px 12px);
-  }
-}
-
-:root[data-theme='dark'] {
-  color-scheme: dark;
-  --bg: #121211;
-  --surface: #1b1a18;
-  --surface-2: #242320;
-  --surface-3: #2f2d29;
-  --border: #35322d;
-  --border-strong: #4b463e;
-  --fg: #f3f0ea;
-  --muted: #aaa398;
-  --subtle: #7f786d;
-  --primary: #2dd4bf;
-  --primary-hover: #5eead4;
-  --primary-soft: #11332f;
-  --primary-fg: #04201d;
-  --accent: #fb923c;
-  --danger: #f87171;
-  --danger-soft: #3a1717;
-  --warning: #fbbf24;
-  --warning-soft: #352a10;
-  --success: #4ade80;
-  --success-soft: #11301c;
-  --info: #60a5fa;
-  --info-soft: #14233f;
-  --ring: #2dd4bf;
-  --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 6px 20px rgb(0 0 0 / 0.35);
-  --overlay: rgb(0 0 0 / 0.6);
-  --grid-line: #262420;
-  --closed: repeating-linear-gradient(135deg, #1f1e1b 0 6px, #191816 6px 12px);
+  --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  --overlay: rgb(0 0 0 / 0.8);
+  --grid-line: #f6ecf0;
+  --closed: repeating-linear-gradient(135deg, #faf3f6 0 6px, #f4e9ee 6px 12px);
 }
 
 @theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* legacy aliases */
   --color-bg: var(--bg);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
   --color-surface-3: var(--surface-3);
-  --color-border: var(--border);
   --color-border-strong: var(--border-strong);
   --color-fg: var(--fg);
-  --color-muted: var(--muted);
   --color-subtle: var(--subtle);
-  --color-primary: var(--primary);
   --color-primary-hover: var(--primary-hover);
   --color-primary-soft: var(--primary-soft);
   --color-primary-fg: var(--primary-fg);
-  --color-accent: var(--accent);
+  --color-highlight: var(--highlight);
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
   --color-warning: var(--warning);
@@ -122,24 +97,135 @@
   --color-success-soft: var(--success-soft);
   --color-info: var(--info);
   --color-info-soft: var(--info-soft);
-  --color-ring: var(--ring);
   --shadow-card: var(--shadow);
   --font-sans:
-    'Inter', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', 'Yu Gothic UI', 'Meiryo',
-    system-ui, sans-serif;
+    ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
+    'Noto Color Emoji';
+  --font-logo: 'Montserrat', ui-sans-serif, system-ui, sans-serif;
+
+  /* Tailwind 3 line-heights for the font-size utilities (rem lengths, not ratios): a child with
+   * its own font-size then inherits the same computed line-height as in a Tailwind 3 build */
+  --text-xs--line-height: 1rem;
+  --text-sm--line-height: 1.25rem;
+  --text-base--line-height: 1.5rem;
+  --text-lg--line-height: 1.75rem;
+  --text-xl--line-height: 1.75rem;
+  --text-2xl--line-height: 2rem;
+  --text-3xl--line-height: 2.25rem;
+  --text-4xl--line-height: 2.5rem;
+
+  /* Tailwind 3 palette values for the stock colours the ported screens use (v4 moved the
+   * palette to oklch with slightly different tones) */
+  --color-emerald-600: #059669;
+  --color-orange-50: #fff7ed;
+  --color-orange-300: #fdba74;
+  --color-orange-500: #f97316;
+  --color-orange-600: #ea580c;
+  --color-orange-100: #ffedd5;
+  --color-orange-700: #c2410c;
+  --color-amber-50: #fffbeb;
+  --color-amber-200: #fde68a;
+  --color-amber-500: #f59e0b;
+  --color-amber-600: #d97706;
+  --color-amber-800: #92400e;
+  --color-gray-50: #f9fafb;
+  --color-gray-100: #f3f4f6;
+  --color-gray-200: #e5e7eb;
+  --color-gray-300: #d1d5db;
+  --color-gray-400: #9ca3af;
+  --color-gray-500: #6b7280;
+  --color-gray-600: #4b5563;
+  --color-gray-700: #374151;
+  --color-gray-800: #1f2937;
+  --color-gray-900: #111827;
+  --color-gray-950: #030712;
+  --color-red-50: #fef2f2;
+  --color-red-100: #fee2e2;
+  --color-red-200: #fecaca;
+  --color-red-300: #fca5a5;
+  --color-red-400: #f87171;
+  --color-red-500: #ef4444;
+  --color-red-600: #dc2626;
+  --color-red-700: #b91c1c;
+  --color-red-800: #991b1b;
+  --color-red-900: #7f1d1d;
+  --color-red-950: #450a0a;
+  --color-yellow-50: #fefce8;
+  --color-yellow-100: #fef9c3;
+  --color-yellow-200: #fef08a;
+  --color-yellow-300: #fde047;
+  --color-yellow-400: #facc15;
+  --color-yellow-500: #eab308;
+  --color-yellow-600: #ca8a04;
+  --color-yellow-700: #a16207;
+  --color-yellow-800: #854d0e;
+  --color-yellow-900: #713f12;
+  --color-yellow-950: #422006;
+  --color-green-50: #f0fdf4;
+  --color-green-100: #dcfce7;
+  --color-green-200: #bbf7d0;
+  --color-green-300: #86efac;
+  --color-green-400: #4ade80;
+  --color-green-500: #22c55e;
+  --color-green-600: #16a34a;
+  --color-green-700: #15803d;
+  --color-green-800: #166534;
+  --color-green-900: #14532d;
+  --color-green-950: #052e16;
+  --color-blue-50: #eff6ff;
+  --color-blue-100: #dbeafe;
+  --color-blue-200: #bfdbfe;
+  --color-blue-300: #93c5fd;
+  --color-blue-400: #60a5fa;
+  --color-blue-500: #3b82f6;
+  --color-blue-600: #2563eb;
+  --color-blue-700: #1d4ed8;
+  --color-blue-800: #1e40af;
+  --color-blue-900: #1e3a8a;
+  --color-blue-950: #172554;
+}
+
+/* sy-* / sx-*: Tailwind 3's space-y / space-x. The margin goes on the *following* sibling
+ * (margin-top), so it also applies after inline children such as <label>; Tailwind 4's space-y puts
+ * margin-bottom on every child but the last, which inline elements ignore. Screens ported from a
+ * Tailwind 3 design use sy-N where that design has space-y-N. */
+@utility sy-* {
+  & > :not([hidden]) ~ :not([hidden]) {
+    margin-top: calc(var(--spacing) * --value(number));
+  }
+}
+@utility sx-* {
+  & > :not([hidden]) ~ :not([hidden]) {
+    margin-left: calc(var(--spacing) * --value(number));
+  }
 }
 
 /* base styles live in the base layer so Tailwind utilities (outline-none, bg-*) can override them */
 @layer base {
-  html {
-    -webkit-text-size-adjust: 100%;
-    font-feature-settings: 'palt' 1;
+  /* shadcn convention: a bare `border` uses the border token */
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--border);
   }
 
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  /* Tailwind 3 behaviour the ported screens rely on */
+  button:not(:disabled),
+  [role='button']:not(:disabled) {
+    cursor: pointer;
+  }
+
+  /* 14px / 1.6 is the default of the screens not yet ported; ported screens set text-base */
   body {
     margin: 0;
-    background: var(--bg);
-    color: var(--fg);
+    background: var(--background);
+    color: var(--foreground);
     font-family: var(--font-sans);
     font-size: 14px;
     line-height: 1.6;

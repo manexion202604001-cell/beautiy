@@ -81,7 +81,7 @@ export function PaymentPanel({
                     : METHOD_LABEL[p.method]}
                 </span>
                 {p.method === 'cash' && p.tendered_amount ? (
-                  <span className="ml-2 text-xs text-muted">
+                  <span className="ml-2 text-xs text-muted-foreground">
                     預り {formatYen(p.tendered_amount)} / 釣り {formatYen(p.change_amount)}
                   </span>
                 ) : null}
@@ -110,7 +110,7 @@ export function PaymentPanel({
         className="flex items-center justify-between rounded-xl bg-surface-2 px-4 py-3"
         aria-live="polite"
       >
-        <span className="text-[13px] text-muted">未払い残高</span>
+        <span className="text-[13px] text-muted-foreground">未払い残高</span>
         <span
           className={cn(
             'text-xl font-semibold tabular',
@@ -267,11 +267,11 @@ function PaymentDialog({
           <>
             <div className="grid grid-cols-3 gap-2 text-center">
               <div className="rounded-xl bg-surface-2 p-3">
-                <p className="text-xs text-muted">ご請求</p>
+                <p className="text-xs text-muted-foreground">ご請求</p>
                 <p className="text-lg font-semibold tabular">{formatYen(due)}</p>
               </div>
               <div className="rounded-xl border-2 border-primary p-3">
-                <p className="text-xs text-muted">お預かり</p>
+                <p className="text-xs text-muted-foreground">お預かり</p>
                 <p
                   className="text-lg font-semibold tabular"
                   data-testid="tendered"
@@ -281,7 +281,7 @@ function PaymentDialog({
                 </p>
               </div>
               <div className="rounded-xl bg-surface-2 p-3">
-                <p className="text-xs text-muted">お釣り</p>
+                <p className="text-xs text-muted-foreground">お釣り</p>
                 <p
                   className="text-lg font-semibold tabular text-primary"
                   data-testid="change"
@@ -318,7 +318,7 @@ function PaymentDialog({
               <button
                 type="button"
                 onClick={() => press('C')}
-                className="col-span-3 h-11 rounded-xl border border-border bg-surface text-sm font-medium text-muted hover:bg-surface-2"
+                className="col-span-3 h-11 rounded-xl border border-border bg-surface text-sm font-medium text-muted-foreground hover:bg-surface-2"
               >
                 クリア
               </button>

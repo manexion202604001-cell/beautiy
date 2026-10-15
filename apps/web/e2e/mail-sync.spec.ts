@@ -92,8 +92,14 @@ test('Hot Pepper booking mail is imported and becomes a slot-block task for LiME
   await expect(async () => {
     await page.reload();
     await page.getByRole('tab', { name: /媒体の枠止め/ }).click();
+    // the customer's name too: seeded tasks of other bookings may end at 11:00
     await expect(
-      page.getByRole('listitem').filter({ hasText: 'LiME' }).filter({ hasText: '11:00' }).first(),
+      page
+        .getByRole('listitem')
+        .filter({ hasText: 'LiME' })
+        .filter({ hasText: '11:00' })
+        .filter({ hasText: '連携子' })
+        .first(),
     ).toBeVisible({ timeout: 2_000 });
   }).toPass({ timeout: 45_000, intervals: [2_000] });
   const task = page

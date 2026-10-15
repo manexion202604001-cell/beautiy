@@ -293,7 +293,7 @@ function DetailView({ a, tz }: { a: AppointmentDetail; tz: string }) {
       <div className="rounded-xl border border-border p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-xs text-muted">顧客</p>
+            <p className="text-xs text-muted-foreground">顧客</p>
             {a.customer_id ? (
               <Link
                 to={`/app/customers/${a.customer_id}`}
@@ -303,9 +303,9 @@ function DetailView({ a, tz }: { a: AppointmentDetail; tz: string }) {
                 <Icon name="chevron-right" size={16} />
               </Link>
             ) : (
-              <p className="mt-0.5 text-[15px] font-semibold text-muted">顧客未登録</p>
+              <p className="mt-0.5 text-[15px] font-semibold text-muted-foreground">顧客未登録</p>
             )}
-            <p className="mt-0.5 text-xs text-muted">
+            <p className="mt-0.5 text-xs text-muted-foreground">
               {[
                 a.customer_last_name_kana &&
                   `${a.customer_last_name_kana} ${a.customer_first_name_kana ?? ''}`,
@@ -398,13 +398,13 @@ function DetailView({ a, tz }: { a: AppointmentDetail; tz: string }) {
             >
               <span className="min-w-0">
                 <span className="block truncate font-medium text-fg">{s.name}</span>
-                <span className="text-xs text-muted">{formatDuration(s.duration_min)}</span>
+                <span className="text-xs text-muted-foreground">{formatDuration(s.duration_min)}</span>
               </span>
               <span className="tabular">{formatYen(s.price)}</span>
             </li>
           ))}
           <li className="flex items-center justify-between px-3 py-2.5 text-[13px]">
-            <span className="text-muted">見込み金額{a.coupon_id ? '（クーポン適用後）' : ''}</span>
+            <span className="text-muted-foreground">見込み金額{a.coupon_id ? '（クーポン適用後）' : ''}</span>
             <span className="font-semibold tabular">
               {formatYen(a.estimated_total ?? servicesTotal)}
             </span>
@@ -416,13 +416,13 @@ function DetailView({ a, tz }: { a: AppointmentDetail; tz: string }) {
         <div className="grid gap-3 sm:grid-cols-2">
           {a.customer_note ? (
             <div className="rounded-xl bg-surface-2 p-3">
-              <p className="text-xs font-medium text-muted">お客様の要望</p>
+              <p className="text-xs font-medium text-muted-foreground">お客様の要望</p>
               <p className="mt-1 whitespace-pre-wrap text-[13px]">{a.customer_note}</p>
             </div>
           ) : null}
           {a.staff_note ? (
             <div className="rounded-xl bg-warning-soft/60 p-3">
-              <p className="text-xs font-medium text-muted">スタッフメモ</p>
+              <p className="text-xs font-medium text-muted-foreground">スタッフメモ</p>
               <p className="mt-1 whitespace-pre-wrap text-[13px]">{a.staff_note}</p>
             </div>
           ) : null}
@@ -568,7 +568,7 @@ function EditForm({
       </div>
       {menuIds.length ? (
         <div>
-          <p className="mb-2 text-xs text-muted">空き枠から選ぶ</p>
+          <p className="mb-2 text-xs text-muted-foreground">空き枠から選ぶ</p>
           <SlotPicker
             slots={merged}
             value={zonedToIso(date, time, tz)}
@@ -629,14 +629,14 @@ function HistoryView({ id, tz }: { id: string; tz: string }) {
               <p className="text-[13px] font-medium text-fg">
                 {EVENT_LABEL[e.event_type] ?? e.event_type}
               </p>
-              <p className="text-xs text-muted">
+              <p className="text-xs text-muted-foreground">
                 {formatDateTime(e.created_at, tz)}（{formatAgo(e.created_at)}）・{' '}
                 {nameOf(e.actor_type, e.actor_id)}
               </p>
               {e.event_type === 'rescheduled' && p.to?.startAt ? (
-                <p className="mt-0.5 text-xs text-muted">→ {formatDateTime(p.to.startAt, tz)}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">→ {formatDateTime(p.to.startAt, tz)}</p>
               ) : null}
-              {p.reason ? <p className="mt-0.5 text-xs text-muted">理由: {p.reason}</p> : null}
+              {p.reason ? <p className="mt-0.5 text-xs text-muted-foreground">理由: {p.reason}</p> : null}
             </li>
           );
         })}

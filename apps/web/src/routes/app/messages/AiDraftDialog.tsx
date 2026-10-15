@@ -143,7 +143,7 @@ export function AiDraftDialog({
         </div>
         {suggestion ? (
           <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
               <Badge tone="primary">AI提案</Badge>
               <span>
                 {suggestion.provider === 'heuristic' ? 'テンプレート生成' : suggestion.provider}
@@ -151,7 +151,7 @@ export function AiDraftDialog({
               </span>
             </div>
             {fallback ? (
-              <p className="text-xs text-muted">
+              <p className="text-xs text-muted-foreground">
                 外部AIを利用できなかったため、定型文から作成しました（理由: {fallback}）。
               </p>
             ) : null}

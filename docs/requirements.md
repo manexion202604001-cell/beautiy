@@ -1068,12 +1068,17 @@ PostgreSQL エラーは `fromPgError()` で変換する（`23P01` 排他制約 �
 | POST | `/shops` | 店舗作成 | `shop.manage` | － |
 | GET | `/shops/:id` | 店舗詳細 | 店舗アクセス | － |
 | PATCH | `/shops/:id` | 店舗更新（`settings` は部分マージ・検証） | `shop.manage` | － |
+| DELETE | `/shops/:id` | 店舗削除（一覧・予約受付から外す。最後の1店舗・今後の予約がある店舗は不可） | `shop.manage` + `org.manage` | － |
 | GET | `/staff` | スタッフ一覧（`shopId` / `includeInactive` / `bookableOnly`） | `staff.read` | － |
 | POST | `/staff` | スタッフ作成・招待（招待URL返却） | `staff.manage`（owner 付与は `role.manage`） | － |
 | GET | `/staff/:id` | スタッフ詳細 | `staff.read` | － |
 | PATCH | `/staff/:id` | スタッフ更新（本人は公開プロフィール等のみ） | `staff.manage` | － |
 | PUT | `/staff/:id/role` | ロール変更（監査 `role.change`） | `role.manage` | － |
-| PUT | `/staff/:id/shops` | 所属店舗設定 | `staff.manage` | － |
+| PUT | `/staff/:id/shops` | 所属店舗設定（`primaryShopId` で主店舗を指定） | `staff.manage` | － |
+| PUT | `/staff/:id/shops/:shopId/visibility` | お客様への表示/非表示（店舗ごと） | `staff.manage` | － |
+| GET | `/staff-invitations` | 招待履歴（承認待ち / 承認済み / 取消） | `staff.manage` | － |
+| POST | `/staff-invitations` | スタッフ招待（メール送信。`roleKey`: stylist / manager） | `staff.manage` | － |
+| GET / POST / PATCH / DELETE | `/equipment` | 設備（名称 + 数量 + 有効/無効。`resources` の束ね表示） | 閲覧: 店舗アクセス、変更: `menu.manage` | － |
 | POST | `/staff/:id/transfer` | 異動（`customerPolicy`: keep / reassign / unassign） | `staff.manage` | － |
 | GET | `/roles` | ロール一覧 | `staff.read` | － |
 | GET | `/permissions` | 権限キー一覧 | 認証のみ | － |

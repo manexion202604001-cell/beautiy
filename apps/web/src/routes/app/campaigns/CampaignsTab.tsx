@@ -268,7 +268,7 @@ function CreateCampaignDialog({ onClose, onCreated }: { onClose: () => void; onC
             </div>
           )}
           {audience === 'saved' && segmentId ? (
-            <p className="text-xs text-muted">条件: {describeRule(segList.find((s) => s.id === segmentId)?.rule)}</p>
+            <p className="text-xs text-muted-foreground">条件: {describeRule(segList.find((s) => s.id === segmentId)?.rule)}</p>
           ) : null}
         </section>
 
@@ -303,7 +303,7 @@ function CreateCampaignDialog({ onClose, onCreated }: { onClose: () => void; onC
             </Field>
           )}
           {content === 'template' && templateId ? (
-            <p className="whitespace-pre-wrap rounded-lg bg-surface-2 px-3 py-2 text-xs text-muted">
+            <p className="whitespace-pre-wrap rounded-lg bg-surface-2 px-3 py-2 text-xs text-muted-foreground">
               {chTemplates.find((t) => t.id === templateId)?.body}
             </p>
           ) : null}
@@ -429,7 +429,7 @@ function CampaignDrawer({ id, onClose }: { id: string | null; onClose: () => voi
                   ] as const
                 ).map(([label, n]) => (
                   <div key={label}>
-                    <dt className="text-xs text-muted">{label}</dt>
+                    <dt className="text-xs text-muted-foreground">{label}</dt>
                     <dd className="text-lg font-semibold">{n.toLocaleString('ja-JP')}</dd>
                   </div>
                 ))}
@@ -516,7 +516,7 @@ function ScheduleDialog({ campaign, onClose, onDone }: { campaign: Campaign; onC
     >
       <div className="space-y-4">
         <div className="rounded-xl bg-surface-2 p-4">
-          <p className="text-xs text-muted">現在の対象人数（配信時点で再計算されます）</p>
+          <p className="text-xs text-muted-foreground">現在の対象人数（配信時点で再計算されます）</p>
           <p className="mt-1 text-2xl font-semibold">{count.data ? `${count.data.count.toLocaleString('ja-JP')}人` : '…'}</p>
           <p className="mt-1 text-xs text-subtle">配信許可・チャネルの同意がないお客様、深夜帯はスキップ/延期されます。</p>
         </div>

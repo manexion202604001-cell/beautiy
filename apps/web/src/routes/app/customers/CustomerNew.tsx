@@ -39,7 +39,7 @@ export default function CustomerNew() {
       <PageHeader
         title="顧客を新規登録"
         back={
-          <Link to="/app/customers" className="text-[13px] text-muted hover:text-fg">
+          <Link to="/app/customers" className="text-[13px] text-muted-foreground hover:text-fg">
             ← 顧客一覧
           </Link>
         }
@@ -96,7 +96,7 @@ export default function CustomerNew() {
             >
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">{c.displayName}</p>
-                <p className="truncate text-xs text-muted">
+                <p className="truncate text-xs text-muted-foreground">
                   {[
                     c.phone,
                     c.email,
@@ -114,7 +114,7 @@ export default function CustomerNew() {
                   ))}
                 </div>
               </div>
-              <ButtonLink size="sm" to={`/app/customers/${dups.id}?tab=duplicates`}>
+              <ButtonLink size="sm" to={`/app/customers-classic/${dups.id}?tab=duplicates`}>
                 確認して統合
               </ButtonLink>
             </li>

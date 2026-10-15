@@ -117,7 +117,7 @@ export function AutomationsTab() {
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="truncate text-[15px] font-semibold">{a.name}</p>
-                <p className="text-xs text-muted">{TRIGGER_LABEL[a.trigger_type]}</p>
+                <p className="text-xs text-muted-foreground">{TRIGGER_LABEL[a.trigger_type]}</p>
               </div>
               <Switch
                 label={<span className="sr-only">{a.name}を有効にする</span>}
@@ -127,7 +127,7 @@ export function AutomationsTab() {
               />
             </div>
             <p className="text-[13px] text-fg">{describeConfig(a.trigger_type, a.config ?? {})}</p>
-            <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
               <Badge tone={a.is_active ? 'success' : 'neutral'} dot>
                 {a.is_active ? '有効' : '停止中'}
               </Badge>
@@ -176,13 +176,13 @@ export function AutomationsTab() {
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-xl bg-surface-2 p-3">
-                <p className="text-xs text-muted">今実行した場合の送信対象</p>
+                <p className="text-xs text-muted-foreground">今実行した場合の送信対象</p>
                 <p className="text-2xl font-semibold" data-testid="dry-run-count">
                   {dry.r.candidates.toLocaleString('ja-JP')}人
                 </p>
               </div>
               <div className="rounded-xl bg-surface-2 p-3">
-                <p className="text-xs text-muted">同じサイクルで送信済み</p>
+                <p className="text-xs text-muted-foreground">同じサイクルで送信済み</p>
                 <p className="text-2xl font-semibold">{dry.r.alreadySent.toLocaleString('ja-JP')}人</p>
               </div>
             </div>
@@ -191,14 +191,14 @@ export function AutomationsTab() {
                 {dry.r.sample.map((s) => (
                   <li key={s.id} className="flex justify-between gap-2 px-3 py-2">
                     <span className="truncate">{s.display_name || '（氏名未登録）'}</span>
-                    <span className="shrink-0 text-xs text-muted">
+                    <span className="shrink-0 text-xs text-muted-foreground">
                       最終来店 {s.last_visit_at ? formatDate(s.last_visit_at, tz, { weekday: false }) : '—'} ・{s.visit_count}回
                     </span>
                   </li>
                 ))}
               </ul>
             ) : null}
-            <p className="text-xs text-muted">配信許可（marketing opt-in）のあるお客様のみが対象です。</p>
+            <p className="text-xs text-muted-foreground">配信許可（marketing opt-in）のあるお客様のみが対象です。</p>
           </div>
         ) : null}
       </Dialog>

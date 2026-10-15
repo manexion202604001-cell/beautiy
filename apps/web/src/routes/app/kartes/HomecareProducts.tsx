@@ -71,7 +71,7 @@ export function HomecareProducts({
                     }}
                   >
                     <span className="truncate">{p.name}</span>
-                    <span className="shrink-0 text-muted tabular">
+                    <span className="shrink-0 text-muted-foreground tabular">
                       {formatYen(p.price_inclusive)}
                     </span>
                   </button>

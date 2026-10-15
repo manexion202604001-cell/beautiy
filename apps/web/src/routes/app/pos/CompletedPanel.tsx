@@ -89,12 +89,12 @@ export function CompletedPanel({
                     <span className="font-medium">
                       {r.receipt_type === 'invoice' ? '領収書' : 'レシート'}
                     </span>{' '}
-                    <span className="font-mono text-xs text-muted">{r.receipt_number}</span>
+                    <span className="font-mono text-xs text-muted-foreground">{r.receipt_number}</span>
                     {r.reissue_of ? (
                       <span className="ml-1 text-xs text-warning">再発行</span>
                     ) : null}
                     {r.addressee ? (
-                      <span className="ml-1 text-xs text-muted">{r.addressee} 様</span>
+                      <span className="ml-1 text-xs text-muted-foreground">{r.addressee} 様</span>
                     ) : null}
                     <span className="block text-xs text-subtle">
                       {formatDateTime(r.issued_at, tz)}
@@ -107,7 +107,7 @@ export function CompletedPanel({
               ))}
             </ul>
           ) : (
-            <p className="text-[13px] text-muted">まだ発行していません。</p>
+            <p className="text-[13px] text-muted-foreground">まだ発行していません。</p>
           )}
         </Card>
       ) : null}

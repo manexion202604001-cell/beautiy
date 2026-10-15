@@ -162,7 +162,7 @@ function AtRiskCard({ shopId }: { shopId?: string }) {
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-5 py-4">
         <div>
           <h2 className="text-[15px] font-semibold">失客リスクの高い顧客</h2>
-          <p className="text-[13px] text-muted">来店周期と最終来店からの経過で毎朝算出（heuristic-v1）</p>
+          <p className="text-[13px] text-muted-foreground">来店周期と最終来店からの経過で毎朝算出（heuristic-v1）</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Segmented
@@ -186,7 +186,7 @@ function AtRiskCard({ shopId }: { shopId?: string }) {
       {q.isLoading ? <div className="px-5"><InlineLoading /></div> : null}
       {q.error ? (
         aiDisabled(q.error) ? (
-          <p className="px-5 py-4 text-[13px] text-muted">この法人ではAIアシストが無効です。</p>
+          <p className="px-5 py-4 text-[13px] text-muted-foreground">この法人ではAIアシストが無効です。</p>
         ) : (
           <ErrorState className="m-4" error={q.error} onRetry={() => void q.refetch()} />
         )
@@ -275,12 +275,12 @@ export function NextActionsCard({ shopId, limit = 20, compact }: { shopId?: stri
       {q.isLoading ? <InlineLoading /> : null}
       {q.error ? (
         aiDisabled(q.error) ? (
-          <p className="text-[13px] text-muted">この法人ではAIアシストが無効です。</p>
+          <p className="text-[13px] text-muted-foreground">この法人ではAIアシストが無効です。</p>
         ) : (
           <ErrorState error={q.error} onRetry={() => void q.refetch()} />
         )
       ) : null}
-      {q.data && !actions.length ? <p className="text-[13px] text-muted">本日のおすすめはありません。</p> : null}
+      {q.data && !actions.length ? <p className="text-[13px] text-muted-foreground">本日のおすすめはありません。</p> : null}
       <ul className="divide-y divide-border" data-testid="next-actions">
         {actions.slice(0, compact ? 5 : limit).map((a) => (
           <li key={`${a.type}-${a.customerId}`} className="flex items-start gap-3 py-2.5">
@@ -291,7 +291,7 @@ export function NextActionsCard({ shopId, limit = 20, compact }: { shopId?: stri
               <Link to={`/app/customers/${a.customerId}`} className="text-[13px] font-medium hover:underline">
                 {a.customerName || '（氏名未登録）'}
               </Link>
-              <p className="text-xs text-muted">{a.reason}</p>
+              <p className="text-xs text-muted-foreground">{a.reason}</p>
             </div>
             {can('message.send') && can('ai.use') ? (
               <Button

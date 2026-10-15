@@ -43,7 +43,7 @@ export function ShopHeader({
         </span>
         <div className="min-w-0 flex-1">
           <p className="truncate text-[15px] font-semibold text-fg">{name}</p>
-          {sub ? <div className="truncate text-xs text-muted">{sub}</div> : null}
+          {sub ? <div className="truncate text-xs text-muted-foreground">{sub}</div> : null}
         </div>
         {right}
       </div>

@@ -24,7 +24,7 @@ export function StoreHeader({
         <div className="flex items-center gap-1">
           <Link
             to={`/my/${slug}?tab=orders`}
-            className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-[13px] font-medium text-muted hover:bg-surface-2"
+            className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-[13px] font-medium text-muted-foreground hover:bg-surface-2"
             aria-label="マイページ（注文履歴）"
           >
             <Icon name="user" size={18} />
@@ -39,7 +39,7 @@ export function StoreHeader({
             カート
             {n ? (
               <span
-                className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1 text-[11px] font-semibold text-white tabular"
+                className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-highlight px-1 text-[11px] font-semibold text-white tabular"
                 data-testid="cart-count"
               >
                 {n}

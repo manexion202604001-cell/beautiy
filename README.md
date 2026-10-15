@@ -3,7 +3,7 @@
 美容サロン業務を **集客 → 予約 → 顧客 → 施術 → カルテ → 会計 → 口コミ → 再来店** まで一気通貫で管理するマルチテナント SaaS。
 LINE を顧客接点とし（専用アプリ不要）、個人美容師から多店舗法人まで同一基盤で運用できます。
 
-> 要件定義: [docs/requirements.md](docs/requirements.md)（v1.1・全章記述済み） / 移行・切り替え: [docs/migration.md](docs/migration.md) / アーキテクチャ: [docs/architecture.md](docs/architecture.md) / データモデル: [docs/data-model.md](docs/data-model.md) / ADR: [docs/adr](docs/adr) / 運用: [docs/operations.md](docs/operations.md) / KPI定義: [docs/kpi-definitions.md](docs/kpi-definitions.md) / API実装規約: [apps/api/CONVENTIONS.md](apps/api/CONVENTIONS.md)
+> 要件定義: [docs/requirements.md](docs/requirements.md)（v1.1・全章記述済み） / 移行・切り替え: [docs/migration.md](docs/migration.md) / 使い始めるまでに用意するもの: [docs/go-live-needs.md](docs/go-live-needs.md) / SALOGIC との機能照合: [docs/salogic-parity.md](docs/salogic-parity.md) / アーキテクチャ: [docs/architecture.md](docs/architecture.md) / データモデル: [docs/data-model.md](docs/data-model.md) / ADR: [docs/adr](docs/adr) / 運用: [docs/operations.md](docs/operations.md) / KPI定義: [docs/kpi-definitions.md](docs/kpi-definitions.md) / API実装規約: [apps/api/CONVENTIONS.md](apps/api/CONVENTIONS.md)
 
 ## 構成
 

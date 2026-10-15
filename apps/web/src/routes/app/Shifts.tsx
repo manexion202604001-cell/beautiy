@@ -248,7 +248,7 @@ export default function Shifts() {
               <tr className="border-b border-border bg-surface-2/60">
                 <th
                   scope="col"
-                  className="sticky left-0 z-10 w-44 bg-surface-2 px-4 py-2.5 text-left text-xs font-medium text-muted"
+                  className="sticky left-0 z-10 w-44 bg-surface-2 px-4 py-2.5 text-left text-xs font-medium text-muted-foreground"
                 >
                   スタッフ
                 </th>
@@ -266,7 +266,7 @@ export default function Shifts() {
                             ? 'text-danger'
                             : wd === 6
                               ? 'text-info'
-                              : 'text-muted',
+                              : 'text-muted-foreground',
                       )}
                     >
                       <span className="block text-sm font-semibold">{Number(d.slice(8))}</span>
@@ -307,7 +307,7 @@ export default function Shifts() {
                             st.kind === 'off' &&
                               'border-danger/30 bg-danger-soft font-semibold text-danger',
                             st.kind === 'base' && 'border-border bg-surface text-fg',
-                            st.kind === 'baseoff' && 'border-border bg-surface-2 text-muted',
+                            st.kind === 'baseoff' && 'border-border bg-surface-2 text-muted-foreground',
                             st.kind === 'closed' && 'bg-closed border-border text-subtle',
                             st.draft &&
                               'ring-2 ring-warning ring-offset-1 ring-offset-[var(--surface)]',
@@ -319,7 +319,7 @@ export default function Shifts() {
                             <span className="text-[10px] font-normal text-subtle">基本</span>
                           ) : null}
                           {st.note ? (
-                            <span className="max-w-full truncate px-1 text-[10px] font-normal text-muted">
+                            <span className="max-w-full truncate px-1 text-[10px] font-normal text-muted-foreground">
                               {st.note}
                             </span>
                           ) : null}
@@ -333,7 +333,7 @@ export default function Shifts() {
           </table>
         </div>
       ) : null}
-      <div className="mt-3 flex flex-wrap gap-3 text-xs text-muted">
+      <div className="mt-3 flex flex-wrap gap-3 text-xs text-muted-foreground">
         <span className="inline-flex items-center gap-1.5">
           <Badge tone="primary" size="sm">
             10:00-19:00
@@ -463,7 +463,7 @@ function CellEditor({
             />
           </Field>
         ) : (
-          <p className="text-[13px] text-muted">
+          <p className="text-[13px] text-muted-foreground">
             この日の個別シフトを削除し、基本勤務パターンに従います。
           </p>
         )}

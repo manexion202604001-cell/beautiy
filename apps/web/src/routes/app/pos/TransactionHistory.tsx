@@ -75,7 +75,7 @@ export default function TransactionHistory() {
         back={
           <Link
             to="/app/pos"
-            className="inline-flex items-center gap-1 text-[13px] text-muted hover:text-fg"
+            className="inline-flex items-center gap-1 text-[13px] text-muted-foreground hover:text-fg"
           >
             <Icon name="chevron-left" size={16} /> 会計
           </Link>

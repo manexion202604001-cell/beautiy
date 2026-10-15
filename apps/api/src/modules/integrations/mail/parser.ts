@@ -168,6 +168,9 @@ export function extractFields(text: string, labels: LabelSet): Partial<Record<Ma
 export function detectKind(subject: string, text: string): ParsedMail['kind'] {
   const s = normalizeMailText(subject);
   const head = normalizeMailText(text).slice(0, 400);
+  // account mails from the medium (verification of a notification address, password, login…) mention
+  // 予約 in their subject but are not about a booking; they are listed under 受信したメール
+  if (/認証|パスワード|ログイン|メールアドレス(の)?(登録|設定|変更)|お知らせメール(の)?(登録|設定|変更)/.test(s)) return 'unknown';
   if (
     /キャンセル|取消|取り消し/.test(s) ||
     /(予約|ご予約)が?キャンセル|キャンセルされました|キャンセルのお知らせ/.test(head)

@@ -10,8 +10,10 @@ import { Errors } from '../../lib/errors.js';
 import { verifyLineIdToken } from '../../lib/line-auth.js';
 import { sendEmail, sendSms } from '../../lib/mailer.js';
 import { normalizeEmail, normalizePhone } from '../../lib/normalize.js';
-import { parseShopSettings } from '../../lib/shop-settings.js';
+import { isJpHoliday } from '../../lib/jp-holidays.js';
+import { parseShopSettings, type ShopSettings } from '../../lib/shop-settings.js';
 import { addMinutes, dateRange, localDate } from '../../lib/time.js';
+import { lastBookableDate } from '../appointments/booking-rules.js';
 import { createAppointment, getAppointmentUnchecked, transitionAppointment, updateAppointment } from '../appointments/service.js';
 import { listCoupons, effectiveMenus } from '../catalog/service.js';
 import { resolveCustomer } from '../customers/identity.js';
@@ -45,6 +47,24 @@ export function publicTx<T>(shop: { organizationId: string }, meta: RequestMeta,
   return withTenant(shop.organizationId, (trx) => fn({ actor: systemActor(shop.organizationId, 'public'), trx, meta }), { traceId: meta.traceId });
 }
 
+type PublicException = Awaited<ReturnType<typeof listExceptions>>[number];
+
+function withHolidayHours(exceptions: PublicException[], hours: ShopSettings['hours'], from: string, to: string): PublicException[] {
+  if (!hours.holidayEnabled) return exceptions;
+  const known = new Set(exceptions.map((e) => e.date));
+  const closed = hours.holidayClosed || hours.holidayCloseTime <= hours.holidayOpenTime;
+  const holidays = dateRange(from, to)
+    .filter((d) => isJpHoliday(d) && !known.has(d))
+    .map((date) => ({ id: `holiday-${date}`, date, is_closed: closed, open_time: closed ? null : hours.holidayOpenTime, close_time: closed ? null : hours.holidayCloseTime, note: '祝日' }));
+  return [...exceptions, ...holidays].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/** Name shown to customers: the nickname when one is set */
+export function publicStaffName(s: { display_name: string; public_profile: unknown }): string {
+  const nickname = ((s.public_profile ?? {}) as Record<string, unknown>).nickname;
+  return typeof nickname === 'string' && nickname.trim() ? nickname.trim() : s.display_name;
+}
+
 export async function publicShopInfo(ctx: Ctx, shopId: string) {
   const shop = await ctx.trx
     .selectFrom('shops')
@@ -53,7 +73,13 @@ export async function publicShopInfo(ctx: Ctx, shopId: string) {
     .executeTakeFirstOrThrow();
   const settings = parseShopSettings(shop.settings);
   const today = localDate(new Date(), shop.timezone);
-  const horizonEnd = dateRange(today, today).length ? localDate(addMinutes(new Date(), settings.booking.horizonDays * 1440), shop.timezone) : today;
+  // 受付開始: 「Nヶ月先まで」 (the last day of this month + N months) when set, otherwise N days ahead
+  const horizonEnd =
+    settings.booking.advanceMonths !== null
+      ? lastBookableDate(today, settings.booking.advanceMonths)
+      : dateRange(today, today).length
+        ? localDate(addMinutes(new Date(), settings.booking.horizonDays * 1440), shop.timezone)
+        : today;
   const [hours, exceptions, staff, menus, coupons] = await Promise.all([
     getBusinessHours(ctx, shopId),
     listExceptions(ctx, shopId, today, horizonEnd),
@@ -63,6 +89,8 @@ export async function publicShopInfo(ctx: Ctx, shopId: string) {
       .select(['staffs.id', 'staffs.display_name', 'staffs.title', 'staffs.nomination_fee', 'staffs.public_profile', 'staffs.public_slug'])
       .where('a.shop_id', '=', shopId)
       .where('a.ended_on', 'is', null)
+      // 設定 › スタッフ管理 › 店舗割り当て: staff hidden from customers at this shop are not listed
+      .where('a.is_visible_to_customer', '=', true)
       .where('staffs.is_bookable', '=', true)
       .where('staffs.status', '=', 'active')
       .where('staffs.deleted_at', 'is', null)
@@ -77,15 +105,23 @@ export async function publicShopInfo(ctx: Ctx, shopId: string) {
     booking: {
       slotIntervalMin: settings.booking.slotIntervalMin,
       leadTimeMin: settings.booking.leadTimeMin,
-      horizonDays: settings.booking.horizonDays,
+      horizonDays: Math.max(1, dateRange(today, horizonEnd).length - 1),
+      lastBookableDate: horizonEnd,
+      /** 受付締切「前日以前に締め切る」 in words (null = leadTimeMin before the start) */
+      deadlineNote:
+        settings.booking.cutoffType === 'days_before'
+          ? `受付は${settings.booking.calcMethod === 'business_days' ? `${settings.booking.cutoffDaysBefore}営業日前` : `${settings.booking.cutoffDaysBefore}日前`}の${Number(settings.booking.cutoffTime.slice(0, 2))}時までです。`
+          : null,
       cancelDeadlineHours: settings.booking.cancelDeadlineHours,
       allowStaffSelection: settings.booking.allowStaffSelection,
       maxServicesPerBooking: settings.booking.maxServicesPerBooking,
       requireApproval: settings.booking.requireApproval,
     },
     businessHours: hours,
-    exceptions,
-    staff: settings.booking.allowStaffSelection ? staff : [],
+    // 祝日の営業時間: public holidays without an entry of their own are listed as days with the holiday hours
+    exceptions: withHolidayHours(exceptions, settings.hours, today, horizonEnd),
+    // ニックネーム (スタッフ編集): the name customers see instead of the registered name
+    staff: settings.booking.allowStaffSelection ? staff.map((s) => ({ ...s, display_name: publicStaffName(s) })) : [],
     menus: menus.map((m) => ({
       id: m.id,
       categoryId: m.categoryId,
@@ -96,6 +132,8 @@ export async function publicShopInfo(ctx: Ctx, shopId: string) {
       price: m.price,
       isConsultation: m.isConsultation,
       newCustomerOnly: m.newCustomerOnly,
+      // 「～」: the price is a starting price
+      priceTilde: m.priceTilde,
       staffIds: m.staffIds,
     })),
     coupons: coupons.map((c) => ({
@@ -340,6 +378,18 @@ export async function createPublicBooking(ctx: Ctx, shop: PublicShop, input: Pub
   }
   const meta = await shopMeta(ctx, shop.shopId);
   if (input.staffId && !meta.settings.booking.allowStaffSelection) throw Errors.validation('この店舗ではスタッフ指名はできません');
+  if (input.staffId) {
+    // staff hidden from customers at this shop cannot be nominated online
+    const hidden = await ctx.trx
+      .selectFrom('staff_shop_assignments')
+      .select('id')
+      .where('staff_id', '=', input.staffId)
+      .where('shop_id', '=', shop.shopId)
+      .where('ended_on', 'is', null)
+      .where('is_visible_to_customer', '=', false)
+      .executeTakeFirst();
+    if (hidden) throw Errors.validation('このスタッフは指名できません');
+  }
 
   const appt = await createAppointment(
     ctx,

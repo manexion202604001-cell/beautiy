@@ -49,7 +49,13 @@ test('migrates customers and visit history from the previous system', async ({ p
 
   // the customer screen shows the carried-over data
   await page.goto(`/app/customers?q=${no}`);
-  await page.getByRole('link', { name: new RegExp(`移行 花子${stamp}`) }).first().click();
+  await page.locator('[data-customer]', { hasText: `移行 花子${stamp}` }).first().click();
+  // customer screen: the visit carried over is part of 予約履歴
+  await page.getByRole('tablist', { name: '顧客情報' }).getByRole('tab', { name: '予約履歴' }).click();
+  await expect(page.locator('[data-history="legacy"]').filter({ hasText: '8Lv アッシュ' })).toContainText('カット＋カラー');
+  // the carried-over profile items are on the previous customer screen, one link away
+  await page.getByTestId('customer-classic-link').click();
+  await expect(page).toHaveURL(/\/app\/customers-classic\//);
   await expect(page.getByText('旧システムから引き継いだ項目')).toBeVisible();
   await page.getByText('旧システムから引き継いだ項目').click();
   await expect(page.getByText('旧顧客番号')).toBeVisible();

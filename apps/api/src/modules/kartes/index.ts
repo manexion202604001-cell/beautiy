@@ -2,6 +2,7 @@ import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { Errors } from '../../lib/errors.js';
 import { idParam, uuid } from '../../lib/schemas.js';
+import * as counseling from './counseling.js';
 import * as forms from './forms.js';
 import {
   createAssetSchema,
@@ -15,17 +16,25 @@ import {
   listFormTemplatesSchema,
   listKarteTemplatesSchema,
   listKartesSchema,
+  linkWalkinIntakeSchema,
+  listWalkinIntakesSchema,
   publicFormSubmitSchema,
+  publicWalkinCounselingSchema,
+  publicWalkinQuerySchema,
+  publicWalkinSubmitSchema,
+  saveCounselingSheetSchema,
   shareKarteSchema,
   updateAssetSchema,
   updateFormTemplateSchema,
   updateKarteSchema,
   updateKarteTemplateSchema,
   voidFormResponseSchema,
+  walkinReceptionLinkSchema,
 } from './schemas.js';
 import './seed.js';
 import * as svc from './service.js';
 import * as templates from './templates.js';
+import * as walkin from './walkin.js';
 
 const tags = ['kartes'];
 const formTags = ['forms'];
@@ -33,6 +42,7 @@ const publicTags = ['public'];
 const assetParams = z.object({ id: uuid, assetId: uuid });
 const tokenParam = z.object({ token: z.string().min(10).max(200) });
 const publicRate = { auth: 'public' as const, rateLimit: { max: 60, timeWindow: '1 minute' } };
+const slugParam = z.object({ slug: z.string().min(1).max(60) });
 
 const plugin: FastifyPluginAsyncZod = async (app) => {
   // ---------------------------------------------------------------- karte templates
@@ -71,6 +81,14 @@ const plugin: FastifyPluginAsyncZod = async (app) => {
     '/customers/:id/kartes/latest',
     { schema: { tags, summary: '前回カルテ(最新)', params: idParam, querystring: z.object({ templateId: uuid.optional(), shopId: uuid.optional() }) } },
     (req) => req.tx((ctx) => svc.latestKarte(ctx, req.params.id, req.query)),
+  );
+
+  // counselling sheet (staff-editable, one per customer)
+  app.get('/customers/:id/counseling-sheet', { schema: { tags, summary: 'カウンセリングシート(閲覧は監査対象)', params: idParam } }, (req) =>
+    req.tx((ctx) => counseling.getCounselingSheet(ctx, req.params.id)),
+  );
+  app.put('/customers/:id/counseling-sheet', { schema: { tags, summary: 'カウンセリングシート保存', params: idParam, body: saveCounselingSheetSchema } }, (req) =>
+    req.tx((ctx) => counseling.saveCounselingSheet(ctx, req.params.id, req.body)),
   );
 
   // assets (photos / sketches / documents)
@@ -159,6 +177,38 @@ const plugin: FastifyPluginAsyncZod = async (app) => {
     '/public/forms/:token',
     { config: { auth: 'public', rateLimit: { max: 20, timeWindow: '1 minute' } }, schema: { tags: publicTags, summary: 'フォーム提出(1回限り)', params: tokenParam, body: publicFormSubmitSchema } },
     async (req, reply) => reply.status(201).send(await forms.submitPublicForm(req.params.token, req.body, req.meta)),
+  );
+
+  // ---------------------------------------------------------------- walk-in intakes (同意書一覧・受付保留)
+  app.get('/walkin-intakes', { schema: { tags: formTags, summary: '予約なし来店の受付一覧(既定: 保留中)', querystring: listWalkinIntakesSchema } }, (req) =>
+    req.tx((ctx) => walkin.listWalkinIntakes(ctx, req.query)),
+  );
+  app.get('/walkin-intakes/reception-link', { schema: { tags: formTags, summary: '受付QRのURL(店舗・スタッフ別)と使用されるフォーム', querystring: walkinReceptionLinkSchema } }, (req) =>
+    req.tx((ctx) => walkin.walkinReceptionLink(ctx, req.query)),
+  );
+  app.get('/walkin-intakes/:id', { schema: { tags: formTags, summary: '受付詳細(同意書・カウンセリング内容。閲覧は監査対象)', params: idParam } }, (req) =>
+    req.tx((ctx) => walkin.getWalkinIntake(ctx, req.params.id)),
+  );
+  app.post('/walkin-intakes/:id/link', { config: { idempotent: true }, schema: { tags: formTags, summary: '既存の顧客に紐付け(同意書は顧客の書類に、カウンセリングは顧客のシートに反映)', params: idParam, body: linkWalkinIntakeSchema } }, (req) =>
+    req.tx((ctx) => walkin.linkWalkinIntake(ctx, req.params.id, req.body.customerId)),
+  );
+  app.post('/walkin-intakes/:id/create', { config: { idempotent: true }, schema: { tags: formTags, summary: '新規顧客として登録', params: idParam } }, async (req, reply) =>
+    reply.status(201).send(await req.tx((ctx) => walkin.createCustomerFromWalkinIntake(ctx, req.params.id))),
+  );
+  app.post('/walkin-intakes/:id/discard', { schema: { tags: formTags, summary: '受付の破棄', params: idParam } }, (req) => req.tx((ctx) => walkin.discardWalkinIntake(ctx, req.params.id)));
+
+  app.get('/public/walkin/:slug', { config: publicRate, schema: { tags: publicTags, summary: '受付ページ(店舗・担当スタッフ・同意書)', params: slugParam, querystring: publicWalkinQuerySchema } }, (req) =>
+    walkin.publicWalkinView(req.params.slug, req.query, req.meta),
+  );
+  app.post(
+    '/public/walkin/:slug',
+    { config: { auth: 'public', rateLimit: { max: 20, timeWindow: '1 minute' } }, schema: { tags: publicTags, summary: '同意書の提出(予約なし来店の受付)', params: slugParam, body: publicWalkinSubmitSchema } },
+    async (req, reply) => reply.status(201).send(await walkin.submitWalkinConsent(req.params.slug, req.body, req.meta)),
+  );
+  app.post(
+    '/public/walkin-intakes/:token/counseling',
+    { config: { auth: 'public', rateLimit: { max: 20, timeWindow: '1 minute' } }, schema: { tags: publicTags, summary: '受付後のカウンセリングシート提出', params: tokenParam, body: publicWalkinCounselingSchema } },
+    async (req, reply) => reply.status(201).send(await walkin.submitWalkinCounseling(req.params.token, req.body, req.meta)),
   );
 };
 

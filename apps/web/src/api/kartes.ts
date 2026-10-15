@@ -66,7 +66,13 @@ export interface Chemical {
   note?: string | null;
 }
 
-export type AssetType = 'photo_before' | 'photo_after' | 'photo' | 'sketch' | 'document';
+export type AssetType =
+  | 'photo_before'
+  | 'photo_after'
+  | 'photo'
+  | 'sketch'
+  | 'document'
+  | 'face_drawing';
 
 export interface KarteAsset {
   id: string;
@@ -189,6 +195,16 @@ export interface SharedKarte {
   };
 }
 
+/** カウンセリングシート: { <category id>: { <question id>: answer } } */
+export type CounselingSheetData = Record<string, Record<string, string | string[]>>;
+export interface CounselingSheet {
+  id: string;
+  customer_id: string;
+  shop_id: string | null;
+  data: CounselingSheetData;
+  updated_at: string;
+}
+
 export interface KarteQuery {
   customerId?: string;
   shopId?: string;
@@ -253,6 +269,15 @@ export const kartesApi = {
       input,
     ),
   unshare: (id: string) => api.delete(`/kartes/${id}/share`),
+  counselingSheet: (customerId: string) =>
+    api.get<{ counseling_sheet: CounselingSheet | null }>(
+      `/customers/${customerId}/counseling-sheet`,
+    ),
+  saveCounselingSheet: (customerId: string, data: CounselingSheetData, shopId?: string | null) =>
+    api.put<{ counseling_sheet: CounselingSheet }>(`/customers/${customerId}/counseling-sheet`, {
+      data,
+      ...(shopId ? { shopId } : {}),
+    }),
   publicShare: (token: string) =>
     api.get<SharedKarte>(`/public/karte-shares/${encodeURIComponent(token)}`, undefined, {
       auth: 'none',
@@ -300,6 +325,7 @@ export const ASSET_TYPE_LABEL: Record<AssetType, string> = {
   photo: '写真',
   sketch: 'スケッチ',
   document: '書類',
+  face_drawing: 'フェイス描画',
 };
 
 export const FIELD_TYPE_LABEL: Record<FieldType, string> = {

@@ -228,7 +228,7 @@ export default function CheckoutPage() {
           <span>小計（{cartCount(cart)}点・税込）</span>
           <span className="tabular">{formatYen(cartSubtotal(cart))}</span>
         </p>
-        <p className="mt-1 text-xs text-muted">
+        <p className="mt-1 text-xs text-muted-foreground">
           送料はご注文確定時に計算し、次の画面でお支払い金額をご案内します。
         </p>
       </section>
@@ -236,7 +236,7 @@ export default function CheckoutPage() {
       {!session ? (
         <section className="rounded-2xl border border-border bg-surface p-4">
           <h2 className="mb-1 text-sm font-semibold">ログイン</h2>
-          <p className="mb-3 text-[13px] text-muted">
+          <p className="mb-3 text-[13px] text-muted-foreground">
             ご購入にはログインが必要です（LINE または 電話番号・メール）。
           </p>
           <CustomerLogin

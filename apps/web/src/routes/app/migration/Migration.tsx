@@ -80,11 +80,11 @@ export default function Migration() {
               <p className="font-semibold">
                 {KIND_HELP[k].step} {KIND_LABEL[k]}
               </p>
-              <p className="mt-1 text-xs text-muted">{KIND_HELP[k].text}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{KIND_HELP[k].text}</p>
             </li>
           ))}
         </ol>
-        <p className="mt-3 text-xs text-muted">
+        <p className="mt-3 text-xs text-muted-foreground">
           同じファイルを何度取り込んでも重複しません（顧客番号・伝票番号・予約番号で判定）。まずは数十行の試しファイルで確認してから全件を取り込むと安心です。
         </p>
       </Card>
@@ -211,7 +211,7 @@ function ImportWizard({ kind, onStarted }: { kind: ImportKind; onStarted: (id: s
               <Button icon="download" onClick={() => fileRef.current?.click()}>
                 ファイルを選択
               </Button>
-              <span className="min-w-0 truncate text-xs text-muted">{fileName ?? '未選択'}</span>
+              <span className="min-w-0 truncate text-xs text-muted-foreground">{fileName ?? '未選択'}</span>
             </div>
           </Field>
         </div>
@@ -395,7 +395,7 @@ function PreviewSummary({ p, kind }: { p: PreviewResult; kind: ImportKind }) {
       <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-5">
         {tiles.map((t) => (
           <div key={t.label} className="rounded-xl border border-border p-3">
-            <p className="text-xs text-muted">{t.label}</p>
+            <p className="text-xs text-muted-foreground">{t.label}</p>
             <p
               className={`mt-0.5 text-lg font-semibold tabular ${t.tone === 'danger' ? 'text-danger' : t.tone === 'warning' ? 'text-warning' : t.tone === 'success' ? 'text-success' : ''}`}
             >
@@ -423,7 +423,7 @@ function PreviewSummary({ p, kind }: { p: PreviewResult; kind: ImportKind }) {
         </Alert>
       ) : null}
       {p.unmappedColumns.length ? (
-        <p className="mt-3 text-xs text-muted">
+        <p className="mt-3 text-xs text-muted-foreground">
           対応付けていない列: {p.unmappedColumns.join('、')}
           {kind === 'customers' ? '（顧客の「旧システムの項目」として保存され、失われません）' : ''}
         </p>
@@ -508,7 +508,7 @@ function MappingEditor({ p, onChange }: { p: PreviewResult; onChange: (m: Mappin
                         ))}
                       </div>
                     </Td>
-                    <Td className="max-w-64 align-top text-xs text-muted">
+                    <Td className="max-w-64 align-top text-xs text-muted-foreground">
                       <span className="break-all">
                         {firstRow?.values[f.key] ?? (cols.length ? sampleOf(cols) : '—')}
                       </span>
@@ -597,7 +597,7 @@ function ProblemList({ p, kind }: { p: PreviewResult; kind: ImportKind }) {
         </Table>
       </div>
       {p.problems.length >= 500 ? (
-        <p className="mt-2 text-xs text-muted">先頭500件を表示しています。</p>
+        <p className="mt-2 text-xs text-muted-foreground">先頭500件を表示しています。</p>
       ) : null}
     </Card>
   );
@@ -647,7 +647,7 @@ function JobResult({ id, onClose }: { id: string; onClose: () => void }) {
             {KIND_LABEL[j.kind]}の取り込み{' '}
             <Badge tone={STATUS[j.status].tone}>{STATUS[j.status].label}</Badge>
           </p>
-          <p className="text-xs text-muted">
+          <p className="text-xs text-muted-foreground">
             {j.file_name ?? 'CSV'} ・{j.source_label} ・{formatDateTime(j.created_at, tz)}
           </p>
         </div>
@@ -667,7 +667,7 @@ function JobResult({ id, onClose }: { id: string; onClose: () => void }) {
           >
             <div className="h-full bg-primary transition-all" style={{ width: `${pct}%` }} />
           </div>
-          <p className="mt-1 text-xs text-muted">
+          <p className="mt-1 text-xs text-muted-foreground">
             {formatNumber(j.processed_rows)} / {formatNumber(j.total_rows)}
             行（この画面を閉じても取り込みは続きます）
           </p>
@@ -676,7 +676,7 @@ function JobResult({ id, onClose }: { id: string; onClose: () => void }) {
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         {(['created', 'updated', 'matched', 'skipped', 'error'] as const).map((k) => (
           <div key={k} className="rounded-xl border border-border p-3">
-            <p className="text-xs text-muted">{OUTCOME_LABEL[k]}</p>
+            <p className="text-xs text-muted-foreground">{OUTCOME_LABEL[k]}</p>
             <p
               className={`mt-0.5 text-lg font-semibold tabular ${k === 'error' && j.summary[k] ? 'text-danger' : ''}`}
             >
@@ -733,7 +733,7 @@ function JobResult({ id, onClose }: { id: string; onClose: () => void }) {
                         {OUTCOME_LABEL[r.outcome] ?? r.outcome}
                       </Badge>
                     </Td>
-                    <Td className={r.outcome === 'error' ? 'text-danger' : 'text-muted'}>
+                    <Td className={r.outcome === 'error' ? 'text-danger' : 'text-muted-foreground'}>
                       {r.message}
                     </Td>
                   </Tr>
@@ -783,8 +783,8 @@ function JobHistory({ onOpen }: { onOpen: (id: string) => void }) {
             >
               <Badge tone={STATUS[j.status].tone}>{STATUS[j.status].label}</Badge>
               <span className="font-medium">{KIND_LABEL[j.kind]}</span>
-              <span className="min-w-0 truncate text-muted">{j.file_name ?? 'CSV'}</span>
-              <span className="text-xs text-muted">
+              <span className="min-w-0 truncate text-muted-foreground">{j.file_name ?? 'CSV'}</span>
+              <span className="text-xs text-muted-foreground">
                 新規 {j.summary.created ?? 0} ・補完 {j.summary.updated ?? 0} ・取り込めず{' '}
                 {j.summary.error ?? 0}
               </span>

@@ -73,7 +73,7 @@ export function LineChannelsTab() {
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <p className="truncate text-[15px] font-semibold">{c.name}</p>
-                <p className="text-xs text-muted">{shopName(c.shop_id)}</p>
+                <p className="text-xs text-muted-foreground">{shopName(c.shop_id)}</p>
               </div>
               <Badge tone={c.status === 'active' ? 'success' : 'neutral'} dot>
                 {c.status === 'active' ? '有効' : '無効'}

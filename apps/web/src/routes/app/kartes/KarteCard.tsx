@@ -22,7 +22,7 @@ export function KarteCard({
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-sm font-semibold">{formatDate(k.visit_date, tz)}</p>
-            <p className="text-xs text-muted">
+            <p className="text-xs text-muted-foreground">
               {k.template_name ?? '自由記入'} ・ {k.staff_name ?? '—'}
             </p>
           </div>
@@ -39,7 +39,7 @@ export function KarteCard({
             ) : null}
           </div>
         </div>
-        {k.note ? <p className="mt-2 line-clamp-2 text-[13px] text-muted">{k.note}</p> : null}
+        {k.note ? <p className="mt-2 line-clamp-2 text-[13px] text-muted-foreground">{k.note}</p> : null}
       </Link>
       {showCustomer ? (
         <div className="border-t border-border px-4 py-2">

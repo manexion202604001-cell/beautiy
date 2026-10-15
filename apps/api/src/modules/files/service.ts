@@ -188,7 +188,7 @@ export async function createFileRecord(
  *  - karte_photo / sketch / document attached to a karte: karte.read + shop + customer access
  *  - signature attached to a form response: karte.read + customer access
  *  - not yet attached: only the uploader
- *  - product_image / staff_photo: any staff of the organization
+ *  - product_image / staff_photo / menu_image: any staff of the organization
  *  - sns_asset: marketing.manage or uploader
  *  - export: export.data AND the requester who generated it
  */
@@ -199,6 +199,7 @@ export async function assertFileReadable(ctx: Ctx, file: FileRow): Promise<void>
   switch (file.purpose) {
     case 'product_image':
     case 'staff_photo':
+    case 'menu_image':
       return;
     case 'karte_photo':
     case 'sketch':

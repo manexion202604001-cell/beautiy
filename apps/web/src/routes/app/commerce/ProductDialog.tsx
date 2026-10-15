@@ -306,7 +306,7 @@ function ProductForm({ product, onClose }: { product: Product | null; onClose: (
                 type="button"
                 onClick={() => fileRef.current?.click()}
                 disabled={uploading}
-                className="flex h-20 w-20 flex-col items-center justify-center rounded-xl border border-dashed border-border-strong text-xs text-muted hover:bg-surface-2"
+                className="flex h-20 w-20 flex-col items-center justify-center rounded-xl border border-dashed border-border-strong text-xs text-muted-foreground hover:bg-surface-2"
               >
                 {uploading ? 'アップロード中…' : '＋ 追加'}
               </button>

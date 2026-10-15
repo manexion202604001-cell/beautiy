@@ -15,6 +15,7 @@ import { parseCsv } from '../../../lib/csv.js';
 import { normalizeName } from '../../../lib/normalize.js';
 import { effectiveMenus } from '../../catalog/service.js';
 import {
+  getIntegration,
   getVisibleAccount,
   loadAccountRow,
   parseIntegrationConfig,
@@ -585,4 +586,38 @@ export async function completeManualBlock(ctx: Ctx, blockId: string) {
     metadata: { blockId },
   });
   return { id: blockId, state: next };
+}
+
+// ---------------------------------------------------------------- received mails
+
+/**
+ * Mails that reached this connector's inbound URL, newest first, whatever became of them: booking
+ * mails taken in, mails that were not booking notifications (e.g. SALON BOARD's address-verification
+ * mail, whose link the owner has to open), and mails that failed.
+ */
+export async function listReceivedMails(ctx: Ctx, integrationId: string, input: { limit: number }) {
+  await getIntegration(ctx, integrationId);
+  const rows = await ctx.trx
+    .selectFrom('webhook_events')
+    .select(['id', 'status', 'last_error', 'received_at', 'processed_at', 'payload'])
+    .where('provider', '=', 'inbound_email')
+    .where(sql<string>`payload->>'integrationAccountId'`, '=', integrationId)
+    .orderBy('received_at', 'desc')
+    .limit(input.limit)
+    .execute();
+  return rows.map((r) => {
+    const mail = ((r.payload ?? {}) as { mail?: Partial<InboundMail> & { receivedAt?: string } }).mail ?? {};
+    return {
+      id: r.id,
+      status: r.status,
+      error: r.last_error,
+      receivedAt: r.received_at,
+      processedAt: r.processed_at,
+      from: mail.from ?? '',
+      to: mail.to ?? '',
+      subject: mail.subject ?? '',
+      text: mail.text ?? null,
+      html: mail.html ?? null,
+    };
+  });
 }

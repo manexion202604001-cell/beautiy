@@ -175,7 +175,7 @@ export function BarList({
   className?: string;
 }) {
   const max = Math.max(1, ...rows.map((r) => Math.abs(r.value)));
-  if (!rows.length) return <p className="text-[13px] text-muted">この期間のデータはありません。</p>;
+  if (!rows.length) return <p className="text-[13px] text-muted-foreground">この期間のデータはありません。</p>;
   return (
     <ul className={cn('viz space-y-2.5', className)} aria-label={ariaLabel}>
       {rows.map((r) => (
@@ -224,7 +224,7 @@ export function ShareBar({
     : head;
   const total = items.reduce((s, p) => s + p.value, 0);
   const [hover, setHover] = useState<string | null>(null);
-  if (!total) return <p className="text-[13px] text-muted">データがありません</p>;
+  if (!total) return <p className="text-[13px] text-muted-foreground">データがありません</p>;
   const colorFor = (key: string, i: number) => (key === '__other' ? 'var(--viz-other)' : seriesColor(i));
   return (
     <div className="viz">
@@ -251,7 +251,7 @@ export function ShareBar({
           >
             <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: colorFor(p.key, i) }} aria-hidden />
             <span className="min-w-0 flex-1 truncate text-fg">{p.label}</span>
-            <span className="text-muted tabular">{((p.value / total) * 100).toFixed(1)}%</span>
+            <span className="text-muted-foreground tabular">{((p.value / total) * 100).toFixed(1)}%</span>
             <span className="w-24 text-right font-medium text-fg tabular">{valueFormat(p.value)}</span>
           </li>
         ))}

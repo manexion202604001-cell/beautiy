@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import {
   MAIL_KIND_LABEL,
@@ -11,6 +11,7 @@ import {
   type Integration,
   type MailParseResult,
   type ManualBlock,
+  type ReceivedMail,
 } from '../../../api/integrations';
 import { copyText } from '../../../components/QrCode';
 import {
@@ -71,7 +72,7 @@ export function InboundUrl({ integration }: { integration: Integration }) {
   if (!url) return null;
   return (
     <div className="rounded-xl bg-surface-2 p-3 text-[13px]">
-      <p className="text-xs text-muted">
+      <p className="text-xs text-muted-foreground">
         受信用Webhook URL（第三者に知られないよう管理してください）
       </p>
       <div className="mt-1 flex items-center gap-2">
@@ -407,7 +408,7 @@ export function CsvImportDialog({
             />
             CSVファイルを選択
           </label>
-          <span className="text-xs text-muted">{fileName ?? 'または下に貼り付け'}</span>
+          <span className="text-xs text-muted-foreground">{fileName ?? 'または下に貼り付け'}</span>
         </div>
         <Textarea
           aria-label="CSVの内容"
@@ -424,7 +425,7 @@ export function CsvImportDialog({
             '予約番号,来店日時,所要時間,お客様名,電話番号,スタッフ,メニュー,ステータス\nBE0001,2026/10/07 14:00,90,山田 花子,09012345678,佐藤,カット|カラー,予約'
           }
         />
-        <p className="text-xs text-muted">
+        <p className="text-xs text-muted-foreground">
           必須列: 「来店日時」（または「来店日」+「開始時刻」）と「メニュー」。任意:
           予約番号・終了時刻・所要時間・お客様名・フリガナ・電話番号・メール・スタッフ・金額・備考・ステータス（キャンセルを含む行は取消として扱います）。最大2,000行。
         </p>
@@ -542,7 +543,7 @@ export function ManualBlockList({
     <div className="space-y-3">
       {!compact ? (
         <div className="flex items-center justify-between gap-3">
-          <p className="text-xs text-muted">
+          <p className="text-xs text-muted-foreground">
             ホットペッパー・LiME
             には外部から枠を止める公開APIがないため、他の経路で入った予約の時間を各媒体の管理画面で止めてください。
           </p>
@@ -576,7 +577,7 @@ export function ManualBlockList({
               <span className="tabular">
                 {formatDateTime(b.block_start_at, tz)}〜{formatTime(b.block_end_at, tz)}
               </span>
-              <span className="text-muted">{b.staff_name ?? 'スタッフ未定'}</span>
+              <span className="text-muted-foreground">{b.staff_name ?? 'スタッフ未定'}</span>
               {!compact && b.customer_name ? (
                 <span className="text-xs text-subtle">（{b.customer_name} 様）</span>
               ) : null}
@@ -595,7 +596,7 @@ export function ManualBlockList({
                 <span className="text-xs text-subtle">{formatDateTime(b.done_at, tz)} 対応</span>
               ) : null}
               {!compact && b.message ? (
-                <p className="w-full text-xs text-muted">{b.message}</p>
+                <p className="w-full text-xs text-muted-foreground">{b.message}</p>
               ) : null}
             </li>
           );
@@ -618,5 +619,178 @@ export function ManualBlocksCard({ shopId }: { shopId?: string }) {
       </p>
       <ManualBlockList shopId={shopId} compact />
     </Alert>
+  );
+}
+
+// ---------------------------------------------------------------- received mails
+
+const RECEIVED_STATUS: Record<ReceivedMail['status'], { label: string; tone: Tone }> = {
+  processed: { label: '取り込み済み', tone: 'success' },
+  ignored: { label: '予約以外のメール', tone: 'neutral' },
+  dead: { label: '読み取れませんでした', tone: 'warning' },
+  failed: { label: '再試行中', tone: 'warning' },
+  received: { label: '処理待ち', tone: 'info' },
+  processing: { label: '処理中', tone: 'info' },
+};
+
+/** Plain text of a mail; HTML is reduced to text (never rendered) */
+export function mailPlainText(m: Pick<ReceivedMail, 'text' | 'html'>): string {
+  if (m.text) return m.text;
+  if (!m.html) return '';
+  return m.html
+    .replace(/<(script|style)[\s\S]*?<\/\1>/gi, '')
+    .replace(/<a\s[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi, '$2 ( $1 )')
+    .replace(/<br\s*\/?>|<\/(p|div|tr|li|h\d)>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+/** Text with http(s) links made clickable (e.g. the media's address-verification link) */
+function LinkedText({ text }: { text: string }) {
+  const parts = text.split(/(https?:\/\/[^\s<>"'）)]+)/g);
+  return (
+    <pre className="whitespace-pre-wrap break-all font-sans text-[13px] leading-relaxed text-fg">
+      {parts.map((p, i) =>
+        /^https?:\/\//.test(p) ? (
+          <a
+            key={i}
+            href={p}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary underline"
+          >
+            {p}
+          </a>
+        ) : (
+          <span key={i}>{p}</span>
+        ),
+      )}
+    </pre>
+  );
+}
+
+/**
+ * 受信したメール: everything that reached the connector's inbound URL. Used to confirm the forwarding
+ * works and to open the verification mail a medium sends when its notification address is registered.
+ */
+export function ReceivedMailsDialog({
+  integration,
+  onClose,
+}: {
+  integration: Integration | null;
+  onClose: () => void;
+}) {
+  const { timezone: tz } = useAuth();
+  const [openId, setOpenId] = useState<string | null>(null);
+  const q = useQuery({
+    queryKey: integrationKeys.receivedMails(integration?.id ?? ''),
+    queryFn: () => integrationsApi.receivedMails(integration!.id),
+    enabled: !!integration,
+    refetchInterval: 15_000,
+  });
+  const close = () => {
+    setOpenId(null);
+    onClose();
+  };
+  const mails = q.data ?? [];
+  const open = mails.find((m) => m.id === openId) ?? null;
+  return (
+    <Dialog
+      open={!!integration}
+      onClose={close}
+      size="xl"
+      title="受信したメール"
+      description={`${integration ? mediumName(integration.provider) : ''}の受信用URLに届いたメールです（新しい順・最大50件）。予約お知らせメールのアドレスを媒体に登録したときの認証メールもここに届くので、本文のリンクを開いて認証してください。`}
+      footer={
+        <>
+          {open ? (
+            <Button variant="ghost" onClick={() => setOpenId(null)}>
+              一覧に戻る
+            </Button>
+          ) : null}
+          <Button variant="ghost" onClick={close}>
+            閉じる
+          </Button>
+        </>
+      }
+    >
+      {q.error ? (
+        <ErrorState error={q.error} onRetry={() => void q.refetch()} />
+      ) : q.isLoading ? (
+        <InlineLoading />
+      ) : open ? (
+        <div className="space-y-3">
+          <KeyValue
+            items={[
+              { label: '件名', value: open.subject || '（件名なし）' },
+              { label: '差出人', value: open.from || '—' },
+              { label: '受信日時', value: formatDateTime(open.receivedAt, tz) },
+              {
+                label: '結果',
+                value: (
+                  <span className="flex flex-wrap items-center gap-2">
+                    <Badge tone={RECEIVED_STATUS[open.status].tone}>
+                      {RECEIVED_STATUS[open.status].label}
+                    </Badge>
+                    {open.error ? <span className="text-xs text-muted">{open.error}</span> : null}
+                  </span>
+                ),
+              },
+            ]}
+          />
+          <div className="max-h-[50vh] overflow-auto rounded-xl border border-border bg-surface-2 p-3">
+            {mailPlainText(open) ? (
+              <LinkedText text={mailPlainText(open)} />
+            ) : (
+              <p className="text-sm text-muted">本文がありません</p>
+            )}
+          </div>
+        </div>
+      ) : mails.length ? (
+        <Table caption="受信したメール">
+          <THead>
+            <tr>
+              <Th>受信日時</Th>
+              <Th>件名</Th>
+              <Th>結果</Th>
+            </tr>
+          </THead>
+          <TBody>
+            {mails.map((m) => (
+              <Tr key={m.id} interactive onClick={() => setOpenId(m.id)}>
+                <Td className="whitespace-nowrap tabular">{formatDateTime(m.receivedAt, tz)}</Td>
+                <Td>
+                  <button
+                    type="button"
+                    className="text-left font-medium text-fg hover:text-primary hover:underline"
+                    onClick={() => setOpenId(m.id)}
+                  >
+                    {m.subject || '（件名なし）'}
+                  </button>
+                  <p className="text-xs text-muted">{m.from}</p>
+                </Td>
+                <Td>
+                  <Badge tone={RECEIVED_STATUS[m.status].tone}>
+                    {RECEIVED_STATUS[m.status].label}
+                  </Badge>
+                </Td>
+              </Tr>
+            ))}
+          </TBody>
+        </Table>
+      ) : (
+        <EmptyState
+          icon="mail"
+          title="まだメールが届いていません"
+          description="媒体の予約お知らせメールの送信先に受信用アドレスを登録すると、ここに届きます（15秒ごとに更新）。"
+        />
+      )}
+    </Dialog>
   );
 }

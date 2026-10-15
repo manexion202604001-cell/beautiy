@@ -81,7 +81,7 @@ export function RegisterCard({ shopId }: { shopId: string }) {
       ) : null}
       {q.data && !session ? (
         <div className="space-y-3">
-          <p className="text-[13px] text-muted">
+          <p className="text-[13px] text-muted-foreground">
             開局すると現金売上・入出金を集計し、締め時に想定残高と実査額の差額を確認できます。
           </p>
           {manage ? (
@@ -101,7 +101,7 @@ export function RegisterCard({ shopId }: { shopId: string }) {
       {session ? (
         <div className="space-y-4">
           <div className="rounded-xl bg-surface-2 p-4">
-            <p className="text-xs text-muted">現在の想定現金残高</p>
+            <p className="text-xs text-muted-foreground">現在の想定現金残高</p>
             <p className="text-2xl font-semibold tabular" data-testid="expected-cash">
               {formatYen(session.expected_cash)}
             </p>
@@ -133,7 +133,7 @@ export function RegisterCard({ shopId }: { shopId: string }) {
           ) : null}
           {session.movements?.length ? (
             <div>
-              <p className="mb-1 text-xs font-medium text-muted">入出金</p>
+              <p className="mb-1 text-xs font-medium text-muted-foreground">入出金</p>
               <ul className="divide-y divide-border rounded-xl border border-border text-[13px]">
                 {session.movements.map((m) => (
                   <li key={m.id} className="flex items-center justify-between gap-2 px-3 py-2">
@@ -206,7 +206,7 @@ function DenominationGrid({
         const n = Number(counts[d] || 0);
         return (
           <div key={d} className="flex items-center gap-2">
-            <label htmlFor={`denom-${d}`} className="w-[4.5rem] shrink-0 text-[13px] text-muted">
+            <label htmlFor={`denom-${d}`} className="w-[4.5rem] shrink-0 text-[13px] text-muted-foreground">
               {denominationLabel(d)}
             </label>
             <div className="min-w-0 flex-1">
@@ -490,21 +490,21 @@ function CloseDialog({
           aria-live="polite"
         >
           <div>
-            <p className="text-xs text-muted">想定残高</p>
+            <p className="text-xs text-muted-foreground">想定残高</p>
             <p className="text-lg font-semibold tabular">{formatYen(expected)}</p>
           </div>
           <div>
-            <p className="text-xs text-muted">実査合計</p>
+            <p className="text-xs text-muted-foreground">実査合計</p>
             <p className="text-lg font-semibold tabular" data-testid="counted-cash">
               {formatYen(counted)}
             </p>
           </div>
           <div>
-            <p className="text-xs text-muted">差額</p>
+            <p className="text-xs text-muted-foreground">差額</p>
             <p
               className={cn(
                 'text-lg font-semibold tabular',
-                !touched ? 'text-muted' : diff === 0 ? 'text-success' : 'text-danger',
+                !touched ? 'text-muted-foreground' : diff === 0 ? 'text-success' : 'text-danger',
               )}
               data-testid="cash-difference"
             >

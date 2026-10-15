@@ -97,10 +97,10 @@ export default function StaffProfile() {
         )}
         <div className="min-w-0">
           <h1 className="text-xl font-semibold">{p.displayName}</h1>
-          {p.title ? <p className="text-[13px] text-muted">{p.title}</p> : null}
+          {p.title ? <p className="text-[13px] text-muted-foreground">{p.title}</p> : null}
           <div className="mt-1 flex items-center gap-2">
             <Stars value={p.rating.average} size={14} />
-            <span className="text-xs text-muted">
+            <span className="text-xs text-muted-foreground">
               {p.rating.average?.toFixed(1) ?? '—'}（{p.rating.count}件）
             </span>
           </div>
@@ -120,7 +120,7 @@ export default function StaffProfile() {
             <p className="whitespace-pre-wrap text-[13px] leading-relaxed">{String(prof.bio)}</p>
           ) : null}
           {prof.message ? (
-            <p className="mt-2 whitespace-pre-wrap text-[13px] leading-relaxed text-muted">
+            <p className="mt-2 whitespace-pre-wrap text-[13px] leading-relaxed text-muted-foreground">
               {String(prof.message)}
             </p>
           ) : null}
@@ -135,7 +135,7 @@ export default function StaffProfile() {
           ].map(([label, list]) =>
             (list as string[]).length ? (
               <div key={label as string}>
-                <p className="mb-1 text-xs font-semibold text-muted">{label as string}</p>
+                <p className="mb-1 text-xs font-semibold text-muted-foreground">{label as string}</p>
                 <div className="flex flex-wrap gap-1.5">
                   {(list as string[]).map((s) => (
                     <Badge key={s}>{s}</Badge>

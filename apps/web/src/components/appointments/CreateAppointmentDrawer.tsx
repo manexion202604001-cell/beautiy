@@ -183,7 +183,7 @@ export function CreateAppointmentDrawer({
       dismissable={!saving}
       footer={
         <>
-          <div className="mr-auto text-[13px] text-muted">
+          <div className="mr-auto text-[13px] text-muted-foreground">
             {selectedMenus.length ? (
               <>
                 {formatDuration(duration)} ・{' '}
@@ -271,7 +271,7 @@ export function CreateAppointmentDrawer({
           {menuIds.length ? (
             <div>
               <div className="mb-2 flex items-center justify-between">
-                <p className="text-xs text-muted">
+                <p className="text-xs text-muted-foreground">
                   空き枠（
                   {availability.data ? `${availability.data.slotIntervalMin}分刻み` : '計算中'}）
                 </p>
@@ -294,7 +294,7 @@ export function CreateAppointmentDrawer({
               ) : null}
             </div>
           ) : (
-            <p className="rounded-xl bg-surface-2 px-3 py-2.5 text-[13px] text-muted">
+            <p className="rounded-xl bg-surface-2 px-3 py-2.5 text-[13px] text-muted-foreground">
               メニューを選択すると空き枠が表示されます
             </p>
           )}

@@ -65,7 +65,7 @@ export default function Storefront() {
   return (
     <PublicShell header={<StoreHeader slug={shopSlug} name={name} />}>
       <h1 className="mb-1 text-lg font-semibold">オンラインストア</h1>
-      <p className="mb-4 text-[13px] text-muted">
+      <p className="mb-4 text-[13px] text-muted-foreground">
         サロン専売品をご自宅にお届けします。価格はすべて税込です。
       </p>
       {categories.length > 1 ? (
@@ -119,7 +119,7 @@ export default function Storefront() {
               )}
               <span className="block px-3 pt-2">
                 {p.brand ? (
-                  <span className="block truncate text-[11px] text-muted">{p.brand}</span>
+                  <span className="block truncate text-[11px] text-muted-foreground">{p.brand}</span>
                 ) : null}
                 <span className="line-clamp-2 text-[13px] font-medium leading-snug">{p.name}</span>
               </span>

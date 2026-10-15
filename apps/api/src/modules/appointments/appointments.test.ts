@@ -136,6 +136,36 @@ describe('appointments', () => {
     expect(cust.body.next_appointment_at).toBe(jst(date, '10:30'));
   });
 
+  it('lets staff set the end time by hand and keeps that length when the booking moves', async () => {
+    const { t, stylist, menu, customer } = await setup();
+    const date = nextWeekday(WED);
+    // 60-minute menu booked for 90 minutes
+    const created = await t.owner.post('/v1/appointments', {
+      shopId: t.shopId, customerId: customer.id, staffId: stylist.staffId, menuIds: [menu.id], startAt: jst(date, '10:00'), durationMin: 90,
+    });
+    expect(created.status).toBe(201);
+    expect(created.body.end_at).toBe(jst(date, '11:30'));
+    expect(created.body.services[0].duration_min).toBe(90);
+
+    // the extra half hour is occupied: 11:00 clashes, 11:45 (after the 15-minute buffer) is free
+    const clash = await t.owner.post('/v1/appointments', { shopId: t.shopId, staffId: stylist.staffId, menuIds: [menu.id], startAt: jst(date, '11:00') });
+    expect(clash.status).toBe(409);
+    const after = await t.owner.post('/v1/appointments', { shopId: t.shopId, staffId: stylist.staffId, menuIds: [menu.id], startAt: jst(date, '11:45') });
+    expect(after.status).toBe(201);
+
+    // moving it keeps 90 minutes; an explicit duration changes it; the menu default comes back with 60
+    const moved = await t.owner.patch(`/v1/appointments/${created.body.id}`, { version: created.body.version, startAt: jst(date, '14:00') });
+    expect(moved.body.end_at).toBe(jst(date, '15:30'));
+    const shorter = await t.owner.patch(`/v1/appointments/${created.body.id}`, { version: moved.body.version, durationMin: 45 });
+    expect(shorter.body.end_at).toBe(jst(date, '14:45'));
+    const reset = await t.owner.patch(`/v1/appointments/${created.body.id}`, { version: shorter.body.version, durationMin: 60 });
+    expect(reset.body.end_at).toBe(jst(date, '15:00'));
+    const movedAgain = await t.owner.patch(`/v1/appointments/${created.body.id}`, { version: reset.body.version, startAt: jst(date, '16:00') });
+    expect(movedAgain.body.end_at).toBe(jst(date, '17:00'));
+
+    expect((await t.owner.post('/v1/appointments', { shopId: t.shopId, staffId: stylist.staffId, menuIds: [menu.id], startAt: jst(date, '18:00'), durationMin: 7 })).status).toBe(400);
+  });
+
   it('enforces the status state machine (cancel, restore, no-show)', async () => {
     const { t, stylist, menu } = await setup();
     const date = nextWeekday(WED);

@@ -3,6 +3,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { RouterProvider } from 'react-router/dom';
 import { ToastProvider } from './components/ui/Toast';
+import '@fontsource/montserrat/700.css';
 import './index.css';
 import { isApiError } from './lib/api';
 import { AuthProvider } from './lib/auth';

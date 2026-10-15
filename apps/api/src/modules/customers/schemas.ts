@@ -14,6 +14,8 @@ const customerFields = {
   postalCode: z.string().max(10).nullable().optional(),
   address: z.string().max(300).nullable().optional(),
   occupation: z.string().max(100).nullable().optional(),
+  /** the free-text note on the customer profile (顧客情報の「メモ」) */
+  memo: z.string().max(5000).nullable().optional(),
   acquisitionSource: z.string().max(100).nullable().optional(),
   primaryShopId: uuid.nullable().optional(),
   primaryStaffId: uuid.nullable().optional(),
@@ -69,3 +71,16 @@ export const mergeSchema = z.object({
   sourceCustomerId: uuid,
   reason: z.string().max(500).optional(),
 });
+
+/** 名前重複: groups of customers that share the same normalized full name */
+export const nameDuplicatesSchema = z.object({
+  search: optionalString,
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+export type NameDuplicatesInput = z.infer<typeof nameDuplicatesSchema>;
+
+export const dismissNameDuplicateSchema = z.object({ normalizedName: z.string().min(1).max(200) });
+
+/** 同一人物としてリンク: the first id is the record whose number the others take over */
+export const linkMasterSchema = z.object({ customerIds: z.array(uuid).min(2).max(100) });

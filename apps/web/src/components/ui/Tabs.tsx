@@ -71,12 +71,12 @@ export function Tabs<T extends string>({
             onClick={() => onChange(item.value)}
             className={cn(
               '-mb-px inline-flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-2.5 text-[13px] font-medium transition-colors disabled:opacity-40',
-              selected ? 'border-primary text-fg' : 'border-transparent text-muted hover:text-fg',
+              selected ? 'border-primary text-fg' : 'border-transparent text-muted-foreground hover:text-fg',
             )}
           >
             {item.label}
             {item.count !== undefined ? (
-              <span className="rounded-full bg-surface-2 px-1.5 text-[11px] text-muted tabular">
+              <span className="rounded-full bg-surface-2 px-1.5 text-[11px] text-muted-foreground tabular">
                 {item.count}
               </span>
             ) : null}

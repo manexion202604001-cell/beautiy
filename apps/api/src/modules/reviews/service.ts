@@ -638,6 +638,8 @@ export async function publicStaffProfile(ctx: Ctx, shopId: string, staffId: stri
     .where('staffs.id', '=', staffId)
     .where('a.shop_id', '=', shopId)
     .where('a.ended_on', 'is', null)
+    // hidden from customers at this shop (設定 › スタッフ管理 › 店舗割り当て) → no public profile
+    .where('a.is_visible_to_customer', '=', true)
     .where('staffs.status', '=', 'active')
     .where('staffs.deleted_at', 'is', null)
     .executeTakeFirst();

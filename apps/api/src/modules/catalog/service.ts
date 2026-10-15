@@ -3,37 +3,181 @@ import { assertShopAccess, auditUserId, requirePermission, type Ctx } from '../.
 import { audit, diff } from '../../lib/audit.js';
 import { Errors } from '../../lib/errors.js';
 import { percentOf } from '../../lib/money.js';
-import type { CreateCouponInput, CreateMenuInput, UpdateCouponInput, UpdateMenuInput } from './schemas.js';
+import { storage } from '../../lib/storage.js';
+import { getAttachableFile, markFileDeleted } from '../files/api.js';
+import type { CreateCouponInput, CreateMenuInput, EquipmentAssignmentsInput, StaffAssignmentsInput, UpdateCouponInput, UpdateMenuInput } from './schemas.js';
 
 // ================================================================ categories
 
+const categoryCols = ['id', 'shop_id', 'name', 'sort_order', 'color', 'parent_id'] as const;
+
+/** Separator between the parent and the child part of a category name (「まつげ：上」) */
+export const CATEGORY_SEPARATOR = '：';
+
 export async function listCategories(ctx: Ctx, shopId?: string) {
-  let q = ctx.trx.selectFrom('menu_categories').select(['id', 'shop_id', 'name', 'sort_order']).where('deleted_at', 'is', null).orderBy('sort_order').orderBy('name');
+  let q = ctx.trx.selectFrom('menu_categories').select(categoryCols).where('deleted_at', 'is', null).orderBy('sort_order').orderBy('name');
   if (shopId) q = q.where((eb) => eb.or([eb('shop_id', 'is', null), eb('shop_id', '=', shopId)]));
   return q.execute();
 }
 
-export async function createCategory(ctx: Ctx, input: { shopId?: string | null; name: string; sortOrder?: number }) {
-  requirePermission(ctx.actor, 'menu.manage');
-  if (input.shopId) assertShopAccess(ctx.actor, input.shopId);
-  return ctx.trx
-    .insertInto('menu_categories')
-    .values({ organization_id: ctx.actor.organizationId, shop_id: input.shopId ?? null, name: input.name, sort_order: input.sortOrder ?? 0 })
-    .returning(['id', 'shop_id', 'name', 'sort_order'])
-    .executeTakeFirstOrThrow();
-}
-
-export async function updateCategory(ctx: Ctx, id: string, input: { name?: string; sortOrder?: number }) {
-  requirePermission(ctx.actor, 'menu.manage');
-  const row = await ctx.trx.updateTable('menu_categories').set({ name: input.name, sort_order: input.sortOrder }).where('id', '=', id).returning(['id', 'shop_id', 'name', 'sort_order']).executeTakeFirst();
+async function loadCategory(ctx: Ctx, id: string) {
+  const row = await ctx.trx.selectFrom('menu_categories').select(categoryCols).where('id', '=', id).where('deleted_at', 'is', null).executeTakeFirst();
   if (!row) throw Errors.notFound('カテゴリ', id);
   return row;
 }
 
+/** A parent must be a live top-level category usable from the child's shop */
+async function loadParentCategory(ctx: Ctx, parentId: string, child: { id?: string; shopId: string | null }) {
+  const parent = await ctx.trx.selectFrom('menu_categories').select(categoryCols).where('id', '=', parentId).where('deleted_at', 'is', null).executeTakeFirst();
+  if (!parent) throw Errors.validation('親カテゴリが見つかりません');
+  if (parent.id === child.id) throw Errors.validation('自分自身を親カテゴリにはできません');
+  if (parent.parent_id) throw Errors.validation('親カテゴリに指定できるのは最上位のカテゴリだけです');
+  if (parent.shop_id && parent.shop_id !== child.shopId) throw Errors.validation('他店舗のカテゴリを親カテゴリにはできません');
+  return parent;
+}
+
+/** 「親：子」: the child part of a category name (the whole name when it has no such prefix) */
+function childPart(name: string, parentName: string | null | undefined): string {
+  const prefix = parentName ? parentName + CATEGORY_SEPARATOR : null;
+  const part = prefix && name.startsWith(prefix) ? name.slice(prefix.length) : name;
+  return part.trim();
+}
+
+export async function createCategory(ctx: Ctx, input: { shopId?: string | null; name: string; sortOrder?: number; color?: string | null; parentId?: string | null }) {
+  requirePermission(ctx.actor, 'menu.manage');
+  if (input.shopId) assertShopAccess(ctx.actor, input.shopId);
+  const parent = input.parentId ? await loadParentCategory(ctx, input.parentId, { shopId: input.shopId ?? null }) : null;
+  let name = input.name.trim();
+  if (parent) {
+    const part = childPart(name, parent.name);
+    if (!part) throw Errors.validation('カテゴリ名を入力してください');
+    name = parent.name + CATEGORY_SEPARATOR + part;
+  }
+  if (!name) throw Errors.validation('カテゴリ名を入力してください');
+  return ctx.trx
+    .insertInto('menu_categories')
+    .values({
+      organization_id: ctx.actor.organizationId,
+      shop_id: input.shopId ?? null,
+      name,
+      sort_order: input.sortOrder ?? 0,
+      // a child always carries its parent's colour (the calendar colours by the menu's own category)
+      color: parent ? parent.color : (input.color ?? null),
+      parent_id: parent?.id ?? null,
+    })
+    .returning(categoryCols)
+    .executeTakeFirstOrThrow();
+}
+
+export async function updateCategory(ctx: Ctx, id: string, input: { name?: string; sortOrder?: number; color?: string | null; parentId?: string | null }) {
+  requirePermission(ctx.actor, 'menu.manage');
+  const before = await loadCategory(ctx, id);
+  if (before.shop_id) assertShopAccess(ctx.actor, before.shop_id);
+  const parentId = input.parentId === undefined ? before.parent_id : input.parentId;
+  const oldParent = before.parent_id ? await ctx.trx.selectFrom('menu_categories').select(['id', 'name']).where('id', '=', before.parent_id).executeTakeFirst() : null;
+  const parent = parentId ? await loadParentCategory(ctx, parentId, { id, shopId: before.shop_id }) : null;
+  if (parent && !before.parent_id) {
+    const child = await ctx.trx.selectFrom('menu_categories').select('id').where('parent_id', '=', id).where('deleted_at', 'is', null).executeTakeFirst();
+    if (child) throw Errors.validation('子カテゴリを持つカテゴリは、他のカテゴリの子にできません');
+  }
+
+  let name: string | undefined;
+  if (input.name !== undefined || parentId !== before.parent_id) {
+    // strip the previous and the new parent prefix, then put the current parent in front
+    const part = childPart(childPart(input.name ?? before.name, oldParent?.name), parent?.name);
+    if (!part) throw Errors.validation('カテゴリ名を入力してください');
+    name = parent ? parent.name + CATEGORY_SEPARATOR + part : part;
+  }
+  const color = parent ? parent.color : input.color;
+
+  const row = await ctx.trx
+    .updateTable('menu_categories')
+    .set({ name, sort_order: input.sortOrder, color, parent_id: input.parentId === undefined ? undefined : (parent?.id ?? null), updated_at: new Date() })
+    .where('id', '=', id)
+    .returning(categoryCols)
+    .executeTakeFirstOrThrow();
+
+  // children follow their parent: 「親：子」 prefix and colour
+  if (!row.parent_id && (row.name !== before.name || row.color !== before.color)) {
+    const children = await ctx.trx.selectFrom('menu_categories').select(['id', 'name']).where('parent_id', '=', id).where('deleted_at', 'is', null).execute();
+    for (const c of children) {
+      await ctx.trx
+        .updateTable('menu_categories')
+        .set({ name: row.name + CATEGORY_SEPARATOR + childPart(c.name, before.name), color: row.color, updated_at: new Date() })
+        .where('id', '=', c.id)
+        .execute();
+    }
+  }
+  await audit(ctx, { action: 'menu_category.update', resourceType: 'menu_category', resourceId: id, shopId: row.shop_id, ...diff(before as never, row as never) });
+  return row;
+}
+
+export async function reorderCategories(ctx: Ctx, items: { id: string; sortOrder: number }[]) {
+  requirePermission(ctx.actor, 'menu.manage');
+  const rows = await ctx.trx.selectFrom('menu_categories').select(['id', 'shop_id']).where('id', 'in', items.map((i) => i.id)).where('deleted_at', 'is', null).execute();
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  for (const it of items) {
+    const row = byId.get(it.id);
+    if (!row) throw Errors.notFound('カテゴリ', it.id);
+    if (row.shop_id) assertShopAccess(ctx.actor, row.shop_id);
+    await ctx.trx.updateTable('menu_categories').set({ sort_order: it.sortOrder, updated_at: new Date() }).where('id', '=', it.id).execute();
+  }
+  return { updated: items.length };
+}
+
+/**
+ * Soft-delete categories. Menus keep existing: a deleted category is taken off them, and the next
+ * category ticked on the menu (if any) becomes its main one — otherwise the menu is uncategorised.
+ */
+async function removeCategories(ctx: Ctx, ids: string[]) {
+  if (!ids.length) return;
+  const gone = new Set(ids);
+  const menus = await ctx.trx
+    .selectFrom('menus')
+    .select(['id', 'category_id', 'sub_category_ids'])
+    .where((eb) => eb.or([eb('category_id', 'in', ids), sql<boolean>`sub_category_ids && ${ids}::uuid[]`]))
+    .execute();
+  for (const m of menus) {
+    const rest = m.sub_category_ids.filter((c) => !gone.has(c));
+    await ctx.trx
+      .updateTable('menus')
+      .set({ sub_category_ids: rest, category_id: m.category_id && gone.has(m.category_id) ? (rest[0] ?? null) : m.category_id })
+      .where('id', '=', m.id)
+      .execute();
+  }
+  await ctx.trx.updateTable('menu_categories').set({ deleted_at: new Date() }).where('id', 'in', ids).execute();
+}
+
+/** Deletes a category; a parent goes together with its child categories */
 export async function deleteCategory(ctx: Ctx, id: string) {
   requirePermission(ctx.actor, 'menu.manage');
-  await ctx.trx.updateTable('menus').set({ category_id: null }).where('category_id', '=', id).execute();
-  await ctx.trx.updateTable('menu_categories').set({ deleted_at: new Date() }).where('id', '=', id).execute();
+  const row = await ctx.trx.selectFrom('menu_categories').select(['id', 'shop_id', 'name']).where('id', '=', id).where('deleted_at', 'is', null).executeTakeFirst();
+  if (!row) return;
+  if (row.shop_id) assertShopAccess(ctx.actor, row.shop_id);
+  const children = await ctx.trx.selectFrom('menu_categories').select('id').where('parent_id', '=', id).where('deleted_at', 'is', null).execute();
+  await removeCategories(ctx, [id, ...children.map((c) => c.id)]);
+  await audit(ctx, { action: 'menu_category.delete', resourceType: 'menu_category', resourceId: id, shopId: row.shop_id, before: { name: row.name, children: children.length } });
+}
+
+/**
+ * 全削除: every category of the shop. Organization-wide categories (shared with the other shops) are
+ * deleted too only by an actor allowed to act for all shops; otherwise they are kept and counted.
+ */
+export async function deleteAllCategories(ctx: Ctx, shopId: string): Promise<{ deleted: number; kept: number }> {
+  requirePermission(ctx.actor, 'menu.manage');
+  assertShopAccess(ctx.actor, shopId);
+  const rows = await ctx.trx
+    .selectFrom('menu_categories')
+    .select(['id', 'shop_id'])
+    .where('deleted_at', 'is', null)
+    .where((eb) => eb.or([eb('shop_id', '=', shopId), eb('shop_id', 'is', null)]))
+    .execute();
+  const shared = ctx.actor.kind !== 'staff' || ctx.actor.allShops;
+  const remove = rows.filter((r) => r.shop_id === shopId || shared).map((r) => r.id);
+  await removeCategories(ctx, remove);
+  const result = { deleted: remove.length, kept: rows.length - remove.length };
+  await audit(ctx, { action: 'menu_category.delete_all', resourceType: 'shop', resourceId: shopId, shopId, after: result });
+  return result;
 }
 
 // ================================================================ menus
@@ -59,6 +203,31 @@ export interface EffectiveMenu {
   isOverridden: boolean;
   resourceRequirements: { resourceType: string; offsetMin: number; durationMin: number | null }[];
   staffIds: string[];
+  /** 'regular' 通常メニュー / 'coupon' クーポン */
+  menuType: 'regular' | 'coupon';
+  couponType: 'all' | 'new' | 'repeat' | null;
+  presentationCondition: string | null;
+  usageCondition: string | null;
+  /** last bookable day (shop-local 'YYYY-MM-DD'); null = no expiry */
+  expiryDate: string | null;
+  priceTilde: boolean;
+  subCategoryIds: string[];
+  imageFileId: string | null;
+  /** short-lived signed URL of the menu picture */
+  imageUrl: string | null;
+}
+
+/** Menu pictures are not personal data: one hour so a list left open keeps its thumbnails */
+const MENU_IMAGE_URL_TTL_SEC = 3600;
+
+/** Signed URLs of uploaded menu pictures, by file id */
+async function menuImageUrls(ctx: Ctx, fileIds: (string | null)[]): Promise<Map<string, string>> {
+  const ids = [...new Set(fileIds.filter((f): f is string => !!f))];
+  const out = new Map<string, string>();
+  if (!ids.length) return out;
+  const files = await ctx.trx.selectFrom('files').select(['id', 'object_key']).where('id', 'in', ids).where('status', '=', 'uploaded').execute();
+  for (const f of files) out.set(f.id, await storage.presignDownload(f.object_key, MENU_IMAGE_URL_TTL_SEC));
+  return out;
 }
 
 /**
@@ -70,6 +239,7 @@ export async function effectiveMenus(ctx: Ctx, shopId: string, opts: { publicOnl
     .selectFrom('menus')
     .leftJoin('menu_shop_overrides as o', (j) => j.onRef('o.menu_id', '=', 'menus.id').on('o.shop_id', '=', shopId))
     .leftJoin('menu_categories as c', 'c.id', 'menus.category_id')
+    .leftJoin('menu_categories as pc', 'pc.id', 'c.parent_id')
     .select([
       'menus.id',
       'menus.shop_id',
@@ -91,20 +261,38 @@ export async function effectiveMenus(ctx: Ctx, shopId: string, opts: { publicOnl
       'menus.status',
       sql<boolean>`coalesce(o.is_available, true)`.as('is_available'),
       sql<boolean>`o.id IS NOT NULL`.as('is_overridden'),
+      'menus.menu_type',
+      'menus.coupon_type',
+      'menus.presentation_condition',
+      'menus.usage_condition',
+      'menus.expiry_date',
+      'menus.price_tilde',
+      'menus.sub_category_ids',
+      'menus.image_file_id',
     ])
     .where('menus.deleted_at', 'is', null)
     .where((eb) => eb.or([eb('menus.shop_id', 'is', null), eb('menus.shop_id', '=', shopId)]))
-    .orderBy(sql`coalesce(c.sort_order, 9999)`)
+    // a child category sorts with its parent (the screens group 「親：子」 under 「親」); inside a group
+    // the menu's own order comes first, as the up/down buttons of the menu list set it
+    .orderBy(sql`coalesce(pc.sort_order, c.sort_order, 9999)`)
     .orderBy('menus.sort_order')
+    .orderBy(sql`coalesce(c.sort_order, 9999)`)
     .orderBy('menus.name');
-  if (!opts.includeInactive) q = q.where('menus.status', '=', 'active').where(sql<boolean>`coalesce(o.is_available, true)`);
+  if (!opts.includeInactive) {
+    q = q
+      .where('menus.status', '=', 'active')
+      .where(sql<boolean>`coalesce(o.is_available, true)`)
+      // 有効期限: bookable up to and including the expiry date, in the shop's timezone
+      .where(sql<boolean>`(menus.expiry_date IS NULL OR menus.expiry_date >= (now() AT TIME ZONE coalesce((SELECT s.timezone FROM shops s WHERE s.id = ${shopId}), 'Asia/Tokyo'))::date)`);
+  }
   if (opts.publicOnly) q = q.where('menus.is_public', '=', true);
   if (opts.menuIds) q = q.where('menus.id', 'in', opts.menuIds.length ? opts.menuIds : ['00000000-0000-0000-0000-000000000000']);
   const rows = await q.execute();
   const ids = rows.map((r) => r.id);
-  const [reqs, staffMenus] = await Promise.all([
+  const [reqs, staffMenus, images] = await Promise.all([
     ids.length ? ctx.trx.selectFrom('menu_resource_requirements').select(['menu_id', 'resource_type', 'offset_min', 'duration_min']).where('menu_id', 'in', ids).execute() : [],
     ids.length ? ctx.trx.selectFrom('staff_menus').select(['menu_id', 'staff_id']).where('menu_id', 'in', ids).execute() : [],
+    menuImageUrls(ctx, rows.map((r) => r.image_file_id)),
   ]);
   return rows.map((r) => ({
     id: r.id,
@@ -127,6 +315,15 @@ export async function effectiveMenus(ctx: Ctx, shopId: string, opts: { publicOnl
     isOverridden: r.is_overridden,
     resourceRequirements: reqs.filter((x) => x.menu_id === r.id).map((x) => ({ resourceType: x.resource_type, offsetMin: x.offset_min, durationMin: x.duration_min })),
     staffIds: staffMenus.filter((x) => x.menu_id === r.id).map((x) => x.staff_id),
+    menuType: r.menu_type === 'coupon' ? 'coupon' : 'regular',
+    couponType: r.coupon_type as EffectiveMenu['couponType'],
+    presentationCondition: r.presentation_condition,
+    usageCondition: r.usage_condition,
+    expiryDate: r.expiry_date,
+    priceTilde: r.price_tilde,
+    subCategoryIds: r.sub_category_ids,
+    imageFileId: r.image_file_id,
+    imageUrl: r.image_file_id ? (images.get(r.image_file_id) ?? null) : null,
   }));
 }
 
@@ -148,12 +345,43 @@ export async function staffCanPerform(ctx: Ctx, staffId: string, menuIds: string
 export async function getMenu(ctx: Ctx, menuId: string) {
   const menu = await ctx.trx.selectFrom('menus').selectAll().where('id', '=', menuId).where('deleted_at', 'is', null).executeTakeFirst();
   if (!menu) throw Errors.notFound('メニュー', menuId);
-  const [reqs, staff, overrides] = await Promise.all([
+  const [reqs, staff, overrides, images] = await Promise.all([
     ctx.trx.selectFrom('menu_resource_requirements').select(['resource_type', 'offset_min', 'duration_min']).where('menu_id', '=', menuId).execute(),
     ctx.trx.selectFrom('staff_menus').select(['staff_id', 'duration_min', 'price']).where('menu_id', '=', menuId).execute(),
     ctx.trx.selectFrom('menu_shop_overrides').select(['shop_id', 'price', 'duration_min', 'is_available']).where('menu_id', '=', menuId).execute(),
+    menuImageUrls(ctx, [menu.image_file_id]),
   ]);
-  return { ...menu, resourceRequirements: reqs, staff, overrides };
+  return { ...menu, image_url: menu.image_file_id ? (images.get(menu.image_file_id) ?? null) : null, resourceRequirements: reqs, staff, overrides };
+}
+
+/**
+ * Categories ticked on the edit form → { category_id, sub_category_ids }.
+ * `subCategoryIds` wins (its first entry is the main category); a bare `categoryId` keeps working.
+ */
+async function resolveMenuCategories(ctx: Ctx, input: Pick<UpdateMenuInput, 'categoryId' | 'subCategoryIds'>): Promise<{ category_id?: string | null; sub_category_ids?: string[] }> {
+  if (input.subCategoryIds === undefined && input.categoryId === undefined) return {};
+  const ids = input.subCategoryIds !== undefined ? [...new Set(input.subCategoryIds)] : input.categoryId ? [input.categoryId] : [];
+  if (ids.length) {
+    const found = await ctx.trx.selectFrom('menu_categories').select('id').where('id', 'in', ids).where('deleted_at', 'is', null).execute();
+    if (found.length !== ids.length) throw Errors.validation('カテゴリが見つかりません');
+  }
+  const main = input.subCategoryIds !== undefined ? (ids[0] ?? null) : (input.categoryId ?? null);
+  return { category_id: main, sub_category_ids: ids };
+}
+
+/** Coupon-only fields are cleared on regular menus so a menu switched back keeps no stale conditions */
+function couponColumns(menuType: string, input: Pick<UpdateMenuInput, 'couponType' | 'presentationCondition' | 'usageCondition' | 'expiryDate'>) {
+  if (menuType !== 'coupon') return { coupon_type: null, presentation_condition: null, usage_condition: null, expiry_date: null };
+  return {
+    coupon_type: input.couponType === undefined ? undefined : (input.couponType ?? 'all'),
+    presentation_condition: input.presentationCondition === undefined ? undefined : input.presentationCondition || null,
+    usage_condition: input.usageCondition === undefined ? undefined : input.usageCondition || null,
+    expiry_date: input.expiryDate === undefined ? undefined : input.expiryDate || null,
+  };
+}
+
+async function assertMenuImage(ctx: Ctx, fileId: string | null | undefined) {
+  if (fileId) await getAttachableFile(ctx, fileId, ['menu_image']);
 }
 
 async function replaceMenuRelations(ctx: Ctx, menuId: string, input: Pick<CreateMenuInput, 'resourceRequirements' | 'staffIds'>) {
@@ -190,12 +418,22 @@ export async function createMenu(ctx: Ctx, input: CreateMenuInput) {
   requirePermission(ctx.actor, 'menu.manage');
   if (input.shopId) assertShopAccess(ctx.actor, input.shopId);
   else if (ctx.actor.kind === 'staff' && !ctx.actor.allShops) throw Errors.forbidden('共通メニューの作成には全店舗権限が必要です');
+  const menuType = input.menuType ?? 'regular';
+  const categories = await resolveMenuCategories(ctx, input);
+  await assertMenuImage(ctx, input.imageFileId);
+  const coupon = couponColumns(menuType, { couponType: input.couponType ?? 'all', presentationCondition: input.presentationCondition ?? null, usageCondition: input.usageCondition ?? null, expiryDate: input.expiryDate ?? null });
   const row = await ctx.trx
     .insertInto('menus')
     .values({
       organization_id: ctx.actor.organizationId,
       shop_id: input.shopId ?? null,
-      category_id: input.categoryId ?? null,
+      category_id: categories.category_id ?? null,
+      sub_category_ids: categories.sub_category_ids ?? [],
+      menu_type: menuType,
+      ...coupon,
+      price_tilde: input.priceTilde ?? false,
+      image_file_id: input.imageFileId ?? null,
+      status: input.status ?? 'active',
       name: input.name,
       description: input.description ?? null,
       duration_min: input.durationMin,
@@ -206,7 +444,8 @@ export async function createMenu(ctx: Ctx, input: CreateMenuInput) {
       tax_rate_bp: input.taxRateBp ?? 1000,
       is_public: input.isPublic ?? true,
       is_consultation: input.isConsultation ?? false,
-      new_customer_only: input.newCustomerOnly ?? false,
+      // a 新規 coupon is a new-customer-only menu unless the caller says otherwise
+      new_customer_only: input.newCustomerOnly ?? (menuType === 'coupon' && input.couponType === 'new'),
       sort_order: input.sortOrder ?? 0,
       created_by: auditUserId(ctx.actor),
       trace_id: ctx.meta.traceId ?? null,
@@ -223,10 +462,18 @@ export async function updateMenu(ctx: Ctx, menuId: string, input: UpdateMenuInpu
   const before = await getMenu(ctx, menuId);
   if (before.shop_id) assertShopAccess(ctx.actor, before.shop_id);
   else if (ctx.actor.kind === 'staff' && !ctx.actor.allShops) throw Errors.forbidden('共通メニューの編集には全店舗権限が必要です（店舗別上書きを使用してください）');
+  const menuType = input.menuType ?? before.menu_type;
+  const categories = await resolveMenuCategories(ctx, input);
+  if (input.imageFileId && input.imageFileId !== before.image_file_id) await assertMenuImage(ctx, input.imageFileId);
   await ctx.trx
     .updateTable('menus')
     .set({
-      category_id: input.categoryId,
+      ...categories,
+      menu_type: input.menuType,
+      // switching a regular menu to a coupon starts it as 全員 unless a type is given
+      ...couponColumns(menuType, { ...input, couponType: input.couponType ?? (menuType === 'coupon' && !before.coupon_type ? 'all' : undefined) }),
+      price_tilde: input.priceTilde,
+      image_file_id: input.imageFileId,
       name: input.name,
       description: input.description,
       duration_min: input.durationMin,
@@ -237,7 +484,7 @@ export async function updateMenu(ctx: Ctx, menuId: string, input: UpdateMenuInpu
       tax_rate_bp: input.taxRateBp,
       is_public: input.isPublic,
       is_consultation: input.isConsultation,
-      new_customer_only: input.newCustomerOnly,
+      new_customer_only: input.newCustomerOnly ?? (menuType === 'coupon' && input.couponType !== undefined ? input.couponType === 'new' : undefined),
       sort_order: input.sortOrder,
       status: input.status,
       updated_by: auditUserId(ctx.actor),
@@ -245,18 +492,167 @@ export async function updateMenu(ctx: Ctx, menuId: string, input: UpdateMenuInpu
     })
     .where('id', '=', menuId)
     .execute();
+  // the replaced / removed picture is no longer referenced by anything
+  if (input.imageFileId !== undefined && before.image_file_id && before.image_file_id !== input.imageFileId) await markFileDeleted(ctx, before.image_file_id);
   await replaceMenuRelations(ctx, menuId, input);
   const after = await getMenu(ctx, menuId);
-  await audit(ctx, { action: 'menu.update', resourceType: 'menu', resourceId: menuId, ...diff(before as never, after as never) });
+  // image_url is a freshly signed URL on every read: not a change
+  await audit(ctx, { action: 'menu.update', resourceType: 'menu', resourceId: menuId, ...diff({ ...before, image_url: null } as never, { ...after, image_url: null } as never) });
   return after;
 }
 
-export async function deleteMenu(ctx: Ctx, menuId: string) {
+/**
+ * Soft delete (reservation history keeps the menu name). With `checkUsage` a menu that reservations
+ * refer to is refused with 409 MENU_IN_USE so the screen can ask before hiding it.
+ */
+export async function deleteMenu(ctx: Ctx, menuId: string, opts: { checkUsage?: boolean } = {}) {
   requirePermission(ctx.actor, 'menu.manage');
   const menu = await getMenu(ctx, menuId);
   if (menu.shop_id) assertShopAccess(ctx.actor, menu.shop_id);
+  if (opts.checkUsage) {
+    // read-only existence check on the reservation lines that point at this menu
+    const used = await ctx.trx.selectFrom('appointment_services').select('id').where('menu_id', '=', menuId).limit(1).executeTakeFirst();
+    if (used) throw Errors.conflict('MENU_IN_USE', 'このメニューは予約で使用されています。');
+  }
   await ctx.trx.updateTable('menus').set({ deleted_at: new Date(), status: 'inactive' }).where('id', '=', menuId).execute();
+  // a deleted menu must not keep restricting its staff to it ("no rows for a staff = every menu")
+  await ctx.trx.deleteFrom('staff_menus').where('menu_id', '=', menuId).execute();
   await audit(ctx, { action: 'menu.delete', resourceType: 'menu', resourceId: menuId });
+}
+
+/** Menus that exist for a shop (its own + the organization-wide ones), by id */
+async function shopMenusById(ctx: Ctx, shopId: string, menuIds: string[]) {
+  if (!menuIds.length) return new Map<string, { id: string; shop_id: string | null }>();
+  const rows = await ctx.trx
+    .selectFrom('menus')
+    .select(['id', 'shop_id'])
+    .where('id', 'in', menuIds)
+    .where('deleted_at', 'is', null)
+    .where((eb) => eb.or([eb('shop_id', 'is', null), eb('shop_id', '=', shopId)]))
+    .execute();
+  return new Map(rows.map((r) => [r.id, r]));
+}
+
+/** Display order of menus (the up / down buttons of the menu list) */
+export async function reorderMenus(ctx: Ctx, items: { id: string; sortOrder: number }[]) {
+  requirePermission(ctx.actor, 'menu.manage');
+  const rows = await ctx.trx.selectFrom('menus').select(['id', 'shop_id']).where('id', 'in', items.map((i) => i.id)).where('deleted_at', 'is', null).execute();
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  for (const it of items) {
+    const row = byId.get(it.id);
+    if (!row) throw Errors.notFound('メニュー', it.id);
+    if (row.shop_id) assertShopAccess(ctx.actor, row.shop_id);
+    else if (ctx.actor.kind === 'staff' && !ctx.actor.allShops) throw Errors.forbidden('共通メニューの並び替えには全店舗権限が必要です');
+  }
+  for (const it of items) {
+    await ctx.trx.updateTable('menus').set({ sort_order: it.sortOrder, updated_by: auditUserId(ctx.actor) }).where('id', '=', it.id).execute();
+  }
+  await audit(ctx, { action: 'menu.reorder', resourceType: 'menu', after: { items } });
+  return { updated: items.length };
+}
+
+/**
+ * 掲載 / 非掲載 of a menu as seen from one shop.
+ *  - the shop's own menu: status active / inactive
+ *  - an organization-wide menu: the shop's override (is_available), so other shops are not affected;
+ *    listing it again also re-activates the menu itself when it was switched off for everyone
+ */
+export async function setMenuListing(ctx: Ctx, menuId: string, shopId: string, listed: boolean) {
+  requirePermission(ctx.actor, 'menu.manage');
+  assertShopAccess(ctx.actor, shopId);
+  const menu = await getMenu(ctx, menuId);
+  if (menu.shop_id && menu.shop_id !== shopId) throw Errors.validation('他店舗のメニューは変更できません');
+  if (menu.shop_id) {
+    await ctx.trx.updateTable('menus').set({ status: listed ? 'active' : 'inactive', updated_by: auditUserId(ctx.actor) }).where('id', '=', menuId).execute();
+  } else {
+    if (listed && menu.status !== 'active') {
+      if (ctx.actor.kind === 'staff' && !ctx.actor.allShops) throw Errors.forbidden('共通メニューの掲載には全店舗権限が必要です');
+      await ctx.trx.updateTable('menus').set({ status: 'active', updated_by: auditUserId(ctx.actor) }).where('id', '=', menuId).execute();
+    }
+    const override = menu.overrides.find((o) => o.shop_id === shopId);
+    if (override) {
+      await ctx.trx.updateTable('menu_shop_overrides').set({ is_available: listed, updated_at: new Date() }).where('menu_id', '=', menuId).where('shop_id', '=', shopId).execute();
+    } else if (!listed) {
+      await ctx.trx.insertInto('menu_shop_overrides').values({ organization_id: ctx.actor.organizationId, menu_id: menuId, shop_id: shopId, is_available: false }).execute();
+    }
+  }
+  await audit(ctx, { action: 'menu.listing', resourceType: 'menu', resourceId: menuId, shopId, after: { listed } });
+  const [effective] = await effectiveMenus(ctx, shopId, { includeInactive: true, menuIds: [menuId] });
+  return effective!;
+}
+
+/**
+ * 対応スタッフ matrix of one shop. Only the staff shown as columns are touched; a kept row keeps its
+ * per-staff duration / price.
+ */
+export async function setStaffAssignments(ctx: Ctx, input: StaffAssignmentsInput) {
+  requirePermission(ctx.actor, 'menu.manage');
+  assertShopAccess(ctx.actor, input.shopId);
+  const columns = [...new Set(input.staffIds)];
+  const menus = await shopMenusById(ctx, input.shopId, input.assignments.map((a) => a.menuId));
+  for (const a of input.assignments) {
+    if (!menus.has(a.menuId)) throw Errors.notFound('メニュー', a.menuId);
+    if (a.staffIds.some((s) => !columns.includes(s))) throw Errors.validation('対象外のスタッフが含まれています');
+  }
+  if (columns.length) {
+    const staff = await ctx.trx.selectFrom('staffs').select('id').where('id', 'in', columns).where('deleted_at', 'is', null).execute();
+    if (staff.length !== columns.length) throw Errors.validation('スタッフが見つかりません');
+  }
+  let added = 0;
+  let removed = 0;
+  if (columns.length) {
+    for (const a of input.assignments) {
+      const want = new Set(a.staffIds);
+      const existing = await ctx.trx.selectFrom('staff_menus').select('staff_id').where('menu_id', '=', a.menuId).where('staff_id', 'in', columns).execute();
+      const have = new Set(existing.map((e) => e.staff_id));
+      const remove = [...have].filter((s) => !want.has(s));
+      const add = [...want].filter((s) => !have.has(s));
+      if (remove.length) await ctx.trx.deleteFrom('staff_menus').where('menu_id', '=', a.menuId).where('staff_id', 'in', remove).execute();
+      if (add.length) await ctx.trx.insertInto('staff_menus').values(add.map((staffId) => ({ staff_id: staffId, menu_id: a.menuId, organization_id: ctx.actor.organizationId }))).execute();
+      added += add.length;
+      removed += remove.length;
+    }
+  }
+  await audit(ctx, { action: 'menu.staff_assignments', resourceType: 'shop', resourceId: input.shopId, shopId: input.shopId, after: { menus: input.assignments.length, added, removed } });
+  return { menus: input.assignments.length, added, removed };
+}
+
+/**
+ * 対応設備 matrix of one shop: which kinds of equipment (resource types) a menu occupies. A ticked
+ * kind becomes a resource requirement for the whole menu, so bookings are limited by the number of
+ * units of that kind; a kept requirement keeps its offset / duration.
+ */
+export async function setEquipmentAssignments(ctx: Ctx, input: EquipmentAssignmentsInput) {
+  requirePermission(ctx.actor, 'menu.manage');
+  assertShopAccess(ctx.actor, input.shopId);
+  const columns = [...new Set(input.resourceTypes)];
+  const menus = await shopMenusById(ctx, input.shopId, input.assignments.map((a) => a.menuId));
+  for (const a of input.assignments) {
+    if (!menus.has(a.menuId)) throw Errors.notFound('メニュー', a.menuId);
+    if (a.resourceTypes.some((r) => !columns.includes(r))) throw Errors.validation('対象外の設備が含まれています');
+  }
+  let added = 0;
+  let removed = 0;
+  if (columns.length) {
+    for (const a of input.assignments) {
+      const want = new Set(a.resourceTypes);
+      const existing = await ctx.trx.selectFrom('menu_resource_requirements').select(['id', 'resource_type']).where('menu_id', '=', a.menuId).where('resource_type', 'in', columns).execute();
+      const have = new Set(existing.map((e) => e.resource_type));
+      const remove = existing.filter((e) => !want.has(e.resource_type)).map((e) => e.id);
+      const add = [...want].filter((r) => !have.has(r));
+      if (remove.length) await ctx.trx.deleteFrom('menu_resource_requirements').where('id', 'in', remove).execute();
+      if (add.length) {
+        await ctx.trx
+          .insertInto('menu_resource_requirements')
+          .values(add.map((resourceType) => ({ organization_id: ctx.actor.organizationId, menu_id: a.menuId, resource_type: resourceType, offset_min: 0, duration_min: null })))
+          .execute();
+      }
+      added += add.length;
+      removed += remove.length;
+    }
+  }
+  await audit(ctx, { action: 'menu.equipment_assignments', resourceType: 'shop', resourceId: input.shopId, shopId: input.shopId, after: { menus: input.assignments.length, added, removed } });
+  return { menus: input.assignments.length, added, removed };
 }
 
 export async function setMenuOverride(ctx: Ctx, menuId: string, shopId: string, input: { price?: number | null; durationMin?: number | null; isAvailable?: boolean }) {

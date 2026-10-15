@@ -151,9 +151,9 @@ export function CustomerFormsTab({
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium">
                     {r.template_name}{' '}
-                    <span className="text-xs text-muted">v{r.template_version}</span>
+                    <span className="text-xs text-muted-foreground">v{r.template_version}</span>
                   </span>
-                  <span className="text-xs text-muted">
+                  <span className="text-xs text-muted-foreground">
                     {r.submitted_at
                       ? `提出 ${formatDateTime(r.submitted_at, tz)}`
                       : `発行 ${formatDateTime(r.created_at, tz)}`}

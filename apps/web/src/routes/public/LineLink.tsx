@@ -46,7 +46,7 @@ export default function LineLink() {
             {link.data.following === false ? (
               <p className="text-sm">お知らせを受け取るには、LINE公式アカウントを友だち追加してください。</p>
             ) : null}
-            <p className="text-[13px] text-muted">このページは閉じて構いません。</p>
+            <p className="text-[13px] text-muted-foreground">このページは閉じて構いません。</p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -75,7 +75,7 @@ export default function LineLink() {
               {link.isPending ? <Spinner size={20} /> : <Icon name="line" size={20} />}
               LINEで連携する{showMock ? '（開発用モック）' : ''}
             </button>
-            {!lineAvailable() ? <p className="text-xs text-muted">LINEアプリ内で開いてください。</p> : null}
+            {!lineAvailable() ? <p className="text-xs text-muted-foreground">LINEアプリ内で開いてください。</p> : null}
           </div>
         )}
       </Card>

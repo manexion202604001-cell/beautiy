@@ -102,7 +102,7 @@ export function ReferralLinksTab() {
                   </p>
                 </Td>
                 <Td className="hidden md:table-cell">{TARGET_LABEL[l.target]}</Td>
-                <Td className="hidden text-xs text-muted lg:table-cell">
+                <Td className="hidden text-xs text-muted-foreground lg:table-cell">
                   {[l.utm?.source, l.utm?.medium, l.utm?.campaign].filter(Boolean).join(' / ') || '—'}
                 </Td>
                 <Td className="text-right tabular">{l.click_count.toLocaleString('ja-JP')}</Td>
@@ -173,13 +173,13 @@ function LinkDrawer({ link, onClose, tz }: { link: ReferralLink | null; onClose:
                 ] as const
               ).map(([label, value]) => (
                 <div key={label} className="rounded-xl border border-border p-3">
-                  <dt className="text-xs text-muted">{label}</dt>
+                  <dt className="text-xs text-muted-foreground">{label}</dt>
                   <dd className="mt-0.5 text-lg font-semibold">{value}</dd>
                 </div>
               ))}
             </dl>
           ) : null}
-          <p className="text-xs text-muted">クリックはボット・プレビューを除外して計測します。売上は紹介経由の来店会計とEC購入の合計です。</p>
+          <p className="text-xs text-muted-foreground">クリックはボット・プレビューを除外して計測します。売上は紹介経由の来店会計とEC購入の合計です。</p>
         </div>
       ) : null}
     </Drawer>

@@ -419,7 +419,7 @@ function BookingFlow({
             <div className="min-w-0 flex-1">
               {selectedMenus.length ? (
                 <>
-                  <p className="truncate text-xs text-muted">
+                  <p className="truncate text-xs text-muted-foreground">
                     {selectedMenus.length}件 ・ {formatDuration(totalDuration)}
                     {slot
                       ? ` ・ ${formatDateJa(zonedParts(slot.start, tz).date)} ${formatTime(slot.start, tz)}`
@@ -428,7 +428,7 @@ function BookingFlow({
                   <p className="text-base font-semibold tabular">{formatYen(estimate)}</p>
                 </>
               ) : (
-                <p className="text-[13px] text-muted">メニューを選択してください</p>
+                <p className="text-[13px] text-muted-foreground">メニューを選択してください</p>
               )}
             </div>
             <Button
@@ -447,7 +447,7 @@ function BookingFlow({
     >
       {step === 'menu' ? <ShopReviewsSummary slug={slug} /> : null}
       {info.shop.description && step === 'menu' ? (
-        <p className="mb-4 text-[13px] leading-relaxed text-muted">{info.shop.description}</p>
+        <p className="mb-4 text-[13px] leading-relaxed text-muted-foreground">{info.shop.description}</p>
       ) : null}
 
       <ol className="mb-5 flex items-center gap-1" aria-label="予約の進み具合">
@@ -528,7 +528,7 @@ function BookingFlow({
             </div>
           ))}
           {eligibleStaff.length < info.staff.length ? (
-            <p className="text-xs text-muted">
+            <p className="text-xs text-muted-foreground">
               ※ 選択したメニューを担当できるスタッフのみ表示しています。
             </p>
           ) : null}
@@ -621,7 +621,7 @@ function BookingFlow({
                         className={cn(
                           'text-[11px]',
                           !sel &&
-                            (wd === 0 ? 'text-danger' : wd === 6 ? 'text-info' : 'text-muted'),
+                            (wd === 0 ? 'text-danger' : wd === 6 ? 'text-info' : 'text-muted-foreground'),
                         )}
                       >
                         {WEEKDAYS_JA[wd]}
@@ -669,15 +669,16 @@ function BookingFlow({
               />
             )}
           </div>
-          <p className="text-xs text-muted">
+          <p className="text-xs text-muted-foreground">
             {staff
               ? `${staff.display_name} の空き時間を表示しています。`
               : '指名なしの場合、空いているスタッフが担当します。'}
-            受付は開始
-            {info.booking.leadTimeMin >= 60
-              ? `${Math.round(info.booking.leadTimeMin / 60)}時間`
-              : `${info.booking.leadTimeMin}分`}
-            前までです。
+            {info.booking.deadlineNote ??
+              `受付は開始${
+                info.booking.leadTimeMin >= 60
+                  ? `${Math.round(info.booking.leadTimeMin / 60)}時間`
+                  : `${info.booking.leadTimeMin}分`
+              }前までです。`}
           </p>
         </div>
       ) : null}
@@ -687,7 +688,7 @@ function BookingFlow({
           {session ? (
             <div className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-surface p-4">
               <div className="min-w-0">
-                <p className="text-xs text-muted">
+                <p className="text-xs text-muted-foreground">
                   {session.via === 'line' ? 'LINEでログイン中' : 'ログイン中'}
                 </p>
                 <p className="truncate text-[15px] font-semibold">
@@ -697,7 +698,7 @@ function BookingFlow({
                     : '…'}
                 </p>
                 {profile.data?.phone ? (
-                  <p className="text-xs text-muted">{profile.data.phone}</p>
+                  <p className="text-xs text-muted-foreground">{profile.data.phone}</p>
                 ) : null}
               </div>
               <Button
@@ -837,7 +838,7 @@ function BookingFlow({
                       <span className="min-w-0 flex-1">
                         <span className="block text-[13px] font-medium">{c.name}</span>
                         {c.description ? (
-                          <span className="block text-xs text-muted">{c.description}</span>
+                          <span className="block text-xs text-muted-foreground">{c.description}</span>
                         ) : null}
                         {c.newCustomerOnly ? (
                           <Badge size="sm" tone="info" className="mt-1">
@@ -845,7 +846,7 @@ function BookingFlow({
                           </Badge>
                         ) : null}
                       </span>
-                      <span className="text-[13px] font-semibold text-accent tabular">
+                      <span className="text-[13px] font-semibold text-highlight tabular">
                         -{formatYen(discount)}
                       </span>
                     </label>
@@ -866,28 +867,28 @@ function BookingFlow({
           ) : null}
           <div className="overflow-hidden rounded-2xl border border-border bg-surface">
             <div className="bg-primary-soft/60 px-4 py-3">
-              <p className="text-xs text-muted">ご予約日時</p>
+              <p className="text-xs text-muted-foreground">ご予約日時</p>
               <p className="text-lg font-semibold">
                 {formatDateJa(zonedParts(slot.start, tz).date, { year: true })}{' '}
                 {formatTime(slot.start, tz)}〜
               </p>
-              <p className="text-xs text-muted">
+              <p className="text-xs text-muted-foreground">
                 終了予定 {formatTime(slot.end, tz)}（{formatDuration(totalDuration)}）
               </p>
             </div>
             <dl className="divide-y divide-border text-[13px]">
               <div className="flex justify-between gap-4 px-4 py-3">
-                <dt className="text-muted">店舗</dt>
+                <dt className="text-muted-foreground">店舗</dt>
                 <dd className="text-right font-medium">{info.shop.name}</dd>
               </div>
               <div className="flex justify-between gap-4 px-4 py-3">
-                <dt className="text-muted">担当</dt>
+                <dt className="text-muted-foreground">担当</dt>
                 <dd className="text-right font-medium">
                   {staff ? staff.display_name : '指名なし'}
                 </dd>
               </div>
               <div className="px-4 py-3">
-                <dt className="mb-1 text-muted">メニュー</dt>
+                <dt className="mb-1 text-muted-foreground">メニュー</dt>
                 {selectedMenus.map((m) => (
                   <dd key={m.id} className="flex justify-between gap-4">
                     <span>{m.name}</span>
@@ -895,13 +896,13 @@ function BookingFlow({
                   </dd>
                 ))}
                 {nominationFee ? (
-                  <dd className="flex justify-between gap-4 text-muted">
+                  <dd className="flex justify-between gap-4 text-muted-foreground">
                     <span>指名料</span>
                     <span className="tabular">{formatYen(nominationFee)}</span>
                   </dd>
                 ) : null}
                 {coupon ? (
-                  <dd className="flex justify-between gap-4 text-accent">
+                  <dd className="flex justify-between gap-4 text-highlight">
                     <span>{coupon.c.name}</span>
                     <span className="tabular">-{formatYen(coupon.discount)}</span>
                   </dd>
@@ -912,19 +913,19 @@ function BookingFlow({
                 <dd className="text-base font-semibold tabular">{formatYen(estimate)}</dd>
               </div>
               <div className="flex justify-between gap-4 px-4 py-3">
-                <dt className="text-muted">お名前</dt>
+                <dt className="text-muted-foreground">お名前</dt>
                 <dd className="text-right font-medium">
                   {session && profileComplete
                     ? `${profile.data?.last_name} ${profile.data?.first_name}`
                     : `${form.lastName} ${form.firstName}`}
-                  <span className="block text-xs font-normal text-muted">
+                  <span className="block text-xs font-normal text-muted-foreground">
                     {session && profileComplete ? profile.data?.phone : form.phone}
                   </span>
                 </dd>
               </div>
               {note ? (
                 <div className="px-4 py-3">
-                  <dt className="text-muted">ご要望</dt>
+                  <dt className="text-muted-foreground">ご要望</dt>
                   <dd className="mt-0.5 whitespace-pre-wrap">{note}</dd>
                 </div>
               ) : null}
@@ -935,7 +936,7 @@ function BookingFlow({
             時間前まで、予約完了後に表示される管理ページまたはマイページから行えます。
             {info.booking.requireApproval ? ' 本予約は店舗の承認後に確定します。' : ''}
           </Alert>
-          <p className="text-center text-xs text-muted">
+          <p className="text-center text-xs text-muted-foreground">
             料金は目安です。施術内容により変わる場合があります。
           </p>
         </div>
@@ -993,7 +994,7 @@ function MenuStep({
           </button>
         ))}
       </div>
-      <p className="text-xs text-muted">最大{max}つまで選べます（選択した順に施術します）</p>
+      <p className="text-xs text-muted-foreground">最大{max}つまで選べます（選択した順に施術します）</p>
       <ul className="space-y-2.5">
         {list.map((m) => {
           const checked = menuIds.includes(m.id);
@@ -1033,17 +1034,18 @@ function MenuStep({
                     ) : null}
                   </span>
                   {m.description ? (
-                    <span className="mt-0.5 block text-xs leading-relaxed text-muted">
+                    <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">
                       {m.description}
                     </span>
                   ) : null}
-                  <span className="mt-1.5 flex items-center gap-1 text-xs text-muted">
+                  <span className="mt-1.5 flex items-center gap-1 text-xs text-muted-foreground">
                     <Icon name="clock" size={13} />
                     {formatDuration(m.durationMin)}
                   </span>
                 </span>
                 <span className="shrink-0 text-[15px] font-semibold tabular">
                   {m.price ? formatYen(m.price) : '無料'}
+                  {m.price && m.priceTilde ? '～' : null}
                 </span>
               </label>
             </li>
@@ -1089,7 +1091,7 @@ function StaffCard({
       <span
         className={cn(
           'flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-lg font-semibold',
-          fee === undefined ? 'bg-surface-2 text-muted' : 'bg-primary-soft text-primary',
+          fee === undefined ? 'bg-surface-2 text-muted-foreground' : 'bg-primary-soft text-primary',
         )}
         aria-hidden
       >
@@ -1098,11 +1100,11 @@ function StaffCard({
       <span className="min-w-0 flex-1">
         <span className="flex flex-wrap items-baseline gap-x-2">
           <span className="text-[15px] font-semibold">{name}</span>
-          {title ? <span className="text-xs text-muted">{title}</span> : null}
+          {title ? <span className="text-xs text-muted-foreground">{title}</span> : null}
         </span>
-        {years ? <span className="block text-xs text-muted">経験 {years}年</span> : null}
+        {years ? <span className="block text-xs text-muted-foreground">経験 {years}年</span> : null}
         {bio ? (
-          <span className="mt-1 line-clamp-2 block text-xs leading-relaxed text-muted">{bio}</span>
+          <span className="mt-1 line-clamp-2 block text-xs leading-relaxed text-muted-foreground">{bio}</span>
         ) : null}
         {specialties?.length ? (
           <span className="mt-1.5 flex flex-wrap gap-1">
@@ -1115,7 +1117,7 @@ function StaffCard({
         ) : null}
       </span>
       {fee !== undefined ? (
-        <span className="shrink-0 text-xs text-muted">
+        <span className="shrink-0 text-xs text-muted-foreground">
           {fee ? `指名料 +${formatYen(fee)}` : '指名料なし'}
         </span>
       ) : null}
@@ -1156,14 +1158,14 @@ function Done({
         <h1 className="mt-4 text-xl font-semibold tracking-tight">
           {tentative ? '予約リクエストを受け付けました' : 'ご予約が完了しました'}
         </h1>
-        <p className="mt-1 text-[13px] text-muted">
+        <p className="mt-1 text-[13px] text-muted-foreground">
           {tentative
             ? '店舗が内容を確認後、予約が確定します。'
             : 'ご来店を心よりお待ちしております。'}
         </p>
       </div>
       <div className="rounded-2xl border border-border bg-surface p-4">
-        <p className="text-xs text-muted">予約番号</p>
+        <p className="text-xs text-muted-foreground">予約番号</p>
         <p
           className="font-mono text-2xl font-semibold tracking-wider"
           data-testid="booking-reference"
@@ -1172,24 +1174,24 @@ function Done({
         </p>
         <dl className="mt-3 space-y-1.5 text-[13px]">
           <div className="flex justify-between gap-4">
-            <dt className="text-muted">日時</dt>
+            <dt className="text-muted-foreground">日時</dt>
             <dd className="text-right font-medium">
               {formatDateJa(zonedParts(a.startAt, tz).date, { year: true })}{' '}
               {formatTime(a.startAt, tz)}〜{formatTime(a.endAt, tz)}
             </dd>
           </div>
           <div className="flex justify-between gap-4">
-            <dt className="text-muted">担当</dt>
+            <dt className="text-muted-foreground">担当</dt>
             <dd className="text-right">
               {a.isNominated ? a.staffName : `${a.staffName ?? '当日決定'}（指名なし）`}
             </dd>
           </div>
           <div className="flex justify-between gap-4">
-            <dt className="text-muted">メニュー</dt>
+            <dt className="text-muted-foreground">メニュー</dt>
             <dd className="text-right">{a.services.map((s) => s.name).join('、')}</dd>
           </div>
           <div className="flex justify-between gap-4">
-            <dt className="text-muted">お支払い目安</dt>
+            <dt className="text-muted-foreground">お支払い目安</dt>
             <dd className="text-right font-medium tabular">{formatYen(a.estimatedTotal)}</dd>
           </div>
         </dl>
@@ -1228,12 +1230,12 @@ function Done({
         ) : null}
       </div>
       {managePath ? (
-        <p className="text-center text-xs text-muted">
+        <p className="text-center text-xs text-muted-foreground">
           「予約の確認・キャンセル」のページをブックマークしておくと便利です。
         </p>
       ) : null}
       {info.shop.phone ? (
-        <p className="text-center text-[13px] text-muted">
+        <p className="text-center text-[13px] text-muted-foreground">
           お問い合わせ:{' '}
           <a href={`tel:${info.shop.phone}`} className="font-medium text-primary">
             {info.shop.phone}

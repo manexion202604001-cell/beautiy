@@ -95,11 +95,11 @@ export function ReviewRequestDialog({
         <div className="space-y-4">
           <CopyLink url={result.url} label="口コミ投稿リンク" />
           {result.expires_at ? (
-            <p className="text-xs text-muted">有効期限 {formatDateTime(result.expires_at, tz)}</p>
+            <p className="text-xs text-muted-foreground">有効期限 {formatDateTime(result.expires_at, tz)}</p>
           ) : null}
           <div className="flex flex-col items-center gap-2">
             <QrCode value={result.url} size={200} label="口コミ投稿リンクのQRコード" />
-            <p className="text-xs text-muted">お客様のスマートフォンで読み取ってください</p>
+            <p className="text-xs text-muted-foreground">お客様のスマートフォンで読み取ってください</p>
           </div>
         </div>
       ) : (

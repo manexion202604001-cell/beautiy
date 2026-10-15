@@ -48,6 +48,21 @@ export interface Integration {
   inboundEmail: { webhookUrl: string } | null;
 }
 
+/** A mail that reached a mail connector's inbound URL (booking notice, verification mail, ...) */
+export interface ReceivedMail {
+  id: string;
+  /** processed = taken in / ignored = not a booking / dead = could not be read / failed = will retry */
+  status: 'received' | 'processing' | 'processed' | 'failed' | 'ignored' | 'dead';
+  error: string | null;
+  receivedAt: string;
+  processedAt: string | null;
+  from: string;
+  to: string;
+  subject: string;
+  text: string | null;
+  html: string | null;
+}
+
 export interface IntegrationInput {
   provider?: string;
   shopId?: string;
@@ -183,7 +198,12 @@ export interface MailParseResult {
   start: string | null;
   end: string | null;
   durationMin: number | null;
-  customer: { name: string | null; kana: string | null; phone: string | null; email: string | null };
+  customer: {
+    name: string | null;
+    kana: string | null;
+    phone: string | null;
+    email: string | null;
+  };
   staff: { name: string | null; staffId: string | null; staffName: string | null; via: MatchVia };
   menus: { name: string; menuId: string | null; menuName: string | null; via: MatchVia }[];
   amount: number | null;
@@ -279,16 +299,20 @@ export const integrationsApi = {
   get: (id: string) => api.get<Integration>(`/integrations/${id}`),
   create: (input: IntegrationInput, idempotencyKey = newIdempotencyKey()) =>
     api.post<Integration>('/integrations', input, { idempotencyKey }),
-  update: (id: string, input: IntegrationInput) => api.patch<Integration>(`/integrations/${id}`, input),
+  update: (id: string, input: IntegrationInput) =>
+    api.patch<Integration>(`/integrations/${id}`, input),
   disable: (id: string) => api.delete(`/integrations/${id}`),
   test: (id: string) =>
     api.post<{ ok: boolean; message?: string; latencyMs?: number; checkedAt: string }>(
       `/integrations/${id}/test`,
     ),
   resync: (id: string, mode: 'delta' | 'full') =>
-    api.post<{ jobId: string | null; mode: string; queued: boolean }>(`/integrations/${id}/resync`, {
-      mode,
-    }),
+    api.post<{ jobId: string | null; mode: string; queued: boolean }>(
+      `/integrations/${id}/resync`,
+      {
+        mode,
+      },
+    ),
   syncJobs: (id: string, cursor?: string) =>
     api.get<Page<SyncJob>>(`/integrations/${id}/sync-jobs`, { cursor, limit: 20 }),
   status: (shopId?: string) => api.get<SyncStatus>('/integrations/status', { shopId }),
@@ -301,9 +325,15 @@ export const integrationsApi = {
   parseTest: (id: string, input: { subject: string; text?: string; html?: string }) =>
     api.post<MailParseResult>(`/integrations/${id}/parse-test`, input),
   importCsv: (id: string, input: { csv: string; dryRun: boolean }, idempotencyKey?: string) =>
-    api.post<CsvImportResult>(`/integrations/${id}/import-csv`, input, idempotencyKey ? { idempotencyKey } : undefined),
+    api.post<CsvImportResult>(
+      `/integrations/${id}/import-csv`,
+      input,
+      idempotencyKey ? { idempotencyKey } : undefined,
+    ),
   manualBlocks: (q: { shopId?: string; state?: 'open' | 'all' }) =>
     api.get<ManualBlock[]>('/integrations/manual-blocks', q),
+  receivedMails: (id: string) =>
+    api.get<ReceivedMail[]>(`/integrations/${id}/received-mails`, { limit: 50 }),
   completeManualBlock: (id: string) =>
     api.post<{ id: string; state: string }>(`/integrations/manual-blocks/${id}/done`),
   resolve: (
@@ -320,6 +350,7 @@ export const integrationKeys = {
   jobs: (id: string) => ['integrations', 'jobs', id] as const,
   conflicts: (q: object) => ['integrations', 'conflicts', q] as const,
   manualBlocks: (q: object) => ['integrations', 'manual-blocks', q] as const,
+  receivedMails: (id: string) => ['integrations', 'received-mails', id] as const,
 };
 
 export function isMailProvider(provider: string) {
@@ -348,7 +379,10 @@ export function useSyncStatus(enabled = true) {
   });
 }
 
-export function useConflicts(q: { state?: 'open' | 'resolved' | 'ignored'; type?: ConflictType }, enabled = true) {
+export function useConflicts(
+  q: { state?: 'open' | 'resolved' | 'ignored'; type?: ConflictType },
+  enabled = true,
+) {
   return useInfiniteQuery({
     queryKey: integrationKeys.conflicts(q),
     queryFn: ({ pageParam }) => integrationsApi.conflicts({ ...q, cursor: pageParam }),
