@@ -49,9 +49,9 @@ envVarGroups:
         value: mock
       - key: PAYMENT_PROVIDER
         value: mock
-      # 写真・CSV出力は S3 互換ストレージ推奨（local はデプロイのたびに消える）
+      # 写真・CSV出力はデータベースに保存（DB のバックアップに含まれる）。S3 互換ストレージを使うなら s3
       - key: STORAGE_DRIVER
-        value: local
+        value: db
 
 services:
   - type: web

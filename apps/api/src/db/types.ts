@@ -1481,6 +1481,14 @@ export interface StockMovements {
   transaction_id: string | null;
 }
 
+export interface StorageObjects {
+  body: Buffer;
+  content_type: string;
+  created_at: Generated<Timestamp>;
+  object_key: string;
+  size_bytes: number;
+}
+
 export interface SyncConflicts {
   appointment_id: string | null;
   conflict_type: string;
@@ -1752,6 +1760,7 @@ export interface DB {
   staff_weekly_schedules: StaffWeeklySchedules;
   staffs: Staffs;
   stock_movements: StockMovements;
+  storage_objects: StorageObjects;
   sync_conflicts: SyncConflicts;
   sync_jobs: SyncJobs;
   tags: Tags;

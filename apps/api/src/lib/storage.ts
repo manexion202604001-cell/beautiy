@@ -8,6 +8,8 @@ import { signPayload, verifySignedPayload } from './crypto.js';
  * Object storage abstraction (要件 21: files go to object storage, DB keeps metadata only).
  *  - local: files under STORAGE_LOCAL_DIR, signed URLs served by the API (/v1/files/blob/:token)
  *  - s3:    AWS SigV4 presigned URLs (S3 / R2 / MinIO compatible), no SDK dependency
+ *  - db:    bytes in the storage_objects table (no bucket needed; backed up with the database),
+ *           signed URLs served by the API like local
  */
 export interface PresignedUpload {
   url: string;
@@ -64,6 +66,37 @@ export const localDriver: StorageDriver = {
   },
   async delete(objectKey) {
     await rm(safeLocalPath(objectKey), { force: true });
+  },
+};
+
+/** STORAGE_DRIVER=db: same signed URLs as local, bytes in PostgreSQL (migration 0182) */
+export const dbDriver: StorageDriver = {
+  presignUpload: localDriver.presignUpload,
+  presignDownload: localDriver.presignDownload,
+  async put(objectKey, body, contentType) {
+    const { withSystem } = await import('../db/tenant.js');
+    await withSystem((trx) =>
+      trx
+        .insertInto('storage_objects')
+        .values({ object_key: objectKey, content_type: contentType, size_bytes: body.length, body })
+        .onConflict((oc) => oc.column('object_key').doUpdateSet({ content_type: contentType, size_bytes: body.length, body }))
+        .execute(),
+    );
+  },
+  async get(objectKey) {
+    const { withSystem } = await import('../db/tenant.js');
+    const row = await withSystem((trx) => trx.selectFrom('storage_objects').select('body').where('object_key', '=', objectKey).executeTakeFirst());
+    if (!row) throw new Error('Object not found');
+    return Buffer.from(row.body);
+  },
+  async head(objectKey) {
+    const { withSystem } = await import('../db/tenant.js');
+    const row = await withSystem((trx) => trx.selectFrom('storage_objects').select('size_bytes').where('object_key', '=', objectKey).executeTakeFirst());
+    return row ? { size: row.size_bytes } : null;
+  },
+  async delete(objectKey) {
+    const { withSystem } = await import('../db/tenant.js');
+    await withSystem((trx) => trx.deleteFrom('storage_objects').where('object_key', '=', objectKey).execute());
   },
 };
 
@@ -142,4 +175,7 @@ export const s3Driver: StorageDriver = {
   },
 };
 
-export const storage: StorageDriver = config.STORAGE_DRIVER === 's3' ? s3Driver : localDriver;
+export const storage: StorageDriver = config.STORAGE_DRIVER === 's3' ? s3Driver : config.STORAGE_DRIVER === 'db' ? dbDriver : localDriver;
+
+/** drivers whose signed URLs are served by the API itself (/v1/files/blob/:token) */
+export const servesBlobs = config.STORAGE_DRIVER !== 's3';

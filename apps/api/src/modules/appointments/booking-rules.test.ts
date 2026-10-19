@@ -369,8 +369,9 @@ describe('予約受付設定 (店舗)', () => {
     const info = await api().get(`/v1/public/shops/${slug}`);
     expect(info.body.booking.lastBookableDate).toBe(last);
 
-    // 前日以前に締め切る (2日前の24時まで): tomorrow is closed for online booking, staff are not affected
-    await t.owner.patch(`/v1/shops/${t.shopId}`, { settings: { booking: { cutoffType: 'days_before', cutoffDaysBefore: 2, cutoffTime: '24:00' } } });
+    // 前日以前に締め切る (3日前の24時まで): tomorrow and the day after are closed for online booking
+    // (the day after stands in for tomorrow when tomorrow is the test shop's closed Tuesday), staff are not affected
+    await t.owner.patch(`/v1/shops/${t.shopId}`, { settings: { booking: { cutoffType: 'days_before', cutoffDaysBefore: 3, cutoffTime: '24:00' } } });
     const tomorrow = notTuesday(jstDate(1)) ?? jstDate(2);
     expect(await slotsOf(slug, menu.id, tomorrow, stylist.staffId)).toHaveLength(0);
     const refused = await publicBook(slug, menu.id, jst(tomorrow, '15:00'), 1, stylist.staffId);

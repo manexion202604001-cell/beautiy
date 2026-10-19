@@ -56,7 +56,7 @@ URL が `https://salon-os-web.onrender.com` と違う場合（名前が既に使
 | 項目 | 設定（`salon-os-shared`） |
 |---|---|
 | 枠止め依頼・予約確認メールを実際に送る | `EMAIL_DRIVER=smtp`、`SMTP_URL=smtp://user:pass@host:587`、`MAIL_FROM` を追加 |
-| 写真・カルテ画像・CSV出力を保存する | `STORAGE_DRIVER=s3`、`S3_BUCKET` / `S3_REGION` / `S3_ENDPOINT`（Cloudflare R2 等）/ `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`。`local` のままだとデプロイのたびに消える |
+| 写真・カルテ画像・CSV出力を保存する | 既定は `STORAGE_DRIVER=db`（データベースに保存、追加の契約不要）。容量が増えたら `STORAGE_DRIVER=s3`、`S3_BUCKET` / `S3_REGION` / `S3_ENDPOINT`（Cloudflare R2 等）/ `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`。`local` はデプロイのたびに消えるので本番では使わない |
 | LINE 公式アカウント | `LINE_DRIVER=live` + 画面の「LINE公式アカウント」でチャネル登録 |
 | オンライン決済 | `PAYMENT_PROVIDER=stripe`、`STRIPE_SECRET_KEY`、`STRIPE_WEBHOOK_SECRET`（Webhook: `https://<Web の URL>/v1/webhooks/stripe`） |
 | AI 下書き | `ANTHROPIC_API_KEY`（未設定時はルールベース） |

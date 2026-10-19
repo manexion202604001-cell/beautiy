@@ -30,7 +30,7 @@ const schema = z.object({
   ENCRYPTION_KEY: z.string().default('ZGV2LW9ubHktZW5jcnlwdGlvbi1rZXktMzJieXRlcyE='),
   /** HMAC secret for opaque access tokens & signed URLs */
   TOKEN_SECRET: z.string().default('dev-only-token-secret-change-me'),
-  STORAGE_DRIVER: z.enum(['local', 's3']).default('local'),
+  STORAGE_DRIVER: z.enum(['local', 's3', 'db']).default('local'),
   STORAGE_LOCAL_DIR: z.string().default('./storage'),
   S3_BUCKET: z.string().optional(),
   S3_REGION: z.string().optional(),

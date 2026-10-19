@@ -128,7 +128,7 @@ export async function completeUpload(ctx: Ctx, fileId: string, input: { checksum
   if (head.size > policy.maxBytes) throw tooLarge(policy.maxBytes);
 
   let checksum: string | null = null;
-  if (input.checksumSha256 || config.STORAGE_DRIVER === 'local') {
+  if (input.checksumSha256 || config.STORAGE_DRIVER !== 's3') {
     const body = await storage.get(row.object_key);
     if (!matchesSignature(row.content_type, body)) throw unsupportedType('ファイルの内容が形式と一致しません');
     checksum = sha256(body);

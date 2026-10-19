@@ -1,10 +1,9 @@
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { config } from '../../config.js';
 import { withSystem } from '../../db/tenant.js';
 import { AppError, Errors } from '../../lib/errors.js';
 import { booleanQuery, idParam } from '../../lib/schemas.js';
-import { storage, verifyLocalBlobToken } from '../../lib/storage.js';
+import { servesBlobs, storage, verifyLocalBlobToken } from '../../lib/storage.js';
 import './jobs.js';
 import { baseContentType, FILE_PURPOSES, matchesSignature, MAX_UPLOAD_BYTES, PURPOSE_POLICIES, type FilePurpose } from './policy.js';
 import * as svc from './service.js';
@@ -75,7 +74,7 @@ const plugin: FastifyPluginAsyncZod = async (app) => {
     '/files/blob/*',
     { bodyLimit: MAX_UPLOAD_BYTES, config: { auth: 'public' }, schema: { tags, summary: 'ローカルストレージへのアップロード(署名付きURL)', params: blobParams } },
     async (req, reply) => {
-      if (config.STORAGE_DRIVER !== 'local') throw Errors.notFound('URL');
+      if (!servesBlobs) throw Errors.notFound('URL');
       const claims = verifyBlobToken(req.params['*'], 'put');
       const ct = baseContentType(req.headers['content-type']);
       if (!claims.ct || ct !== baseContentType(claims.ct)) {
@@ -100,7 +99,7 @@ const plugin: FastifyPluginAsyncZod = async (app) => {
   );
 
   app.get('/files/blob/*', { config: { auth: 'public' }, schema: { tags, summary: 'ローカルストレージからのダウンロード(署名付きURL)', params: blobParams } }, async (req, reply) => {
-    if (config.STORAGE_DRIVER !== 'local') throw Errors.notFound('URL');
+    if (!servesBlobs) throw Errors.notFound('URL');
     const claims = verifyBlobToken(req.params['*'], 'get');
     const file = await withSystem((trx) =>
       trx.selectFrom('files').select(['id', 'status', 'content_type']).where('object_key', '=', claims.k).executeTakeFirst(),
