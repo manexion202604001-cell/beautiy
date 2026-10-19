@@ -11,7 +11,9 @@
  * 使い方: docs/go-live.md 「D. メール受信」。setup() を一度実行すると1分ごとの実行が登録されます。
  */
 
-var SEARCH = 'newer_than:2d -in:spam -in:trash';
+// in:anywhere = the spam folder too: Gmail sometimes files the media's notifications as spam, and only
+// mails to a shop's +address are sent on (they are read where they are; nothing is moved or deleted)
+var SEARCH = 'newer_than:2d in:anywhere -in:trash';
 var DONE_KEY = 'DONE_IDS';
 var DONE_KEEP = 3000;
 

@@ -78,6 +78,9 @@ pnpm exec tsx src/scripts/import-salogic.ts \
 4. エディタ上部の関数で **setup** を選んで **実行** → Google の権限確認（Gmail の読み取り・外部への送信・トリガー）を許可。
    これで1分ごとの取り込みが動き始めます。
 
+迷惑メールフォルダに入った通知も取り込みます。受信トレイでも見たい場合は、Gmail の **設定 → フィルタ** で
+「To: `fein.yoyaku+*`」（または「From: salonboard.com」）に **迷惑メールにしない** を付けてください。
+
 店舗を増やすときは `ROUTES` に `"aoyama": "<青山の受信URL>"` を足し、サロンボードには `fein.yoyaku+aoyama@gmail.com` を登録するだけです。
 
 ## E. サロンボードにアドレスを登録する
