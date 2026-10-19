@@ -9,7 +9,8 @@
  * The shop's Hot Pepper Beauty (SALON BOARD) connector is set up as well: booking-notification
  * mails are taken in, slots booked in Salon OS become 枠止め requests (ADR 0010), and the SALON BOARD
  * staff names SALOGIC recorded are mapped to the imported staff. Add --connect-only to set up just
- * the connector for a shop imported earlier.
+ * the connector for a shop imported earlier, and --backfill-ids to record SALOGIC ids on the staff of a
+ * shop imported before they were kept (needed before importing further shops that share staff).
  *
  * The organization (slug "fein") is created on the first run with a development login
  * (FEIN_OWNER_EMAIL / FEIN_OWNER_PASSWORD); later runs add a shop to it. A shop slug that already
@@ -88,7 +89,7 @@ interface SgExport {
 }
 
 const { values: args } = parseArgs({
-  options: { file: { type: 'string' }, images: { type: 'string' }, slug: { type: 'string' }, 'connect-only': { type: 'boolean' } },
+  options: { file: { type: 'string' }, images: { type: 'string' }, slug: { type: 'string' }, 'connect-only': { type: 'boolean' }, 'backfill-ids': { type: 'boolean' } },
 });
 if (!args.file || !args.images || !args.slug) {
   console.error('usage: import-salogic.ts --file <export.json> --images <dir> --slug <shop slug>');
@@ -148,6 +149,38 @@ async function main() {
   };
   const store = data.store;
   const slug = args.slug!;
+
+  if (args['backfill-ids']) {
+    // for a shop imported before SALOGIC ids were kept: record them on its staff (matched by name
+    // inside that shop, where names are unique) so later shops find shared staff by id, never by name
+    const shop = await withSystem((trx) =>
+      trx.selectFrom('shops').innerJoin('organizations as o', 'o.id', 'shops.organization_id').select(['shops.id', 'shops.organization_id']).where('o.slug', '=', ORG_SLUG).where('shops.slug', '=', slug).executeTakeFirst(),
+    );
+    if (!shop) throw new Error(`shop "${slug}" not found in ${ORG_SLUG}`);
+    const done = await tx(shop.organization_id, async (ctx) => {
+      const rows = await ctx.trx
+        .selectFrom('staffs')
+        .innerJoin('staff_shop_assignments as a', 'a.staff_id', 'staffs.id')
+        .select(['staffs.id', 'staffs.display_name'])
+        .where('a.shop_id', '=', shop.id)
+        .where('staffs.deleted_at', 'is', null)
+        .execute();
+      let n = 0;
+      for (const s of data.staff) {
+        const hits = rows.filter((r) => r.display_name === s.name);
+        if (hits.length !== 1) continue;
+        await ctx.trx
+          .updateTable('staffs')
+          .set({ public_profile: sql`coalesce(public_profile, '{}'::jsonb) || ${JSON.stringify({ salogicId: s.id })}::jsonb` })
+          .where('id', '=', hits[0]!.id)
+          .execute();
+        n++;
+      }
+      return n;
+    });
+    console.log(JSON.stringify({ shop: slug, staffWithSalogicId: done, staffInExport: data.staff.length }));
+    return;
+  }
 
   if (args['connect-only']) {
     const shop = await withSystem((trx) =>
@@ -252,14 +285,14 @@ async function main() {
   await tx(orgId, async (ctx) => {
     const roles = new Map((await listRoles(ctx)).map((r) => [r.key, r.id]));
     // staff already imported with another shop (SALOGIC staff can work at several shops): found by the
-    // SALOGIC id kept in public_profile, or by name for shops imported before that id was kept
+    // SALOGIC id kept in public_profile. Never by name: two people can share one (run --backfill-ids
+    // first for a shop imported before ids were kept)
     const existing = await ctx.trx.selectFrom('staffs').select(['id', 'display_name', 'public_profile']).where('deleted_at', 'is', null).execute();
     const bySalogicId = new Map(existing.flatMap((e) => { const sid = (e.public_profile as { salogicId?: string } | null)?.salogicId; return sid ? [[sid, e.id] as const] : []; }));
-    const byName = new Map(existing.map((e) => [e.display_name, e.id]));
     for (const s of [...data.staff].sort((a, b) => a.sort_order - b.sort_order)) {
       const retired = !!s.retired_at;
       let id: string;
-      const known = bySalogicId.get(s.id) ?? (ownerStaffId ? undefined : byName.get(s.name));
+      const known = bySalogicId.get(s.id);
       if (known) {
         // add this shop to the staff member; their photo, nickname and login stay as they are
         id = known;
