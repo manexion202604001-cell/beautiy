@@ -19,6 +19,7 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
+import { sql } from 'kysely';
 import { systemActor, type Ctx } from '../auth/actor.js';
 import { db } from '../db/client.js';
 import { withSystem, withTenant } from '../db/tenant.js';
@@ -250,10 +251,24 @@ async function main() {
   const assignment = new Map(data.staff_store_assignments.map((a) => [a.id, a.stores.find((s) => s.id === data.store_id)]));
   await tx(orgId, async (ctx) => {
     const roles = new Map((await listRoles(ctx)).map((r) => [r.key, r.id]));
+    // staff already imported with another shop (SALOGIC staff can work at several shops): found by the
+    // SALOGIC id kept in public_profile, or by name for shops imported before that id was kept
+    const existing = await ctx.trx.selectFrom('staffs').select(['id', 'display_name', 'public_profile']).where('deleted_at', 'is', null).execute();
+    const bySalogicId = new Map(existing.flatMap((e) => { const sid = (e.public_profile as { salogicId?: string } | null)?.salogicId; return sid ? [[sid, e.id] as const] : []; }));
+    const byName = new Map(existing.map((e) => [e.display_name, e.id]));
     for (const s of [...data.staff].sort((a, b) => a.sort_order - b.sort_order)) {
       const retired = !!s.retired_at;
       let id: string;
-      if (s.role === 'owner' && ownerStaffId && s.id === sgOwner?.id) {
+      const known = bySalogicId.get(s.id) ?? (ownerStaffId ? undefined : byName.get(s.name));
+      if (known) {
+        // add this shop to the staff member; their photo, nickname and login stay as they are
+        id = known;
+        await ctx.trx
+          .insertInto('staff_shop_assignments')
+          .values({ organization_id: orgId, staff_id: id, shop_id: shopId, is_primary: false })
+          .onConflict((oc) => oc.doNothing())
+          .execute();
+      } else if (s.role === 'owner' && ownerStaffId && s.id === sgOwner?.id) {
         id = ownerStaffId;
         await updateStaff(ctx, id, { displayName: s.name, sortOrder: s.sort_order, isBookable: true });
       } else {
@@ -282,9 +297,17 @@ async function main() {
         .where('shop_id', '=', shopId)
         .execute();
 
-      const photo = await image(`staff-${s.id}`);
-      const file = photo ? await createFileRecord(ctx, { purpose: 'staff_photo', contentType: 'image/jpeg', body: photo, fileName: `${s.name}.jpg` }) : null;
-      await updateStaffExtras(ctx, id, { nickname: s.nickname || null, ...(file ? { photoFileId: file.id } : {}) });
+      if (!known) {
+        const photo = await image(`staff-${s.id}`);
+        const file = photo ? await createFileRecord(ctx, { purpose: 'staff_photo', contentType: 'image/jpeg', body: photo, fileName: `${s.name}.jpg` }) : null;
+        await updateStaffExtras(ctx, id, { nickname: s.nickname || null, ...(file ? { photoFileId: file.id } : {}) });
+      }
+      // remember the SALOGIC id so the next shop finds this staff member
+      await ctx.trx
+        .updateTable('staffs')
+        .set({ public_profile: sql`coalesce(public_profile, '{}'::jsonb) || ${JSON.stringify({ salogicId: s.id })}::jsonb` })
+        .where('id', '=', id)
+        .execute();
 
       const own = data.per_staff[s.id];
       const weekly = (own?.hours.business_hours ?? []).filter((h) => h.day_of_week <= 6);
@@ -314,26 +337,50 @@ async function main() {
 
   // ------------------------------------------------------------ categories
   const categoryByName = new Map<string, string>();
+  /** SALOGIC menus write 「親 ： 子」 with or without spaces / full-width forms */
+  const catKey = (name: string) => name.normalize('NFKC').replace(/\s+/g, '').replace(/:/g, '：');
   await tx(orgId, async (ctx) => {
     const cats = data.categories.categories;
     const byId = new Map<string, string>();
     for (const parent of cats.filter((c) => !c.parent_id)) {
       const row = await createCategory(ctx, { shopId, name: parent.name, sortOrder: parent.sort_order, color: parent.color });
       byId.set(parent.id, row.id);
-      categoryByName.set(parent.name, row.id);
+      categoryByName.set(catKey(parent.name), row.id);
     }
     for (const child of cats.filter((c) => c.parent_id)) {
       const row = await createCategory(ctx, { shopId, name: child.name, sortOrder: child.sort_order, parentId: byId.get(child.parent_id!)! });
-      categoryByName.set(child.name, row.id);
+      categoryByName.set(catKey(child.name), row.id);
     }
   });
 
   // ------------------------------------------------------------ menus / coupons
   const missing: string[] = [];
   await tx(orgId, async (ctx) => {
+    /** a category a menu names that the shop's category list lacks is created (parent first) */
+    const categoryFor = async (name: string): Promise<string | undefined> => {
+      const key = catKey(name);
+      if (!key) return undefined;
+      const hit = categoryByName.get(key);
+      if (hit) return hit;
+      const [parentName, childName] = key.split('：');
+      let parentId = categoryByName.get(parentName!);
+      if (!parentId) {
+        parentId = (await createCategory(ctx, { shopId, name: parentName!, sortOrder: 900 })).id;
+        categoryByName.set(parentName!, parentId);
+      }
+      if (!childName) return parentId;
+      const id = (await createCategory(ctx, { shopId, name: childName, sortOrder: 900, parentId })).id;
+      categoryByName.set(key, id);
+      return id;
+    };
     for (const m of [...data.menus].sort((a, b) => a.sort_order - b.sort_order)) {
-      const subs = (typeof m.sub_categories === 'string' ? (JSON.parse(m.sub_categories) as string[]) : (m.sub_categories ?? [])).map((n) => categoryByName.get(n)).filter((x): x is string => !!x);
-      const primary = m.category ? categoryByName.get(m.category) : undefined;
+      const subNames = typeof m.sub_categories === 'string' ? (JSON.parse(m.sub_categories) as string[]) : (m.sub_categories ?? []);
+      const subs: string[] = [];
+      for (const n of subNames) {
+        const id = await categoryFor(n);
+        if (id) subs.push(id);
+      }
+      const primary = m.category ? await categoryFor(m.category) : undefined;
       if (m.category && !primary) missing.push(`${m.name}: カテゴリ「${m.category}」`);
       const pic = await image(`menu-${m.id}`);
       const file = pic ? await createFileRecord(ctx, { purpose: 'menu_image', contentType: 'image/jpeg', body: pic, fileName: `${m.id}.jpg` }) : null;
