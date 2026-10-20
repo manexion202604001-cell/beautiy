@@ -362,4 +362,24 @@ describe('Hot Pepper / LiME booking-notification mail sync', () => {
     const other = await createTenant();
     expect((await other.owner.get(`/v1/integrations/${hp.id}/received-mails`)).status).toBe(404);
   });
+
+  it('asks for no slot block for reservations copied from the previous system', async () => {
+    const { t, misaki, cut } = await setup();
+    const date = nextWeekday(WED);
+    const customer = await createCustomer(t);
+    const res = await t.owner.post('/v1/appointments', {
+      shopId: t.shopId,
+      customerId: customer.id,
+      staffId: misaki.staffId,
+      startAt: jst(date, '15:00'),
+      menuIds: [cut.id],
+      source: 'phone',
+      sourceDetail: { migrated: true, salogicId: 'sg-1' },
+    });
+    expect(res.status).toBe(201);
+    await runJobs();
+    // SALOGIC already holds this slot on SALON BOARD
+    expect((await t.owner.get('/v1/integrations/manual-blocks')).body).toEqual([]);
+    expect((await t.owner.get(`/v1/appointments/${res.body.id}`)).body.media_sync.blocks).toEqual([]);
+  });
 });

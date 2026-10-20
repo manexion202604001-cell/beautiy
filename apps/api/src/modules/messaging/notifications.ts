@@ -98,7 +98,9 @@ onEvent<AppointmentEventPayload>('appointment.created', async (ctx, e: Ev) => {
   if (!p.customerId || !['confirmed', 'tentative'].includes(p.status ?? '')) return;
   // reservations brought over from the previous system: the customer already has a confirmation;
   // reminders only when the import asked for them (the old system may still be sending its own)
-  const imported = p.source === 'import';
+  // (sourceDetail.migrated: copied from the previous system while it is still in use, see
+  // scripts/sync-salogic-reservations.ts — treated like an import)
+  const imported = p.source === 'import' || !!(p.sourceDetail as { migrated?: boolean } | undefined)?.migrated;
   if (imported && !(p.sourceDetail as { sendReminders?: boolean } | undefined)?.sendReminders) return;
   const shop = await shopContext(ctx, p.shopId);
   const url = await manageUrl(ctx, e.aggregateId, p.customerId);
