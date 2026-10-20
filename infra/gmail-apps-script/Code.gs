@@ -65,6 +65,10 @@ function routeBySender(routes, senderShops, from, text) {
   return candidates.length === 1 ? routes[candidates[0]] : null;
 }
 
+function isMediumMail(from) {
+  return /salonboard|hotpepper|minimodel|minimo|lime/i.test(String(from || ''));
+}
+
 function routeFor(routes, tag) {
   if (!tag) return null;
   var keys = Object.keys(routes);
@@ -114,7 +118,10 @@ function forwardNewMails() {
         var to = [msg.getHeader('Delivered-To'), msg.getTo(), msg.getCc()].join(',');
         var url = routeFor(routes, tagOf(to)) || routeBySender(routes, senderShops, msg.getFrom(), msg.getSubject() + '\n' + msg.getPlainBody());
         if (!url) {
-          done = remember(done, id); // not for Salon OS (no +tag of a shop)
+          // a booking medium's mail we cannot place yet (e.g. SENDER_SHOPS lacks the shop): keep it for
+          // the next runs (2 days) instead of dropping it; anything else is not for Salon OS
+          if (!isMediumMail(msg.getFrom())) done = remember(done, id);
+          else console.warn('振り分け先が分からない媒体メール: ' + msg.getSubject());
           continue;
         }
         var res = UrlFetchApp.fetch(url, {
@@ -156,4 +163,4 @@ function setup() {
   forwardNewMails();
 }
 
-if (typeof module !== 'undefined') module.exports = { tagOf: tagOf, parseRoutes: parseRoutes, routeFor: routeFor, routeBySender: routeBySender, webhookBody: webhookBody, remember: remember };
+if (typeof module !== 'undefined') module.exports = { tagOf: tagOf, parseRoutes: parseRoutes, routeFor: routeFor, routeBySender: routeBySender, isMediumMail: isMediumMail, webhookBody: webhookBody, remember: remember };

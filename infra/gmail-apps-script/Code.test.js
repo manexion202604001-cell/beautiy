@@ -6,7 +6,7 @@ const Module = require('node:module');
 const m = new Module(path.join(__dirname, 'Code.gs'));
 m.paths = module.paths;
 m._compile(require('node:fs').readFileSync(path.join(__dirname, 'Code.gs'), 'utf8'), path.join(__dirname, 'Code.gs'));
-const { tagOf, parseRoutes, routeFor, routeBySender, webhookBody, remember } = m.exports;
+const { tagOf, parseRoutes, routeFor, routeBySender, isMediumMail, webhookBody, remember } = m.exports;
 
 const URL = 'https://salon-os-web.onrender.com/v1/webhooks/inbound_email/abcdefghijklmnopqrstuvwx';
 
@@ -48,4 +48,10 @@ test('routes mails without a +tag by sender (minimo stores the address without i
   assert.equal(routeBySender(two, {}, 'noreply@minimodel.jp', 'x'), null);
   const shops = { 'minimodel.jp': { 表参道: 'minimo-omotesando', 青山: 'minimo-aoyama' } };
   assert.equal(routeBySender(two, shops, 'noreply@mail.minimodel.jp', 'fein.表参道店 様'), MIN);
+});
+
+test('recognises booking-media senders (their mails are kept until they can be routed)', () => {
+  assert.equal(isMediumMail('minimo <noreply@minimodel.jp>'), true);
+  assert.equal(isMediumMail('yoyaku_system@salonboard.com'), true);
+  assert.equal(isMediumMail('friend@gmail.com'), false);
 });
