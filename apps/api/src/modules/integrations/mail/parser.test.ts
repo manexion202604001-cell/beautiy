@@ -84,6 +84,8 @@ describe('booking mail parser', () => {
     // the medium's account mails are not bookings even though they mention 予約
     expect(detectKind('【SALON BOARD】予約お知らせメールアドレス認証のお願い', '下記URLから認証してください')).toBe('unknown');
     expect(detectKind('【SALON BOARD】パスワード変更のお知らせ', '')).toBe('unknown');
+    expect(detectKind('【SALON BOARD】予約お知らせメールアドレスの確認', '')).toBe('unknown');
+    expect(detectKind('ミニモサロンツール 通知先メールアドレス追加のご案内', '')).toBe('unknown');
     expect(detectKind('【SALON BOARD】予約連絡', '')).toBe('booked');
     expect(detectKind('お知らせ', '下記のご予約がキャンセルされました。')).toBe('cancelled');
     expect(detectKind('メルマガ', 'セール情報')).toBe('unknown');

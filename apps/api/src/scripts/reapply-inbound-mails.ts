@@ -15,7 +15,7 @@ import '../modules/index.js';
 import type { InboundMail } from '../modules/integrations/mail/inbound.js';
 import { applyInboundMail } from '../modules/integrations/mail/service.js';
 
-const { values: args } = parseArgs({ options: { since: { type: 'string' } } });
+const { values: args } = parseArgs({ options: { since: { type: 'string' }, rematch: { type: 'boolean' } } });
 if (!args.since || !/^\d{4}-\d{2}-\d{2}$/.test(args.since)) {
   console.error('usage: reapply-inbound-mails.ts --since YYYY-MM-DD');
   process.exit(1);
@@ -32,6 +32,17 @@ async function main() {
       .orderBy('received_at')
       .execute(),
   );
+  if (args.rematch) {
+    // the parsed booking may be unchanged while the menu matching improved: apply them all again
+    await withSystem((trx) =>
+      trx
+        .updateTable('external_bookings')
+        .set({ payload_hash: '' })
+        .where(sql<string>`raw_payload->>'source'`, '=', 'email')
+        .where('created_at', '>=', new Date(`${args.since}T00:00:00+09:00`))
+        .execute(),
+    );
+  }
   const outcomes: Record<string, number> = {};
   const failures: string[] = [];
   for (const ev of events) {

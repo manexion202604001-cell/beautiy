@@ -382,4 +382,39 @@ describe('Hot Pepper / LiME booking-notification mail sync', () => {
     expect((await t.owner.get('/v1/integrations/manual-blocks')).body).toEqual([]);
     expect((await t.owner.get(`/v1/appointments/${res.body.id}`)).body.media_sync.blocks).toEqual([]);
   });
+
+  it('maps a SALON BOARD coupon to the coupon menu whose name carries the price', async () => {
+    const { t, hp } = await setup();
+    await createMenu(t, { name: 'パリジェンヌラッシュリフト', durationMin: 60 });
+    const coupon = await createMenu(t, { name: '【リピーター様】人気NO.1まつげパーマ・パリジェンヌラッシュリフト☆￥8000', durationMin: 60 });
+    const date = nextWeekday(WED);
+    const [y, mo, d] = date.split('-');
+    const text = [
+      '◇ご予約内容',
+      '■予約番号',
+      '\u3000BF20000001',
+      '■氏名',
+      '\u3000山田 花子（ヤマダ ハナコ）',
+      '■来店日時',
+      `\u3000${y}年${Number(mo)}月${Number(d)}日（水）14:00`,
+      '■指名スタッフ',
+      '\u3000佐藤',
+      '■メニュー',
+      '\u3000まつエク＋その他まつげメニュー',
+      '\u3000（所要時間目安：1時間）',
+      '■ご利用クーポン',
+      '\u3000[再来]',
+      '\u3000【リピーター様】人気NO.1まつげパーマ・パリジェンヌラッシュリフト☆￥8000',
+      '\u3000\u3000【次世代パーマ】カールの種類ご提案させていただきます♪',
+      '■合計金額',
+      '\u3000予約時合計金額\u30008,000円',
+    ].join('\n');
+    const res = await post(tokenOf(hp), { subject: '予約連絡', text, messageId: `<bf2-${Math.random()}@salonboard.example>` });
+    expect(res.status).toBe(200);
+    await runJobs();
+    const [appt] = await externalAppointments(t);
+    const detail = (await t.owner.get(`/v1/appointments/${appt!.id}`)).body;
+    expect(detail.services.map((s: { menu_id: string }) => s.menu_id)).toEqual([coupon.id]);
+    expect(detail.customer_name).toBe('山田 花子');
+  });
 });

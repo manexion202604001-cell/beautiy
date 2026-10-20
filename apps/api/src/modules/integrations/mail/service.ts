@@ -123,18 +123,20 @@ export async function resolveMappings(
     }
     let match: (typeof shopMenus)[number] | undefined;
     if (auto) {
-      const target = normalizeName(name);
-      const exact = shopMenus.filter((m) => normalizeName(m.name) === target);
+      // prices are part of some menu names ("…☆￥8000") but not of the mail's line: compare without them
+      const key = (s: string) => normalizeName(s.replace(/[¥￥]\s*[\d,]+|[\d,]+\s*円/g, ''));
+      const target = key(name);
+      const exact = shopMenus.filter((m) => key(m.name) === target);
       // the mail line contains a menu name ("【全員】カット+カラー ¥12,000"): the longest one wins
       const contained = shopMenus
-        .filter((m) => normalizeName(m.name) && target.includes(normalizeName(m.name)))
-        .sort((a, b) => normalizeName(b.name).length - normalizeName(a.name).length);
+        .filter((m) => key(m.name) && target.includes(key(m.name)))
+        .sort((a, b) => key(b.name).length - key(a.name).length);
       // the mail name is a fragment of a menu name ("カラー"): only when exactly one menu fits
-      const containing = shopMenus.filter((m) => target && normalizeName(m.name).includes(target));
+      const containing = shopMenus.filter((m) => target && key(m.name).includes(target));
       if (exact.length === 1) match = exact[0];
       else if (exact.length === 0 && contained.length) {
         const [a, b] = contained;
-        if (!b || normalizeName(a!.name).length > normalizeName(b.name).length) match = a;
+        if (!b || key(a!.name).length > key(b.name).length) match = a;
       } else if (exact.length === 0 && containing.length === 1) match = containing[0];
     }
     if (match) {
