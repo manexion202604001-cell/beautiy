@@ -19,7 +19,7 @@
  * told the customer and the media. Created appointments carry sourceDetail.migrated, so no customer
  * message and no SALON BOARD 枠止め request is sent for them (SALOGIC holds those slots already).
  */
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
 import { sql } from 'kysely';
 import { systemActor, type Ctx } from '../auth/actor.js';
@@ -80,7 +80,7 @@ interface ShopExport {
 
 const SOURCE: Record<string, string> = { phone: 'phone', 'walk-in': 'walk_in', web: 'web', line: 'line', minimo: 'minimo', hotpepper: 'external' };
 
-const { values: args } = parseArgs({ options: { file: { type: 'string' }, shop: { type: 'string' } } });
+const { values: args } = parseArgs({ options: { file: { type: 'string' }, shop: { type: 'string' }, report: { type: 'string' } } });
 if (!args.file) {
   console.error('usage: sync-salogic-reservations.ts --file <reservations.json> [--shop <slug>]');
   process.exit(1);
@@ -182,11 +182,13 @@ async function main() {
       }
     });
 
+    console.error(`== ${shop.name}: ${shopData.reservations.length}件を確認します`);
     const seen = new Set<string>();
     for (const res of shopData.reservations) {
       if (new Date(res.start_at) < from) continue;
       const key = `${shopData.store_id}:${res.id}`;
       seen.add(key);
+      if (seen.size % 100 === 0) console.error(`   ${seen.size}件…`);
       const fp = fingerprint(res);
       const pending = { customersCreated: 0 };
       try {
@@ -325,7 +327,9 @@ async function main() {
       }
     });
   }
-  console.log(JSON.stringify({ from: data.from, shops: report, problems: problems.slice(0, 200), problemCount: problems.length }, null, 1));
+  const result = { from: data.from, shops: report, problems, problemCount: problems.length };
+  if (args.report) await writeFile(args.report, JSON.stringify(result, null, 1));
+  else console.log(JSON.stringify({ ...result, problems: problems.slice(0, 200) }, null, 1));
 }
 
 async function saveKey(ctx: Ctx, key: string, resourceId: string) {
