@@ -90,7 +90,7 @@ const tx = <T>(organizationId: string, fn: (ctx: Ctx) => Promise<T>) =>
   withTenant(organizationId, (trx) => fn({ actor: systemActor(organizationId, 'salogic-sync'), trx, meta: { traceId: 'salogic-sync' } }));
 
 const split = (full: string | null) => {
-  const parts = (full ?? '').trim().split(/[\s　]+/).filter(Boolean);
+  const parts = (full ?? '').trim().split(/[\s\u3000]+/).filter(Boolean);
   return [parts[0] ?? '', parts.slice(1).join(' ')] as const;
 };
 const menuEntries = (r: SgReservation): { name: string; duration: number | null; price: number | null }[] => {
