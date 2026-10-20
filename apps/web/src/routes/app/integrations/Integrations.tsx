@@ -1,5 +1,5 @@
 import { useSearchParams } from 'react-router';
-import { useSyncStatus } from '../../../api/integrations';
+import { isMailProvider, useSyncStatus } from '../../../api/integrations';
 import { Forbidden } from '../../../components/Forbidden';
 import { PageHeader, TabPanel, Tabs } from '../../../components/ui';
 import { useAuth } from '../../../lib/auth';
@@ -20,7 +20,7 @@ export default function Integrations() {
   const open = status.data?.shops.reduce((s, x) => s + x.openConflicts, 0) ?? undefined;
   const accounts = status.data?.shops.flatMap((s) => s.accounts) ?? [];
   const manual = accounts.reduce((s, a) => s + (a.manualActionRequired ?? 0), 0);
-  const hasManual = accounts.some((a) => a.provider === 'hotpepper_mail' || a.provider === 'lime_mail');
+  const hasManual = accounts.some((a) => isMailProvider(a.provider));
   const tabs: { value: Tab; label: string; count?: number }[] = [
     { value: 'accounts', label: '予約媒体' },
     ...(hasManual || manual ? [{ value: 'manual' as Tab, label: '媒体の枠止め', count: manual || undefined }] : []),

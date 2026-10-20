@@ -16,6 +16,7 @@ import { applyInboundMail } from './service.js';
  * E-mail ingestion connectors.
  *  hotpepper_mail: Hot Pepper Beauty bookings via SALON BOARD booking-notification mails
  *  lime_mail:      LiME bookings via LiME booking-notification mails
+ *  minimo_mail:    minimo bookings via the SALON TOOL's 通知先メールアドレス (several can be registered)
  *
  * Inbound (medium → Salon OS): near real time — the salon forwards notification mails to the
  *   account's inbound address; an inbound-mail service (SendGrid / Mailgun / Postmark / SES / Cloudflare)
@@ -24,7 +25,7 @@ import { applyInboundMail } from './service.js';
  * Outbound (Salon OS → medium): neither medium has a write API, so pushMode 'manual' turns every
  *   "block this slot" into a staff task (see push.ts) instead of an API call.
  */
-export const MAIL_PROVIDERS = ['hotpepper_mail', 'lime_mail'] as const;
+export const MAIL_PROVIDERS = ['hotpepper_mail', 'lime_mail', 'minimo_mail'] as const;
 
 function mailAdapter(name: string): BookingProviderAdapter {
   return {

@@ -4,11 +4,13 @@ import type { AppointmentMediaSync } from '../api/types';
 export const MEDIA_SHORT: Record<string, string> = {
   hotpepper_mail: 'HPB',
   lime_mail: 'LiME',
+  minimo_mail: 'minimo',
   mock_booking: '媒体',
 };
 export const MEDIA_NAME: Record<string, string> = {
   hotpepper_mail: 'ホットペッパー（サロンボード）',
   lime_mail: 'LiME',
+  minimo_mail: 'minimo',
   mock_booking: '外部予約媒体',
 };
 

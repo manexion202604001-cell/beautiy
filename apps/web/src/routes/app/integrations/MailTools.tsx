@@ -60,6 +60,11 @@ const MEDIUM: Record<string, { name: string; mailFrom: string; adminScreen: stri
     mailFrom: 'LiME からの予約受付・変更・キャンセルの通知メール',
     adminScreen: 'LiME の予約台帳で該当スタッフの枠を「予定（受付不可）」に',
   },
+  minimo_mail: {
+    name: 'minimo',
+    mailFrom: 'minimo サロンツールからの予約受付・変更・キャンセルの通知メール',
+    adminScreen: 'minimo サロンツールのスケジュールで該当スタッフの枠を受付不可に',
+  },
 };
 
 export function mediumName(provider: string) {

@@ -69,6 +69,12 @@ export const PROVIDER_PROFILES: Record<
     labels: COMMON_LABELS,
     senderHints: ['lime', 'limehair'],
   },
+  // initial values — confirm with a real notification (parse-test) and add labels per account if needed
+  minimo_mail: {
+    label: 'minimo（サロンツールの予約通知メール）',
+    labels: COMMON_LABELS,
+    senderHints: ['minimo', 'minimodel'],
+  },
 };
 
 export interface ParsedMail {

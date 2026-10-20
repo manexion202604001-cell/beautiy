@@ -288,6 +288,12 @@ export const PROVIDERS: { value: string; label: string; description: string }[] 
       'LiME の予約通知メールを専用アドレスへ転送すると、予約台帳へ反映します。既存の予約はCSVで一括取り込みできます。',
   },
   {
+    value: 'minimo_mail',
+    label: 'minimo（予約通知メール連携）',
+    description:
+      'minimo サロンツールの「通知先メールアドレス」に専用アドレスを追加すると、minimo の予約を予約台帳へ反映します。',
+  },
+  {
     value: 'mock_booking',
     label: '予約媒体（モック）',
     description: 'HotPepper 型の予約媒体シミュレーター。同期エンジンの動作確認用です。',
@@ -354,7 +360,7 @@ export const integrationKeys = {
 };
 
 export function isMailProvider(provider: string) {
-  return provider === 'hotpepper_mail' || provider === 'lime_mail';
+  return provider === 'hotpepper_mail' || provider === 'lime_mail' || provider === 'minimo_mail';
 }
 
 export function useManualBlocks(q: { shopId?: string; state?: 'open' | 'all' }, enabled = true) {

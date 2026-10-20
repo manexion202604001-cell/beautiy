@@ -212,7 +212,7 @@ export function AccountsTab() {
               {pending ? (
                 <Alert tone="warning" title={`媒体で止める・再開する枠が ${pending} 件あります`}>
                   「媒体の枠止め」タブで確認し、
-                  {a.provider === 'lime_mail' ? 'LiME' : 'SALON BOARD'}{' '}
+                  {a.provider === 'lime_mail' ? 'LiME' : a.provider === 'minimo_mail' ? 'minimo サロンツール' : 'SALON BOARD'}{' '}
                   で操作後に「対応済み」を押してください。
                 </Alert>
               ) : null}

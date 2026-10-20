@@ -89,7 +89,7 @@ interface SgExport {
 }
 
 const { values: args } = parseArgs({
-  options: { file: { type: 'string' }, images: { type: 'string' }, slug: { type: 'string' }, 'connect-only': { type: 'boolean' }, 'backfill-ids': { type: 'boolean' } },
+  options: { file: { type: 'string' }, images: { type: 'string' }, slug: { type: 'string' }, 'connect-only': { type: 'boolean' }, provider: { type: 'string' }, 'backfill-ids': { type: 'boolean' } },
 });
 if (!args.file || !args.images || !args.slug) {
   console.error('usage: import-salogic.ts --file <export.json> --images <dir> --slug <shop slug>');
@@ -112,9 +112,9 @@ const bool = (v: unknown) => v === 1 || v === true;
  * Hot Pepper Beauty connector of the shop (booking-notification mails in, 枠止め requests out). SALON BOARD
  * staff names come from SALOGIC; staff are found by their name in the shop.
  */
-async function connectSalonBoard(orgId: string, shopId: string, data: SgExport) {
+async function connectSalonBoard(orgId: string, shopId: string, data: SgExport, provider: 'hotpepper_mail' | 'minimo_mail' = 'hotpepper_mail') {
   return tx(orgId, async (ctx) => {
-    const existing = await ctx.trx.selectFrom('integration_accounts').select('id').where('shop_id', '=', shopId).where('provider', '=', 'hotpepper_mail').executeTakeFirst();
+    const existing = await ctx.trx.selectFrom('integration_accounts').select('id').where('shop_id', '=', shopId).where('provider', '=', provider).executeTakeFirst();
     if (existing) return { integrationAccountId: existing.id, created: false, staffMap: 0 };
     const staff = await ctx.trx
       .selectFrom('staffs')
@@ -125,15 +125,19 @@ async function connectSalonBoard(orgId: string, shopId: string, data: SgExport) 
       .execute();
     const byName = new Map(staff.map((s) => [s.display_name, s.id]));
     const staffMap: Record<string, string> = {};
-    for (const s of data.staff) {
-      const id = byName.get(s.name);
-      if (s.salonboard_name && id && !s.retired_at) staffMap[s.salonboard_name.trim()] = id;
+    // minimo names its stylists itself: those are matched by name when the first mails arrive
+    if (provider === 'hotpepper_mail') {
+      for (const s of data.staff) {
+        const id = byName.get(s.name);
+        if (s.salonboard_name && id && !s.retired_at) staffMap[s.salonboard_name.trim()] = id;
+      }
     }
     const row = await createIntegration(ctx, {
-      provider: 'hotpepper_mail',
+      provider,
       shopId,
-      displayName: 'ホットペッパービューティー（サロンボード）',
-      config: { staffMap, menuMap: {}, conflictPolicy: 'manual', pushBlocks: true },
+      displayName: provider === 'minimo_mail' ? 'minimo（サロンツール）' : 'ホットペッパービューティー（サロンボード）',
+      // minimo: no slot-block requests until the salon decides how stylists keep minimo schedules closed
+      config: { staffMap, menuMap: {}, conflictPolicy: 'manual', pushBlocks: provider === 'hotpepper_mail' },
     });
     return { integrationAccountId: row.id, created: true, staffMap: Object.keys(staffMap).length };
   });
@@ -187,7 +191,8 @@ async function main() {
       trx.selectFrom('shops').innerJoin('organizations as o', 'o.id', 'shops.organization_id').select(['shops.id', 'shops.organization_id']).where('o.slug', '=', ORG_SLUG).where('shops.slug', '=', slug).executeTakeFirst(),
     );
     if (!shop) throw new Error(`shop "${slug}" not found in ${ORG_SLUG}`);
-    console.log(JSON.stringify(await connectSalonBoard(shop.organization_id, shop.id, data), null, 1));
+    const provider = args.provider === 'minimo_mail' ? 'minimo_mail' : 'hotpepper_mail';
+    console.log(JSON.stringify(await connectSalonBoard(shop.organization_id, shop.id, data, provider), null, 1));
     return;
   }
 
