@@ -4,7 +4,7 @@ import { uuid } from '../../lib/schemas.js';
 const externalKey = z.string().min(1).max(100);
 
 /** e-mail ingestion connectors (Hot Pepper / LiME booking-notification mails) */
-export const MAIL_LABEL_FIELDS = ['reservationNo', 'datetime', 'date', 'time', 'end', 'duration', 'name', 'kana', 'phone', 'email', 'staff', 'menu', 'amount', 'note'] as const;
+export const MAIL_LABEL_FIELDS = ['reservationNo', 'datetime', 'date', 'time', 'end', 'duration', 'name', 'kana', 'phone', 'email', 'staff', 'menu', 'coupon', 'amount', 'note'] as const;
 export const mailConfigSchema = z.object({
   /** secret part of the inbound webhook URL (generated on create) */
   inboundToken: z.string().min(16).max(100).optional(),

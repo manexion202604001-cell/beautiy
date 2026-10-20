@@ -118,4 +118,50 @@ describe('booking mail parser', () => {
     expect(parseDurationMin('90分')).toBe(90);
     expect(parseDurationMin('1.5時間')).toBe(90);
   });
+
+  it('reads the real SALON BOARD layout: headings, coupon apart from the menu category, kana in parentheses', () => {
+    const text = [
+      'fein.テスト店様',
+      '',
+      'HOT PEPPER Beauty「SALON BOARD」にお客様から',
+      'ご予約が入りました。',
+      '',
+      '◇ご予約内容',
+      '■予約番号',
+      '\u3000BF12345678',
+      '■氏名',
+      '\u3000山田 花子（ヤマダ ハナコ）',
+      '■来店日時',
+      '\u30002026年10月20日（火）15:30',
+      '■指名スタッフ',
+      '\u3000ai ka',
+      '■メニュー',
+      '\u3000まつエク＋その他まつげメニュー',
+      '\u3000（所要時間目安：1時間）',
+      '■ご利用クーポン',
+      '\u3000[再来]',
+      '\u3000【リピーター様】人気NO.1まつげパーマ・パリジェンヌラッシュリフト☆￥8000',
+      '\u3000\u3000【次世代パーマ】カールの種類ご提案させていただきます♪【表参道】',
+      '■合計金額',
+      '\u3000予約時合計金額\u30008,000円',
+      '\u3000お支払い予定金額\u30008,000円',
+      '◇ご予約付加情報',
+      '■ご要望・ご相談',
+      '\u3000-',
+    ].join('\n');
+    const p = parseBookingMail({ subject: '【当日15時30分】直前予約が入りました', text, receivedAt: new Date('2026-10-20T04:00:00Z') });
+    expect(p.kind).toBe('booked');
+    expect(p.reservationNo).toBe('BF12345678');
+    expect(p.start?.toISOString()).toBe('2026-10-20T06:30:00.000Z');
+    expect(p.durationMin).toBe(60);
+    expect(p.end?.toISOString()).toBe('2026-10-20T07:30:00.000Z');
+    expect(p.staffName).toBe('ai ka');
+    expect(p.menuNames).toEqual(['【リピーター様】人気NO.1まつげパーマ・パリジェンヌラッシュリフト☆']);
+    expect(p.customer).toMatchObject({ name: '山田 花子', kana: 'ヤマダ ハナコ' });
+    expect(p.amount).toBe(8000);
+
+    // no coupon: the menu lines without the duration hint
+    const plain = parseBookingMail({ subject: '予約連絡', text: text.replace(/■ご利用クーポン[\s\S]*?■合計金額/, '■合計金額'), receivedAt: new Date('2026-10-20T04:00:00Z') });
+    expect(plain.menuNames).toEqual(['まつエク+その他まつげメニュー']);
+  });
 });

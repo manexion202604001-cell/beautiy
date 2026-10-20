@@ -22,6 +22,7 @@ export const MAIL_FIELDS = [
   'email',
   'staff',
   'menu',
+  'coupon',
   'amount',
   'note',
 ] as const;
@@ -34,7 +35,7 @@ const COMMON_LABELS: LabelSet = {
   date: ['来店日', 'ご来店日', '予約日'],
   time: ['来店時間', '来店時刻', '開始時間', '開始時刻', '予約時間'],
   end: ['終了予定時刻', '終了予定', '終了時刻', '終了時間'],
-  duration: ['所要時間', '施術時間', '目安時間'],
+  duration: ['所要時間目安', '所要時間', '施術時間', '目安時間'],
   name: ['お客様名', '予約者名', '予約者', 'お名前', '氏名', '顧客名', 'お客様'],
   kana: ['フリガナ', 'お客様名(カナ)', '氏名(カナ)', 'カナ', 'ふりがな'],
   phone: ['電話番号', '携帯電話番号', '連絡先電話番号', '連絡先', 'TEL', 'Tel', '電話'],
@@ -49,7 +50,10 @@ const COMMON_LABELS: LabelSet = {
     '担当',
     '指名',
   ],
-  menu: ['予約メニュー', 'ご予約メニュー', '施術メニュー', '利用クーポン', 'クーポン', 'メニュー'],
+  menu: ['予約メニュー', 'ご予約メニュー', '施術メニュー', 'メニュー'],
+  // SALON BOARD lists the booked coupon apart from the menu category ("■メニュー まつエク＋その他" /
+  // "■ご利用クーポン [再来] 【リピーター様】…☆￥8000"); the coupon is what Salon OS imported as a menu
+  coupon: ['ご利用クーポン', '利用クーポン', 'クーポン'],
   amount: ['お支払い予定金額', '合計金額', '予定金額', '料金合計', '合計', '金額', '料金'],
   note: ['ご要望・ご相談', 'ご要望', '要望', 'お客様からの要望', '備考', 'メッセージ', 'ご質問'],
 };
@@ -149,7 +153,7 @@ export function extractFields(text: string, labels: LabelSet): Partial<Record<Ma
       if (!hit) continue;
       if (out[m.field] !== undefined) break;
       let value = hit[1]!.trim();
-      if (!value || m.field === 'menu') {
+      if (!value || m.field === 'menu' || m.field === 'coupon') {
         // value on following lines (menus may span several lines)
         const extra: string[] = [];
         for (let j = i + 1; j < lines.length; j++) {
@@ -158,9 +162,10 @@ export function extractFields(text: string, labels: LabelSet): Partial<Record<Ma
             if (extra.length || value) break;
             continue;
           }
-          if (isLabelLine(lines[j]!) || /^[-=_─━]{3,}$/.test(next)) break;
+          // the next "■…" / "◇…" heading ends the value even when it is not a known label
+          if (isLabelLine(lines[j]!) || /^[-=_─━]{3,}$/.test(next) || /^[■◇◆□]/.test(next)) break;
           extra.push(next.replace(/^[・*■□●○-]\s*/, ''));
-          if (m.field !== 'menu' && m.field !== 'note') break;
+          if (m.field !== 'menu' && m.field !== 'coupon' && m.field !== 'note') break;
         }
         value = [value, ...extra].filter(Boolean).join('\n');
       }
@@ -304,8 +309,14 @@ export function parseBookingMail(
       .replace(/[(（].*?[)）]/g, '')
       .trim() ?? null;
   const staffName = staffRaw && !NO_STAFF.test(staffRaw) ? staffRaw : null;
-  const menuNames = (fields.menu ?? '')
+  // the booked coupon names the bookable item; tags like "[再来]" and the coupon's description (the
+  // lines after its name) are not part of it
+  const coupon = (fields.coupon ?? '')
     .split('\n')
+    .map((l) => l.trim())
+    .find((l) => l && !/^[[［(（]?(新規|再来|全員|クーポン)[\]］)）]?$/.test(l));
+  const menuLines = coupon ? [coupon] : (fields.menu ?? '').split('\n').filter((l) => !/^[(（]?所要時間/.test(l.trim()));
+  const menuNames = menuLines
     .map(cleanMenuLine)
     .flatMap((line) => line.split(/、|(?<!\d),(?!\d)|\s[+＋]\s|\s\/\s/))
     .map((m) => m.trim())
@@ -315,6 +326,10 @@ export function parseBookingMail(
   const reservationNo = fields.reservationNo?.match(/[A-Za-z0-9-]{4,}/)?.[0] ?? null;
   if (!reservationNo) warnings.push('予約番号を読み取れませんでした（本文から識別子を生成します）');
 
+  // "■氏名 山田 花子（ヤマダ ハナコ）": the reading comes in parentheses when there is no kana line
+  const nameLine = fields.name?.split('\n')[0]?.replace(/\s*(様|さま)$/, '').trim() ?? '';
+  const inParens = /^(.*?)\s*[(（]([^()（）]+)[)）]$/.exec(nameLine);
+
   return {
     kind,
     fields,
@@ -323,16 +338,12 @@ export function parseBookingMail(
     end,
     durationMin,
     customer: {
-      name:
-        fields.name
-          ?.split('\n')[0]
-          ?.replace(/\s*(様|さま)$/, '')
-          .trim() || null,
+      name: (inParens ? inParens[1]!.trim() : nameLine) || null,
       kana:
         fields.kana
           ?.split('\n')[0]
           ?.replace(/\s*(様|さま)$/, '')
-          .trim() || null,
+          .trim() || (inParens ? inParens[2]!.trim() : null) || null,
       phone: fields.phone?.match(/[+\d][\d-]{8,}/)?.[0] ?? null,
       email: fields.email?.match(/[^\s@]+@[^\s@]+\.[^\s@]+/)?.[0] ?? null,
     },
