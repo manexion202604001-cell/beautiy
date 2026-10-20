@@ -6,7 +6,7 @@ const Module = require('node:module');
 const m = new Module(path.join(__dirname, 'Code.gs'));
 m.paths = module.paths;
 m._compile(require('node:fs').readFileSync(path.join(__dirname, 'Code.gs'), 'utf8'), path.join(__dirname, 'Code.gs'));
-const { tagOf, parseRoutes, routeFor, webhookBody, remember } = m.exports;
+const { tagOf, parseRoutes, routeFor, routeBySender, webhookBody, remember } = m.exports;
 
 const URL = 'https://salon-os-web.onrender.com/v1/webhooks/inbound_email/abcdefghijklmnopqrstuvwx';
 
@@ -37,4 +37,15 @@ test('builds the webhook body and keeps a bounded list of sent mails', () => {
   assert.equal(done.length, 3000);
   assert.equal(done[0], 'id5');
   assert.equal(done.at(-1), 'id3004');
+});
+
+test('routes mails without a +tag by sender (minimo stores the address without it)', () => {
+  const MIN = URL.replace('abcdefghijklmnopqrstuvwx', 'minimominimominimomini12');
+  const one = { omotesando: URL, 'minimo-omotesando': MIN };
+  assert.equal(routeBySender(one, {}, 'minimo <noreply@minimodel.jp>', '予約が入りました'), MIN);
+  assert.equal(routeBySender(one, {}, 'someone@example.com', '表参道'), null);
+  const two = { ...one, 'minimo-aoyama': URL.replace('abcdefghijklmnopqrstuvwx', 'aoyamaaoyamaaoyamaaoya12') };
+  assert.equal(routeBySender(two, {}, 'noreply@minimodel.jp', 'x'), null);
+  const shops = { 'minimodel.jp': { 表参道: 'minimo-omotesando', 青山: 'minimo-aoyama' } };
+  assert.equal(routeBySender(two, shops, 'noreply@mail.minimodel.jp', 'fein.表参道店 様'), MIN);
 });

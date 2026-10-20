@@ -6,6 +6,9 @@
  *
  * 設定（スクリプト プロパティ）
  *   ROUTES  {"omotesando": "https://<Salon OS>/v1/webhooks/inbound_email/<表参道の連携トークン>"}
+ *   SENDER_SHOPS（任意） minimo のように「+」を外して登録する媒体用。差出人ドメインと本文の店舗名で振り分ける
+ *           {"minimodel.jp": {"表参道": "minimo-omotesando", "青山": "minimo-aoyama"}}
+ *           店舗が1つだけなら ROUTES に "minimo-…" が1件あれば自動でそこへ送る
  * 受信URLには連携のトークンが入っているので、コードには書かずプロパティに入れてください。
  *
  * 使い方: docs/go-live.md 「D. メール受信」。setup() を一度実行すると1分ごとの実行が登録されます。
@@ -38,6 +41,28 @@ function parseRoutes(json) {
     }
   });
   return routes;
+}
+
+/**
+ * Mail without a shop +tag (minimo stores the address without it): the sender's domain and a shop
+ * name in the subject / body pick the route; with a single route for that medium, that one.
+ */
+function routeBySender(routes, senderShops, from, text) {
+  var domain = (String(from || '').match(/@([\w.-]+)/) || [])[1];
+  if (!domain) return null;
+  domain = domain.toLowerCase();
+  var medium = domain.indexOf('minimodel.jp') >= 0 || domain.indexOf('minimo') >= 0 ? 'minimo-' : null;
+  var shops = null;
+  Object.keys(senderShops || {}).forEach(function (d) {
+    if (domain === d.toLowerCase() || domain.slice(-(d.length + 1)) === '.' + d.toLowerCase()) shops = senderShops[d];
+  });
+  if (shops) {
+    var keys = Object.keys(shops);
+    for (var i = 0; i < keys.length; i++) if (String(text || '').indexOf(keys[i]) >= 0) return routes[shops[keys[i]]] || null;
+  }
+  if (!medium) return null;
+  var candidates = Object.keys(routes).filter(function (k) { return k.indexOf(medium) === 0; });
+  return candidates.length === 1 ? routes[candidates[0]] : null;
 }
 
 function routeFor(routes, tag) {
@@ -75,6 +100,7 @@ function forwardNewMails() {
   try {
     var props = PropertiesService.getScriptProperties();
     var routes = parseRoutes(props.getProperty('ROUTES'));
+    var senderShops = JSON.parse(props.getProperty('SENDER_SHOPS') || '{}');
     var done = JSON.parse(props.getProperty(DONE_KEY) || '[]');
     var seen = {};
     done.forEach(function (id) { seen[id] = true; });
@@ -86,7 +112,7 @@ function forwardNewMails() {
         var id = msg.getId();
         if (seen[id]) continue;
         var to = [msg.getHeader('Delivered-To'), msg.getTo(), msg.getCc()].join(',');
-        var url = routeFor(routes, tagOf(to));
+        var url = routeFor(routes, tagOf(to)) || routeBySender(routes, senderShops, msg.getFrom(), msg.getSubject() + '\n' + msg.getPlainBody());
         if (!url) {
           done = remember(done, id); // not for Salon OS (no +tag of a shop)
           continue;
@@ -130,4 +156,4 @@ function setup() {
   forwardNewMails();
 }
 
-if (typeof module !== 'undefined') module.exports = { tagOf: tagOf, parseRoutes: parseRoutes, routeFor: routeFor, webhookBody: webhookBody, remember: remember };
+if (typeof module !== 'undefined') module.exports = { tagOf: tagOf, parseRoutes: parseRoutes, routeFor: routeFor, routeBySender: routeBySender, webhookBody: webhookBody, remember: remember };
