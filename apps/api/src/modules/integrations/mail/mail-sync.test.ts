@@ -417,4 +417,69 @@ describe('Hot Pepper / LiME booking-notification mail sync', () => {
     expect(detail.services.map((s: { menu_id: string }) => s.menu_id)).toEqual([coupon.id]);
     expect(detail.customer_name).toBe('山田 花子');
   });
+
+  it('takes minimo bookings out of its message mails (decorated stylist names, its own menus, shop accounts as フリー)', async () => {
+    const t = await createTenant();
+    const suzuna = await createStaffUser(t, 'stylist', { displayName: 'suzuna' });
+    await createMenu(t, { name: 'カット', durationMin: 60 });
+    const mm = (
+      await t.owner.post('/v1/integrations', {
+        provider: 'minimo_mail',
+        shopId: t.shopId,
+        displayName: 'minimo',
+        config: { pushBlocks: false, mail: { unknownStaffAsFree: true, createMissingMenus: true, requiresText: '■予約内容' } },
+      })
+    ).body;
+    const token = tokenOf(mm);
+    const date = nextWeekday(WED);
+    const [y, mo, d] = date.split('-');
+    const minimoMail = (lead: string, id: string, time: string, staff: string) => ({
+      subject: `【ミニモ】${staff}様宛の新着メッセージのお知らせ`,
+      from: 'minimo <noreply@minimodel.jp>',
+      messageId: `<${id}-${time}-${Math.random()}@minimodel.jp>`,
+      text: [
+        `テスト店　${staff}様 に新着メッセージが届いています。`,
+        '●メッセージ内容',
+        '-'.repeat(40),
+        lead,
+        '■予約内容',
+        '・予約ID',
+        `\u3000${id}`,
+        '・氏名',
+        '\u3000山田 花子（ヤマダ ハナコ）',
+        '・来店日時',
+        `\u3000${y}年${Number(mo)}月${Number(d)}日（水）${time}`,
+        '・担当者',
+        `\u3000${staff}`,
+        '・メニュー',
+        '\u3000🫧次回予約🫧まつ毛パーマ🛋️ (種類なんでも対応可能)',
+        '・店頭お支払い金額',
+        '\u3000￥6,000',
+        '\u3000(施術時間：90分)',
+        '-'.repeat(40),
+      ].join('\n'),
+    });
+    expect((await post(token, minimoMail('下記の予約が確定されました。（すぐ予約）', 'I+Kzpg4polq=', '13:00', '🩶 suzuna🩶'))).status).toBe(200);
+    // a customer's chat message is not a booking even though it talks about one
+    expect((await post(token, { subject: '【ミニモ】🩶 suzuna🩶様宛の新着メッセージのお知らせ', text: '●メッセージ内容\n24日の11時の予約が確定しましたか？', messageId: `<chat-${Math.random()}@minimodel.jp>` })).status).toBe(200);
+    // the shop-wide account cannot be matched to a stylist: フリー
+    expect((await post(token, minimoMail('下記の予約が確定されました。（すぐ予約）', 'SHOPACC1', '16:00', '500%可愛い💘 fein.テスト店'))).status).toBe(200);
+    await runJobs();
+    let appts = await externalAppointments(t);
+    expect(appts).toHaveLength(2);
+    const byTime = (time: string) => appts.find((a) => a.start_at.toISOString() === jst(date, time))!;
+    const first = (await t.owner.get(`/v1/appointments/${byTime('13:00').id}`)).body;
+    expect(first.staff_id).toBe(suzuna.staffId);
+    expect(first.services.map((s: { name: string; duration_min: number; price: number }) => [s.name, s.duration_min, s.price])).toEqual([
+      ['🫧次回予約🫧まつ毛パーマ🛋️ (種類なんでも対応可能)', 90, 6000],
+    ]);
+    const shopAcc = (await t.owner.get(`/v1/appointments/${byTime('16:00').id}`)).body;
+    expect(shopAcc.customer_note ?? shopAcc.staff_note ?? '').toContain('媒体の担当: 500%可愛い💘 fein.テスト店');
+
+    // 「下記の通り予約時間を変更しました」 moves it
+    expect((await post(token, minimoMail('下記の通り予約時間を変更しました', 'I+Kzpg4polq=', '14:30', '🩶 suzuna🩶'))).status).toBe(200);
+    await runJobs();
+    appts = await externalAppointments(t);
+    expect(appts.find((a) => a.id === first.id)!.start_at.toISOString()).toBe(jst(date, '14:30'));
+  });
 });

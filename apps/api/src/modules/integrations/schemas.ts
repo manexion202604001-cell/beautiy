@@ -18,6 +18,14 @@ export const mailConfigSchema = z.object({
   autoMatchNames: z.boolean().optional(),
   /** where "block this slot on the medium" requests are e-mailed (default: shop e-mail) */
   notifyEmails: z.array(z.string().email()).max(5).optional(),
+  /** staff the medium names but Salon OS cannot match (shop-wide accounts …): take the booking as フリー
+   * instead of holding it in the conflict queue */
+  unknownStaffAsFree: z.boolean().optional(),
+  /** menus the medium names that Salon OS lacks: create them hidden from online booking, with the
+   * mail's duration and price (minimo names its menus itself) */
+  createMissingMenus: z.boolean().optional(),
+  /** only mails whose text contains this are bookings (minimo sends bookings and chat in the same kind of mail) */
+  requiresText: z.string().min(1).max(100).optional(),
   /** Mailgun webhook signing key (optional extra verification) */
   mailgunSigningKey: z.string().max(200).optional(),
 });

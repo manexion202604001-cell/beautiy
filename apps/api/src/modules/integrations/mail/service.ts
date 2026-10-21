@@ -13,7 +13,7 @@ import { sha256 } from '../../../lib/crypto.js';
 import { Errors } from '../../../lib/errors.js';
 import { parseCsv } from '../../../lib/csv.js';
 import { normalizeName } from '../../../lib/normalize.js';
-import { effectiveMenus } from '../../catalog/service.js';
+import { createMenu, effectiveMenus } from '../../catalog/service.js';
 import {
   getIntegration,
   getVisibleAccount,
@@ -85,17 +85,22 @@ export async function resolveMappings(
       };
     } else if (auto) {
       const target = normalizeName(parsed.staffName);
+      // media decorate stylist names ("🩶 suzuna🩶", "eyelist ♡aika", "fein. mizuki🌙"): compare letters only
+      const loose = (s: string) => normalizeName(s).replace(/fein\.?|eyelist/g, '').replace(/[^\p{L}\p{N}]/gu, '');
       const exact = shopStaff.filter(
         (s) =>
           normalizeName(s.display_name) === target ||
           normalizeName(s.display_name_kana ?? '') === target,
       );
       // "佐藤" in the mail vs "佐藤 美咲" in Salon OS: accept a unique prefix match
-      const prefix = exact.length
+      const prefixed = exact.length
         ? exact
         : shopStaff.filter(
             (s) => target.length >= 2 && normalizeName(s.display_name).startsWith(target),
           );
+      const prefix = prefixed.length
+        ? prefixed
+        : shopStaff.filter((s) => loose(parsed.staffName!).length >= 2 && loose(s.display_name) === loose(parsed.staffName!));
       if (prefix.length === 1) {
         staffMap[parsed.staffName] = prefix[0]!.id;
         staff = {
@@ -211,6 +216,8 @@ export async function applyInboundMail(
   );
   if (parsed.kind === 'unknown')
     return { outcome: 'ignored', reason: '予約通知メールではありません', parsed };
+  if (cfg.mail?.requiresText && !`${mail.text ?? ''}${mail.html ?? ''}`.includes(cfg.mail.requiresText))
+    return { outcome: 'ignored', reason: '予約の内容を含まないメールです', parsed };
   const externalId = externalIdOf(parsed);
 
   let start = parsed.start;
@@ -241,6 +248,29 @@ export async function applyInboundMail(
   }
 
   const mapping = await resolveMappings(ctx, acc, { staffName, menuNames });
+  // a stylist Salon OS cannot match (shop-wide account …) → フリー, keeping the medium's name in the note
+  let note = parsed.note;
+  if (staffName && !mapping.staff.staffId && cfg.mail?.unknownStaffAsFree) {
+    note = [note, `媒体の担当: ${staffName}`].filter(Boolean).join('\n');
+    staffName = null;
+  } else if (staffName && mapping.staff.staffId) {
+    mapping.account.config.staffMap[staffName] = mapping.staff.staffId;
+  }
+  if (cfg.mail?.createMissingMenus && acc.shop_id && parsed.kind !== 'cancelled') {
+    const missing = mapping.menus.filter((m) => !m.menuId);
+    for (const m of missing) {
+      const created = await createMenu(ctx, {
+        shopId: acc.shop_id,
+        name: m.name.slice(0, 100),
+        durationMin: Math.min(720, Math.max(5, missing.length === 1 && parsed.durationMin ? parsed.durationMin : 60)),
+        price: missing.length === 1 && parsed.amount ? parsed.amount : 0,
+        priceTaxIncluded: true,
+        isPublic: false,
+        sortOrder: 9999,
+      });
+      mapping.account.config.menuMap[m.name] = created.id;
+    }
+  }
   const nb: ExternalBooking = {
     externalId,
     status: parsed.kind === 'booked' ? 'booked' : parsed.kind,
@@ -255,7 +285,7 @@ export async function applyInboundMail(
       email: parsed.customer.email,
       externalMemberId: null,
     },
-    note: parsed.note,
+    note,
     updatedAt: mail.receivedAt,
     raw: {
       source: 'email',

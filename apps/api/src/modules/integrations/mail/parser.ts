@@ -54,7 +54,7 @@ const COMMON_LABELS: LabelSet = {
   // SALON BOARD lists the booked coupon apart from the menu category ("■メニュー まつエク＋その他" /
   // "■ご利用クーポン [再来] 【リピーター様】…☆￥8000"); the coupon is what Salon OS imported as a menu
   coupon: ['ご利用クーポン', '利用クーポン', 'クーポン'],
-  amount: ['お支払い予定金額', '合計金額', '予定金額', '料金合計', '合計', '金額', '料金'],
+  amount: ['お支払い予定金額', '店頭お支払い金額', '合計金額', '予定金額', '料金合計', '合計', '金額', '料金'],
   note: ['ご要望・ご相談', 'ご要望', '要望', 'お客様からの要望', '備考', 'メッセージ', 'ご質問'],
 };
 
@@ -187,7 +187,7 @@ export function detectKind(subject: string, text: string): ParsedMail['kind'] {
     /(予約|ご予約)が?キャンセル|キャンセルされました|キャンセルのお知らせ/.test(head)
   )
     return 'cancelled';
-  if (/変更/.test(s) || /(予約|ご予約)(内容)?が?変更|変更されました|変更のお知らせ/.test(head))
+  if (/変更/.test(s) || /(予約|ご予約)(内容|時間|日時)?[がを]?変更|変更されました|変更しました|変更のお知らせ/.test(head))
     return 'changed';
   if (
     /予約|ご予約|受付|確定|新規/.test(s) ||
@@ -314,7 +314,7 @@ export function parseBookingMail(
   const coupon = (fields.coupon ?? '')
     .split('\n')
     .map((l) => l.trim())
-    .find((l) => l && !/^[[［(（]?(新規|再来|全員|クーポン)[\]］)）]?$/.test(l));
+    .find((l) => l && !/^[[［(（]?(新規|再来|全員|クーポン)[\]］)）]?$/.test(l) && !/^(利用クーポンなし|クーポンなし|なし|-+)$/.test(l));
   const menuLines = coupon ? [coupon] : (fields.menu ?? '').split('\n').filter((l) => !/^[(（]?所要時間/.test(l.trim()));
   const menuNames = menuLines
     .map(cleanMenuLine)
@@ -323,7 +323,8 @@ export function parseBookingMail(
     .filter((m) => m && !/^(合計|小計|計)/.test(m));
   if (!menuNames.length && kind !== 'cancelled') warnings.push('メニューを読み取れませんでした');
 
-  const reservationNo = fields.reservationNo?.match(/[A-Za-z0-9-]{4,}/)?.[0] ?? null;
+  // minimo's ids carry + / = ("I+Kzpg4polq…")
+  const reservationNo = fields.reservationNo?.match(/[A-Za-z0-9+/=_-]{4,}/)?.[0] ?? null;
   if (!reservationNo) warnings.push('予約番号を読み取れませんでした（本文から識別子を生成します）');
 
   // "■氏名 山田 花子（ヤマダ ハナコ）": the reading comes in parentheses when there is no kana line
