@@ -258,6 +258,10 @@ export async function applyInboundMail(
   }
   if (cfg.mail?.createMissingMenus && acc.shop_id && parsed.kind !== 'cancelled') {
     const missing = mapping.menus.filter((m) => !m.menuId);
+    // open to every stylist of the shop (a stylist with a 対応メニュー list may only take listed menus)
+    const shopStaff = missing.length
+      ? (await ctx.trx.selectFrom('staff_shop_assignments').select('staff_id').where('shop_id', '=', acc.shop_id).where('ended_on', 'is', null).execute()).map((x) => x.staff_id)
+      : [];
     for (const m of missing) {
       const created = await createMenu(ctx, {
         shopId: acc.shop_id,
@@ -267,6 +271,7 @@ export async function applyInboundMail(
         priceTaxIncluded: true,
         isPublic: false,
         sortOrder: 9999,
+        staffIds: shopStaff,
       });
       mapping.account.config.menuMap[m.name] = created.id;
     }

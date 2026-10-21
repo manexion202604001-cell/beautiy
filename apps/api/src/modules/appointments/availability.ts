@@ -68,7 +68,7 @@ export async function loadShop(ctx: Ctx, shopId: string): Promise<ShopRow & { pa
 }
 
 /** Bookable staff assigned to the shop who can perform all requested menus */
-export async function candidateStaff(ctx: Ctx, shopId: string, menuIds: string[], staffId?: string | null, opts: { publicBooking?: boolean } = {}): Promise<string[]> {
+export async function candidateStaff(ctx: Ctx, shopId: string, menuIds: string[], staffId?: string | null, opts: { publicBooking?: boolean; anyMenu?: boolean } = {}): Promise<string[]> {
   let q = ctx.trx
     .selectFrom('staffs')
     .innerJoin('staff_shop_assignments as a', 'a.staff_id', 'staffs.id')
@@ -84,6 +84,7 @@ export async function candidateStaff(ctx: Ctx, shopId: string, menuIds: string[]
   if (opts.publicBooking) q = q.where('a.is_visible_to_customer', '=', true);
   const staff = (await q.execute()).map((s) => s.id);
   if (!staff.length) return [];
+  if (opts.anyMenu) return staff;
   const caps = await ctx.trx.selectFrom('staff_menus').select(['staff_id', 'menu_id']).where('staff_id', 'in', staff).execute();
   return staff.filter((s) => {
     const mine = caps.filter((c) => c.staff_id === s);

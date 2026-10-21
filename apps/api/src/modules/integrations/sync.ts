@@ -329,7 +329,7 @@ export async function applyExternalBooking(ctx: Ctx, account: AdapterAccount, ex
             customerNote: nb.note,
             allowOutsideSchedule: true,
           },
-          { trusted: true },
+          { trusted: true, anyMenu: true },
         );
       };
       const r = await attempt(ctx, doUpdate);
@@ -390,7 +390,7 @@ export async function applyExternalBooking(ctx: Ctx, account: AdapterAccount, ex
         status: 'confirmed',
         allowOutsideSchedule: true,
       },
-      { trusted: true },
+      { trusted: true, anyMenu: true },
     );
   const r = await attempt(ctx, doCreate);
   if (r.ok) {

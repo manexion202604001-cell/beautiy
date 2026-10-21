@@ -482,4 +482,48 @@ describe('Hot Pepper / LiME booking-notification mail sync', () => {
     appts = await externalAppointments(t);
     expect(appts.find((a) => a.id === first.id)!.start_at.toISOString()).toBe(jst(date, '14:30'));
   });
+
+  it("books the stylist the medium chose even when the menu is not among the stylist's 対応メニュー", async () => {
+    const t = await createTenant();
+    await t.owner.patch(`/v1/staff/${t.ownerStaffId}`, { isBookable: false });
+    const ena = await createStaffUser(t, 'stylist', { displayName: 'ena' });
+    const other = await createStaffUser(t, 'stylist', { displayName: 'aika' });
+    await createMenu(t, { name: 'まつ毛パーマ', durationMin: 60, staffIds: [ena.staffId, other.staffId] });
+    const brow = await createMenu(t, { name: 'アイブロウスタイリング', durationMin: 60, staffIds: [other.staffId] });
+    const mm = (
+      await t.owner.post('/v1/integrations', {
+        provider: 'minimo_mail',
+        shopId: t.shopId,
+        displayName: 'minimo',
+        config: { pushBlocks: false, mail: { unknownStaffAsFree: true, createMissingMenus: true, requiresText: '■予約内容' } },
+      })
+    ).body;
+    const date = nextWeekday(WED);
+    const [y, mo, d] = date.split('-');
+    const text = [
+      '下記の予約が確定されました。（すぐ予約）',
+      '■予約内容',
+      '・予約ID',
+      '\u3000I+Brow0001',
+      '・氏名',
+      '\u3000山田 花子（ヤマダ ハナコ）',
+      '・来店日時',
+      `\u3000${y}年${Number(mo)}月${Number(d)}日（水）17:00`,
+      '・担当者',
+      '\u3000🤍 ena🤍🌙',
+      '・メニュー',
+      '\u3000アイブロウスタイリング',
+      '\u3000(施術時間：60分)',
+    ].join('\n');
+    const res = await post(tokenOf(mm), { subject: '【ミニモ】🤍 ena🤍🌙様宛の新着メッセージのお知らせ', text, messageId: `<brow-${Math.random()}@minimodel.jp>` });
+    expect(res.status).toBe(200);
+    await runJobs();
+    const [appt] = await externalAppointments(t);
+    const detail = (await t.owner.get(`/v1/appointments/${appt!.id}`)).body;
+    expect(detail.staff_id).toBe(ena.staffId);
+    expect(detail.services.map((s: { menu_id: string }) => s.menu_id)).toEqual([brow.id]);
+    // staff booking the same menu for ena is still refused
+    const manual = await t.owner.post('/v1/appointments', { shopId: t.shopId, staffId: ena.staffId, startAt: jst(date, '11:00'), menuIds: [brow.id] });
+    expect(manual.body.error.code).toBe('STAFF_NOT_AVAILABLE');
+  });
 });

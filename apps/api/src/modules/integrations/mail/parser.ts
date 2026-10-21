@@ -156,14 +156,21 @@ export function extractFields(text: string, labels: LabelSet): Partial<Record<Ma
       if (!value || m.field === 'menu' || m.field === 'coupon') {
         // value on following lines (menus may span several lines)
         const extra: string[] = [];
+        // SALON BOARD indents a menu's / coupon's description one step deeper than its name: skip those
+        let baseIndent = -1;
         for (let j = i + 1; j < lines.length; j++) {
           const next = lines[j]!.trim();
+          const indent = lines[j]!.length - lines[j]!.trimStart().length;
           if (!next) {
             if (extra.length || value) break;
             continue;
           }
           // the next "■…" / "◇…" heading ends the value even when it is not a known label
           if (isLabelLine(lines[j]!) || /^[-=_─━]{3,}$/.test(next) || /^[■◇◆□]/.test(next)) break;
+          if (m.field === 'menu' || m.field === 'coupon') {
+            if (baseIndent < 0) baseIndent = indent;
+            else if (indent > baseIndent) continue;
+          }
           extra.push(next.replace(/^[・*■□●○-]\s*/, ''));
           if (m.field !== 'menu' && m.field !== 'coupon' && m.field !== 'note') break;
         }

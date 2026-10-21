@@ -165,5 +165,17 @@ describe('booking mail parser', () => {
     // no coupon: the menu lines without the duration hint
     const plain = parseBookingMail({ subject: '予約連絡', text: text.replace(/■ご利用クーポン[\s\S]*?■合計金額/, '■合計金額'), receivedAt: new Date('2026-10-20T04:00:00Z') });
     expect(plain.menuNames).toEqual(['まつエク+その他まつげメニュー']);
+
+    // several menus, each with a description indented one step deeper, and no coupon
+    const menus = parseBookingMail({
+      subject: '予約連絡',
+      text: text.replace(
+        /■メニュー[\s\S]*?■合計金額/,
+        ['■メニュー', '\u3000【フラットラッシュ】120本', '\u3000\u3000【カール】J/C/D【長さ】8mm～14mm※オフがある方はオフメニューを', '\u3000LEDグルーに変更+1500円', '\u3000\u3000LEDライトを当てることで約2秒で完全硬化！', '\u3000（所要時間目安：1時間5分）', '■ご利用クーポン', '\u3000利用クーポンなし', '■合計金額'].join('\n'),
+      ),
+      receivedAt: new Date('2026-10-20T04:00:00Z'),
+    });
+    expect(menus.menuNames).toEqual(['【フラットラッシュ】120本', 'LEDグルーに変更+']);
+    expect(menus.durationMin).toBe(65);
   });
 });

@@ -62,6 +62,8 @@ export interface PlanInput {
   excludeAppointmentId?: string;
   /** total treatment time entered by staff instead of the sum of the menus */
   durationMin?: number;
+  /** the nominated staff takes the booking even if the menus are not among their 対応メニュー */
+  anyMenu?: boolean;
 }
 
 export interface ResolvedPlan {
@@ -88,7 +90,10 @@ export async function resolvePlan(ctx: Ctx, input: PlanInput): Promise<ResolvedP
   if (ordered.some((m) => !m)) throw Errors.validation('予約できないメニューが含まれています');
   const menuList = ordered as EffectiveMenu[];
 
-  const candidates = await candidateStaff(ctx, input.shopId, input.menuIds, input.staffId ?? undefined, { publicBooking: input.publicBooking });
+  const candidates = await candidateStaff(ctx, input.shopId, input.menuIds, input.staffId ?? undefined, {
+    publicBooking: input.publicBooking,
+    anyMenu: !!input.anyMenu && !!input.staffId,
+  });
   if (input.staffId && !candidates.includes(input.staffId)) {
     throw Errors.business('STAFF_NOT_AVAILABLE', 'このスタッフは指定メニューを担当できないか、この店舗で予約を受け付けていません');
   }
@@ -175,6 +180,11 @@ export interface CreateOptions {
   publicBooking?: boolean;
   /** skip permission/shop checks (public/system channels authorize themselves) */
   trusted?: boolean;
+  /**
+   * booking media chose the stylist already (ホットペッパー・minimo): take the booking for that
+   * stylist even when the menu is not among their 対応メニュー, instead of refusing it
+   */
+  anyMenu?: boolean;
 }
 
 export async function createAppointment(ctx: Ctx, input: CreateAppointmentInput, opts: CreateOptions = {}) {
@@ -192,6 +202,7 @@ export async function createAppointment(ctx: Ctx, input: CreateAppointmentInput,
     publicBooking: opts.publicBooking,
     allowOutsideSchedule: !opts.publicBooking && input.allowOutsideSchedule,
     durationMin: opts.publicBooking ? undefined : input.durationMin,
+    anyMenu: !!opts.trusted && !opts.publicBooking && opts.anyMenu,
   });
   // 席数アラート: bookings taken by staff or online are capped; imports from booking media are not refused
   if (!opts.trusted || opts.publicBooking) {
@@ -489,6 +500,7 @@ export async function updateAppointment(ctx: Ctx, id: string, input: UpdateAppoi
       publicBooking: opts.publicBooking,
       allowOutsideSchedule: !opts.publicBooking && input.allowOutsideSchedule,
       excludeAppointmentId: id,
+      anyMenu: !!opts.trusted && !opts.publicBooking && opts.anyMenu,
     });
     if (!opts.trusted || opts.publicBooking) {
       await assertSeatLimit(ctx, { shopId: before.shop_id, start: startAt, end: addMinutes(startAt, resolved.plan.durationMin), excludeAppointmentId: id });
