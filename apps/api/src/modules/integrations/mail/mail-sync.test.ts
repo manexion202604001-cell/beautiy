@@ -438,7 +438,7 @@ describe('Hot Pepper / LiME booking-notification mail sync', () => {
       from: 'minimo <noreply@minimodel.jp>',
       messageId: `<${id}-${time}-${Math.random()}@minimodel.jp>`,
       text: [
-        `テスト店　${staff}様 に新着メッセージが届いています。`,
+        `テスト店\u3000${staff}様 に新着メッセージが届いています。`,
         '●メッセージ内容',
         '-'.repeat(40),
         lead,
