@@ -46,6 +46,7 @@ import {
   ParseTestDialog,
   ReceivedMailsDialog,
 } from './MailTools';
+import { AgentPanel } from './AgentPanel';
 
 export const STATUS_LABEL: Record<string, string> = {
   active: '正常',
@@ -150,6 +151,7 @@ export function AccountsTab() {
           description="予約媒体と接続すると、外部の予約を自動で取り込み、空き枠を反映できます。"
         />
       ) : null}
+      {q.data ? <AgentPanel integrations={q.data} /> : null}
       <div className="grid gap-4 lg:grid-cols-2">
         {(q.data ?? []).map((a) => {
           const mail = isMailProvider(a.provider);
@@ -186,9 +188,11 @@ export function AccountsTab() {
                     label: '枠の反映',
                     value: !a.config.pushBlocks
                       ? '反映しない'
-                      : a.pushMode === 'manual'
-                        ? `スタッフへ枠止めを依頼${pending ? `（未対応 ${pending}件）` : ''}`
-                        : '外部へ反映する',
+                      : a.config.mail?.agentManaged
+                        ? `自動枠止め（Chrome）${pending ? `（処理待ち ${pending}件）` : ''}`
+                        : a.pushMode === 'manual'
+                          ? `スタッフへ枠止めを依頼${pending ? `（未対応 ${pending}件）` : ''}`
+                          : '外部へ反映する',
                   },
                   {
                     label: '対応表',
@@ -209,10 +213,14 @@ export function AccountsTab() {
                   ) : null}
                 </Alert>
               ) : null}
-              {pending ? (
+              {pending && !a.config.mail?.agentManaged ? (
                 <Alert tone="warning" title={`媒体で止める・再開する枠が ${pending} 件あります`}>
                   「媒体の枠止め」タブで確認し、
-                  {a.provider === 'lime_mail' ? 'LiME' : a.provider === 'minimo_mail' ? 'minimo サロンツール' : 'SALON BOARD'}{' '}
+                  {a.provider === 'lime_mail'
+                    ? 'LiME'
+                    : a.provider === 'minimo_mail'
+                      ? 'minimo サロンツール'
+                      : 'SALON BOARD'}{' '}
                   で操作後に「対応済み」を押してください。
                 </Alert>
               ) : null}

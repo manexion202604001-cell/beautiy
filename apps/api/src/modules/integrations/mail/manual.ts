@@ -111,6 +111,8 @@ export async function reconcileManualBlock(
     return { shop, staffName: staff?.display_name ?? '指名なし' };
   });
   if (!info) return;
+  // the 自動枠止め helper carries it out; the shop hears only if the helper stops
+  if (parseIntegrationConfig(acc.config).mail?.agentManaged) return;
 
   const recipients = parseIntegrationConfig(acc.config).mail?.notifyEmails?.length
     ? parseIntegrationConfig(acc.config).mail!.notifyEmails!

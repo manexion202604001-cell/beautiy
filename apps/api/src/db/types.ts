@@ -1489,6 +1489,20 @@ export interface StorageObjects {
   size_bytes: number;
 }
 
+export interface SyncAgents {
+  alerted_at: Timestamp | null;
+  created_at: Generated<Timestamp>;
+  created_by_staff_id: string | null;
+  id: Generated<string>;
+  last_report: Json | null;
+  last_seen_at: Timestamp | null;
+  name: string;
+  organization_id: string;
+  revoked_at: Timestamp | null;
+  shop_id: string;
+  token_hash: string;
+}
+
 export interface SyncConflicts {
   appointment_id: string | null;
   conflict_type: string;
@@ -1761,6 +1775,7 @@ export interface DB {
   staffs: Staffs;
   stock_movements: StockMovements;
   storage_objects: StorageObjects;
+  sync_agents: SyncAgents;
   sync_conflicts: SyncConflicts;
   sync_jobs: SyncJobs;
   tags: Tags;

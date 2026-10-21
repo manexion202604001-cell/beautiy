@@ -5,6 +5,7 @@ import { audit, diff } from '../../lib/audit.js';
 import { decryptJson, encryptJson, randomToken } from '../../lib/crypto.js';
 import { Errors } from '../../lib/errors.js';
 import { getAdapter } from './adapters/registry.js';
+import { requestUpcomingBlocks } from './agent.js';
 import type { AdapterAccount, IntegrationConfig } from './adapters/types.js';
 import { integrationConfigSchema, type CreateIntegrationInput, type UpdateIntegrationInput } from './schemas.js';
 
@@ -176,6 +177,9 @@ export async function updateIntegration(ctx: Ctx, id: string, input: UpdateInteg
   if (input.status === 'active' && before.status === 'disabled') Object.assign(patch, { status: 'active', consecutive_failures: 0 });
   await ctx.trx.updateTable('integration_accounts').set(patch).where('id', '=', id).execute();
   const after = (await loadAccountRow(ctx.trx, id))!;
+  const auto = (c: typeof beforeConfig) => c.pushBlocks && !!c.mail?.agentManaged;
+  // slot blocking just handed to the 自動枠止め helper: request blocks for every upcoming booking
+  if (auto(nextConfig) && !auto(beforeConfig) && after.status !== 'disabled') await requestUpcomingBlocks(ctx, after);
   const d = diff(
     { display_name: before.display_name, status: before.status, config: beforeConfig },
     { display_name: after.display_name, status: after.status, config: parseIntegrationConfig(after.config) },

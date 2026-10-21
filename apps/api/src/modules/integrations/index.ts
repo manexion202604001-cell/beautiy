@@ -3,6 +3,7 @@ import multipart from '@fastify/multipart';
 import { z } from 'zod';
 import { idParam, uuid } from '../../lib/schemas.js';
 import * as accounts from './accounts.js';
+import * as agent from './agent.js';
 import './adapters/mock-booking.js';
 import * as conflicts from './conflicts.js';
 import './mail/adapter.js';
@@ -109,6 +110,27 @@ const plugin: FastifyPluginAsyncZod = async (app) => {
     { schema: { tags, summary: '受信したメール(予約通知・媒体からの認証メール等。新しい順)', params: idParam, querystring: z.object({ limit: z.coerce.number().int().min(1).max(200).default(50) }) } },
     (req) => req.tx((ctx) => mail.listReceivedMails(ctx, req.params.id, req.query)),
   );
+  // ---- 媒体の自動枠止め (helper in the salon's Chrome; infra/chrome-sync-agent)
+  app.get('/integrations/agents', { schema: { tags, summary: '自動枠止め(Chrome 拡張)の一覧と最終実行', querystring: z.object({ shopId: uuid.optional() }) } }, (req) =>
+    req.tx((ctx) => agent.listAgents(ctx, req.query)),
+  );
+  app.post(
+    '/integrations/agents',
+    { schema: { tags, summary: '自動枠止めのトークン発行(表示は一度だけ)', body: z.object({ shopId: uuid, name: z.string().min(1).max(60).default('Chrome') }) } },
+    async (req, reply) => reply.status(201).send(await req.tx((ctx) => agent.issueAgent(ctx, req.body))),
+  );
+  app.delete('/integrations/agents/:id', { schema: { tags, summary: '自動枠止めのトークンを無効にする', params: idParam } }, async (req, reply) => {
+    await req.tx((ctx) => agent.revokeAgent(ctx, req.params.id));
+    return reply.status(204).send();
+  });
+  const agentOpts = { config: { auth: 'public' as const, rateLimit: { max: 120, timeWindow: '1 minute' } } };
+  app.post('/agent/plan', { ...agentOpts, schema: { tags: ['agent'], summary: '自動枠止め: 媒体のスタッフを渡して、止める/再開する枠を受け取る', body: agent.agentPlanSchema } }, async (req) =>
+    agent.agentPlan(await agent.authenticateAgent(req.headers.authorization), req.body),
+  );
+  app.post('/agent/report', { ...agentOpts, schema: { tags: ['agent'], summary: '自動枠止め: 結果と媒体のログイン状態の報告', body: agent.agentReportSchema } }, async (req) =>
+    agent.agentReport(await agent.authenticateAgent(req.headers.authorization), req.body),
+  );
+
   app.post('/integrations/manual-blocks/:id/done', { schema: { tags, summary: '手動ブロック依頼を対応済みにする', params: idParam } }, (req) =>
     req.tx((ctx) => mail.completeManualBlock(ctx, req.params.id)),
   );

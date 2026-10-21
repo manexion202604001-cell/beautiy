@@ -24,6 +24,31 @@ export interface MailConfig {
   autoMatchNames?: boolean;
   notifyEmails?: string[];
   mailgunSigningKey?: string;
+  unknownStaffAsFree?: boolean;
+  createMissingMenus?: boolean;
+  requiresText?: string;
+  /** slot blocking is done by the 自動枠止め helper (Chrome) */
+  agentManaged?: boolean;
+}
+
+/** 媒体の自動枠止め: helper running in the salon's Chrome (infra/chrome-sync-agent) */
+export interface SyncAgent {
+  id: string;
+  shop_id: string;
+  shop_name: string;
+  name: string;
+  created_at: string;
+  last_seen_at: string | null;
+  last_report: {
+    at: string;
+    agentVersion: string | null;
+    status: Partial<Record<string, { ok: boolean; message?: string }>>;
+    done: number;
+    failed: number;
+    stale: number;
+    allOk: boolean;
+  } | null;
+  alerted_at: string | null;
 }
 
 export interface Integration {
@@ -322,6 +347,13 @@ export const integrationsApi = {
   syncJobs: (id: string, cursor?: string) =>
     api.get<Page<SyncJob>>(`/integrations/${id}/sync-jobs`, { cursor, limit: 20 }),
   status: (shopId?: string) => api.get<SyncStatus>('/integrations/status', { shopId }),
+  agents: () => api.get<{ data: SyncAgent[] }>('/integrations/agents'),
+  issueAgent: (input: { shopId: string; name: string }) =>
+    api.post<{ id: string; shopId: string; name: string; token: string }>(
+      '/integrations/agents',
+      input,
+    ),
+  revokeAgent: (id: string) => api.delete(`/integrations/agents/${id}`),
   conflicts: (q: {
     state?: 'open' | 'resolved' | 'ignored';
     type?: ConflictType;
@@ -357,7 +389,17 @@ export const integrationKeys = {
   conflicts: (q: object) => ['integrations', 'conflicts', q] as const,
   manualBlocks: (q: object) => ['integrations', 'manual-blocks', q] as const,
   receivedMails: (id: string) => ['integrations', 'received-mails', id] as const,
+  agents: ['integrations', 'agents'] as const,
 };
+
+export function useSyncAgents(enabled = true) {
+  return useQuery({
+    queryKey: integrationKeys.agents,
+    queryFn: integrationsApi.agents,
+    enabled,
+    refetchInterval: 60_000,
+  });
+}
 
 export function isMailProvider(provider: string) {
   return provider === 'hotpepper_mail' || provider === 'lime_mail' || provider === 'minimo_mail';

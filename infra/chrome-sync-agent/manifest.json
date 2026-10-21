@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "Salon OS 自動枠止め",
+  "version": "0.1.0",
+  "description": "Salon OS の予約に合わせて、minimo の「すぐ予約」枠を10分ごとに止める・再開する（このChromeのログインを使います）",
+  "minimum_chrome_version": "116",
+  "background": { "service_worker": "background.js", "type": "module" },
+  "options_page": "options.html",
+  "action": { "default_title": "Salon OS 自動枠止め", "default_popup": "options.html" },
+  "permissions": ["alarms", "storage", "scripting", "tabs"],
+  "host_permissions": ["https://minimodel.jp/*", "https://salon-os-web.onrender.com/*"],
+  "optional_host_permissions": ["https://*/*", "http://localhost/*"]
+}

@@ -26,6 +26,9 @@ export const mailConfigSchema = z.object({
   createMissingMenus: z.boolean().optional(),
   /** only mails whose text contains this are bookings (minimo sends bookings and chat in the same kind of mail) */
   requiresText: z.string().min(1).max(100).optional(),
+  /** slot blocking on this medium is done by the 自動枠止め helper (Chrome): no request mails;
+   * the shop is mailed only when the helper stops (see agent.ts) */
+  agentManaged: z.boolean().optional(),
   /** Mailgun webhook signing key (optional extra verification) */
   mailgunSigningKey: z.string().max(200).optional(),
 });
