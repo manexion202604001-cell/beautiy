@@ -42,7 +42,7 @@ export interface SyncAgent {
   last_report: {
     at: string;
     agentVersion: string | null;
-    status: Partial<Record<string, { ok: boolean; message?: string }>>;
+    status: Partial<Record<string, { ok: boolean; message?: string; unmatchedStaff?: string[] }>>;
     done: number;
     failed: number;
     stale: number;

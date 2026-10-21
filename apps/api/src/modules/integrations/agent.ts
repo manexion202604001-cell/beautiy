@@ -191,7 +191,12 @@ export const agentReportSchema = z.object({
   status: z
     .partialRecord(
       z.enum(AGENT_PROVIDERS),
-      z.object({ ok: z.boolean(), message: z.string().max(300).optional() }),
+      z.object({
+        ok: z.boolean(),
+        message: z.string().max(300).optional(),
+        /** names on the medium that match no Salon OS staff (shop accounts, or a name to map by hand) */
+        unmatchedStaff: z.array(z.string().max(100)).max(100).optional(),
+      }),
     )
     .default({}),
   results: z

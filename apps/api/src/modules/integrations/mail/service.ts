@@ -98,9 +98,13 @@ export async function resolveMappings(
         : shopStaff.filter(
             (s) => target.length >= 2 && normalizeName(s.display_name).startsWith(target),
           );
-      const prefix = prefixed.length
+      const looseMatch = prefixed.length
         ? prefixed
         : shopStaff.filter((s) => loose(parsed.staffName!).length >= 2 && loose(s.display_name) === loose(parsed.staffName!));
+      // a catch phrase after the name ("🩰yuri🩰 似合わせ/束感"): the medium's name starts with exactly one stylist's
+      const prefix = looseMatch.length
+        ? looseMatch
+        : shopStaff.filter((s) => loose(s.display_name).length >= 3 && loose(parsed.staffName!).startsWith(loose(s.display_name)));
       if (prefix.length === 1) {
         staffMap[parsed.staffName] = prefix[0]!.id;
         staff = {

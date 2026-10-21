@@ -87,6 +87,7 @@ export async function runCycle(trigger) {
     const results = [];
     for (const account of plan.accounts) {
       if (account.provider === 'minimo_mail' && minimoTab && status.minimo_mail?.ok) {
+        status.minimo_mail.unmatchedStaff = account.unmatchedStaff;
         results.push(...(await runMinimo(minimoTab, account)));
       }
     }

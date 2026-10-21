@@ -105,7 +105,7 @@ test('a moved booking: reopen the old cells and close the new ones in one save',
   assert.deepEqual([...open.get('r1')].sort(), ['2026-10-23 14:00:00']);
 });
 
-test('stylists minimo cannot match are reported; stylists not on minimo are settled', () => {
+test('a stylist who is not on minimo needs nothing there', () => {
   const t = {
     id: 't1',
     state: 'action_required',
@@ -114,9 +114,10 @@ test('stylists minimo cannot match are reported; stylists not on minimo are sett
     mediumStaffId: null,
     staffName: '佐藤',
   };
-  assert.match(
-    buildOps({ unmatchedStaff: ['🤍 sato🤍'], tasks: [t] }, NOW).results.get('t1').error,
-    /対応付けできません/,
-  );
-  assert.equal(buildOps({ unmatchedStaff: [], tasks: [t] }, NOW).results.get('t1').ok, true);
+  const r = buildOps({ unmatchedStaff: ['🎀fein. official🎀'], tasks: [t] }, NOW);
+  assert.deepEqual(r.ops, []);
+  assert.deepEqual(r.results.get('t1'), {
+    ok: true,
+    record: { skipped: 'minimo に「佐藤」がいません' },
+  });
 });

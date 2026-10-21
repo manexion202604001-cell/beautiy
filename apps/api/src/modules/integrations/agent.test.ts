@@ -20,6 +20,7 @@ async function setup() {
   await t.owner.patch(`/v1/staff/${t.ownerStaffId}`, { isBookable: false });
   await t.owner.patch(`/v1/shops/${t.shopId}`, { email: 'front@salon.example' });
   const suzuna = await createStaffUser(t, 'stylist', { displayName: 'suzuna' });
+  await createStaffUser(t, 'stylist', { displayName: 'yuri' });
   const cut = await createMenu(t, { name: 'カット', durationMin: 60 });
   const minimo = (
     await t.owner.post('/v1/integrations', {
@@ -49,6 +50,8 @@ const minimoStaff = {
     staff: [
       { id: 'rima-1', name: '🩶 suzuna🩶' },
       { id: 'rima-shop', name: '500%可愛い💘 fein.テスト店' },
+      // a catch phrase after the name still finds the stylist
+      { id: 'rima-yuri', name: '🩰yuri🩰 似合わせ/束感' },
     ],
   },
 };

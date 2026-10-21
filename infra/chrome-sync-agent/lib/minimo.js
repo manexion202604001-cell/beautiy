@@ -65,15 +65,11 @@ export function buildOps(account, now = Date.now()) {
       continue;
     }
     if (!t.mediumStaffId) {
-      if (account.unmatchedStaff?.length) {
-        results.set(t.id, {
-          ok: false,
-          error: `担当「${t.staffName ?? '指名なし'}」が minimo のスタッフと対応付けできません（minimo 側の名前: ${account.unmatchedStaff.join('、')}）`,
-        });
-      } else {
-        // the stylist is not on minimo: nothing to close there
-        results.set(t.id, { ok: true, record: { skipped: 'minimo に掲載されていないスタッフ' } });
-      }
+      // the stylist is not on minimo (names minimo shows that match no one are reported separately)
+      results.set(t.id, {
+        ok: true,
+        record: { skipped: `minimo に「${t.staffName ?? '指名なし'}」がいません` },
+      });
       continue;
     }
     ops.push({

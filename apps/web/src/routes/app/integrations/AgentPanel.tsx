@@ -117,6 +117,15 @@ export function AgentPanel({ integrations }: { integrations: Integration[] }) {
                         ? `最終実行 ${formatAgo(a.last_seen_at)}`
                         : '拡張機能にトークンを貼り付けると動き始めます'}
                     </p>
+                    {Object.entries(a.last_report?.status ?? {}).map(([p, s]) =>
+                      s?.unmatchedStaff?.length ? (
+                        <p key={p} className="text-xs text-muted-foreground">
+                          {AGENT_MEDIA[p] ?? p}{' '}
+                          の名前でスタッフと対応していないもの（この名前の予約枠は止めません）:{' '}
+                          {s.unmatchedStaff.join('、')}
+                        </p>
+                      ) : null,
+                    )}
                   </div>
                   <Badge tone={st.tone} dot>
                     {st.label}
