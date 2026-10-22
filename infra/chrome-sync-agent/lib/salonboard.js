@@ -6,7 +6,8 @@
 // 予定 button: POST /KLP/schedule/salonSchedule/updateStaffShift/ with the 予定 as JSON. One is looked
 // up / deleted on its edit page: GET /KLP/set/scheduleChange/?date&hour&minute&staffId (the 予定
 // that starts then) and POST that form to …/scheduleChange/doDelete.
-// Salon OS's 予定 carry their own title, so the salon's own 予定 (休日, 予定あり …) are never touched.
+// SALON BOARD titles every 予定 added this way 「予定あり」 (checked 2026-10-23), but keeps its memo:
+// Salon OS's 予定 are recognised by their memo, so the salon's own 予定 (休日, 予定あり …) are never touched.
 
 export const TITLE = 'Salon OS予約';
 export const MEMO = 'Salon OS の予約で自動登録（Salon OS で取消すと自動で消えます）';
@@ -116,11 +117,11 @@ export function findQuery(plan) {
 
 const hhmm = (h, m) => String(h).padStart(2, '0') + String(m).padStart(2, '0');
 
-/** is the 予定 found on the edit page one Salon OS added (its title), for this stylist and start? */
+/** is the 予定 found on the edit page one Salon OS added (its memo), for this stylist and start? */
 export function isOurs(found, plan) {
   return (
     !!found?.exists &&
-    found.title === TITLE &&
+    found.memo === MEMO &&
     found.staffId === plan.staffId &&
     hhmm(found.startHour, found.startMinute) === plan.startTime
   );

@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+  MEMO,
   TITLE,
   buildSbOps,
   coversPlan,
@@ -113,7 +114,8 @@ test("only Salon OS's own 予定 are recognised", () => {
   const plan = planFor('W1', iso('2026-10-24T14:00:00'), iso('2026-10-24T15:00:00'));
   const found = {
     exists: true,
-    title: TITLE,
+    title: '予定あり',
+    memo: MEMO,
     staffId: 'W1',
     startHour: '14',
     startMinute: '00',
@@ -122,7 +124,7 @@ test("only Salon OS's own 予定 are recognised", () => {
   };
   assert.equal(isOurs(found, plan), true);
   assert.equal(coversPlan(found, plan), true);
-  assert.equal(isOurs({ ...found, title: '休日' }, plan), false);
+  assert.equal(isOurs({ ...found, memo: '' }, plan), false);
   assert.equal(isOurs({ ...found, staffId: 'W2' }, plan), false);
   assert.equal(coversPlan({ ...found, endHour: '16' }, plan), false);
   assert.equal(isOurs({ exists: false }, plan), false);

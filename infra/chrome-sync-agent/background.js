@@ -314,6 +314,7 @@ async function sbFind(q) {
   return {
     exists: true,
     title: v('schTitle'),
+    memo: v('schMemo'),
     staffId: v('staffId'),
     startHour: v('schStartHour'),
     startMinute: v('schStartMinute'),
@@ -407,6 +408,15 @@ async function runSalonBoard(tab, account) {
       const found = await inPage(tab, sbFind, q);
       if (coversPlan(found, op.plan)) {
         outcome.set(op.taskId, { ok: true, record: op.plan });
+        continue;
+      }
+      if (found?.exists && !isOurs(found, op.plan)) {
+        // the salon's own 予定 starts then already (the slot is held): adding a second one at the
+        // same start would make the two impossible to tell apart on the 予定変更 page
+        outcome.set(op.taskId, {
+          ok: true,
+          record: { skipped: 'サロンボードに同じ時間の予定があります' },
+        });
         continue;
       }
       if (isOurs(found, op.plan)) await inPage(tab, sbDelete, q);
