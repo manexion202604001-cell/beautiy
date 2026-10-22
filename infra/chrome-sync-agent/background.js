@@ -346,6 +346,41 @@ async function sbDelete(q) {
   return { status: res.status, pageTitle: page.title };
 }
 
+/** title of a 予定 on the rendered schedule that overlaps the plan for its stylist, or null */
+async function sbHeldBy(plan) {
+  const mins = (t) => {
+    const [h, m] = String(t).split(':').map(Number);
+    return h * 60 + m;
+  };
+  const from = mins(plan.startTime.slice(0, 2) + ':' + plan.startTime.slice(2));
+  const to = mins(plan.endTime.slice(0, 2) + ':' + plan.endTime.slice(2));
+  for (let i = 0; i < 30; i++) {
+    const head = document.getElementById(`STAFF_${plan.staffId}_${plan.date}`);
+    if (head) {
+      const top = head.getBoundingClientRect().top;
+      // the stylist's line is the one level with its name
+      const line = [
+        ...document.querySelectorAll('.jscScheduleMainTable > li.jscScheduleMainTableLine'),
+      ].find((l) => Math.abs(l.getBoundingClientRect().top - top) < 3);
+      if (!line) return null;
+      for (const t of line.querySelectorAll('.jscScheduleToDo')) {
+        let range = null;
+        try {
+          range = JSON.parse(t.querySelector('.jscScheduleTimeZoneSetting')?.textContent ?? 'null');
+        } catch {
+          range = null;
+        }
+        if (!Array.isArray(range)) continue;
+        if (mins(range[0]) < to && mins(range[1]) > from)
+          return t.querySelector('.todoTitle')?.textContent?.trim() || '予定';
+      }
+      return null;
+    }
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  return null;
+}
+
 async function sbCreate(fields) {
   const params = document.forms.params;
   if (!params) return { status: 0, message: 'スケジュール画面ではありません' };
@@ -422,6 +457,15 @@ async function runSalonBoard(tab, account) {
       if (isOurs(found, op.plan)) await inPage(tab, sbDelete, q);
       // a fresh schedule page of that day gives the security token the save needs
       await navigate(tab, `${SB_SCHEDULE}?date=${op.plan.date}`);
+      // SALON BOARD refuses a 予定 over another one (休日, 予定あり …): that time is held already
+      const held = await inPage(tab, sbHeldBy, op.plan);
+      if (held) {
+        outcome.set(op.taskId, {
+          ok: true,
+          record: { skipped: `サロンボードでは既に「${held}」で止まっています` },
+        });
+        continue;
+      }
       const res = await inPage(tab, sbCreate, createBody(op.plan));
       if (coversPlan(await inPage(tab, sbFind, q), op.plan))
         outcome.set(op.taskId, { ok: true, record: op.plan });

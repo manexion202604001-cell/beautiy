@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Salon OS 自動枠止め",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Salon OS の予約に合わせて、minimo の「すぐ予約」枠とサロンボードの予定を10分ごとに止める・再開する（このChromeのログインを使います）",
   "minimum_chrome_version": "116",
   "background": {
