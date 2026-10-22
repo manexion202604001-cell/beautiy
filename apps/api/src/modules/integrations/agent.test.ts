@@ -280,4 +280,61 @@ describe('媒体の自動枠止め (sync agent)', () => {
     expect(mine().length - base).toBe(2);
     expect(mine().at(-1)!.text).toContain('minimo');
   });
+
+  it('does not ask SALON BOARD to block bookings copied from the previous system (already there)', async () => {
+    const { t, suzuna, cut, helper } = await setup();
+    const hp = (
+      await t.owner.post('/v1/integrations', {
+        provider: 'hotpepper_mail',
+        shopId: t.shopId,
+        displayName: 'ホットペッパー',
+        config: { pushBlocks: true, staffMap: { 'suzu na': suzuna.staffId } },
+      })
+    ).body;
+    const date = nextWeekday(WED);
+    const customer = await createCustomer(t);
+    const copied = (
+      await t.owner.post('/v1/appointments', {
+        shopId: t.shopId,
+        customerId: customer.id,
+        staffId: suzuna.staffId,
+        startAt: jst(date, '11:00'),
+        menuIds: [cut.id],
+      })
+    ).body;
+    const fresh = (
+      await t.owner.post('/v1/appointments', {
+        shopId: t.shopId,
+        customerId: customer.id,
+        staffId: suzuna.staffId,
+        startAt: jst(date, '15:00'),
+        menuIds: [cut.id],
+      })
+    ).body;
+    await asSystem(t.organizationId, (ctx) =>
+      ctx.trx
+        .updateTable('appointments')
+        .set({ source_detail: JSON.stringify({ migrated: true }) })
+        .where('id', '=', copied.id)
+        .execute(),
+    );
+    await runJobs();
+    // the manual requests made so far are dropped; switching to the helper asks again
+    await asSystem(t.organizationId, (ctx) =>
+      ctx.trx
+        .deleteFrom('external_slot_blocks')
+        .where('integration_account_id', '=', hp.id)
+        .execute(),
+    );
+    await t.owner.patch(`/v1/integrations/${hp.id}`, { config: { mail: { agentManaged: true } } });
+    await runJobs();
+    const plan = (
+      await helper.plan({ media: { hotpepper_mail: { staff: [{ id: 'W1', name: 'suzu na' }] } } })
+    ).body;
+    const acc = plan.accounts.find((a: { provider: string }) => a.provider === 'hotpepper_mail');
+    expect(
+      acc.tasks.map((x: { start: string; mediumStaffId: string }) => [x.start, x.mediumStaffId]),
+    ).toEqual([[jst(date, '15:00'), 'W1']]);
+    void fresh;
+  });
 });

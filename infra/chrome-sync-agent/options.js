@@ -2,10 +2,11 @@ const $ = (id) => document.getElementById(id);
 const DEFAULT_BASE = 'https://salon-os-web.onrender.com';
 
 async function load() {
-  const s = await chrome.storage.local.get(['baseUrl', 'token', 'minimo', 'history']);
+  const s = await chrome.storage.local.get(['baseUrl', 'token', 'minimo', 'salonboard', 'history']);
   $('baseUrl').value = s.baseUrl || DEFAULT_BASE;
   $('token').value = s.token || '';
   $('minimo').checked = s.minimo !== false;
+  $('salonboard').checked = s.salonboard !== false;
   render(s.history || []);
 }
 
@@ -34,6 +35,7 @@ $('save').addEventListener('click', async () => {
     baseUrl,
     token: $('token').value.trim(),
     minimo: $('minimo').checked,
+    salonboard: $('salonboard').checked,
   });
   $('status').textContent = '保存しました';
 });

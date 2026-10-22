@@ -109,8 +109,9 @@
   <body>
     <h1>Salon OS 自動枠止め</h1>
     <p class="lead">
-      Salon OS の予約に合わせて、minimo の「すぐ予約」枠を10分ごとに止め・再開します。このChromeの
-      minimo のログインを使います（パスワードは保存しません）。
+      Salon OS の予約に合わせて、minimo
+      の「すぐ予約」枠とサロンボードの予定を10分ごとに止め・再開します。この Chrome の
+      minimo・サロンボードのログインを使います（パスワードは保存しません）。
     </p>
 
     <label for="token">トークン</label>
@@ -122,6 +123,10 @@
     />
 
     <label class="check"><input id="minimo" type="checkbox" checked /> minimo の枠を止める</label>
+    <label class="check"
+      ><input id="salonboard" type="checkbox" checked />
+      サロンボードの枠を止める（予定を入れる）</label
+    >
 
     <details>
       <summary><small>Salon OS のアドレス</small></summary>

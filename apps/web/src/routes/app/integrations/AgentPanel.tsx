@@ -26,7 +26,16 @@ import { useAuth } from '../../../lib/auth';
 import { formatAgo } from '../../../lib/format';
 
 /** media the helper can block slots on (SALON BOARD comes later) */
-const AGENT_MEDIA: Record<string, string> = { minimo_mail: 'minimo' };
+const AGENT_MEDIA: Record<string, string> = {
+  minimo_mail: 'minimo',
+  hotpepper_mail: 'サロンボード',
+};
+const SWITCH_HELP: Record<string, string> = {
+  minimo_mail:
+    'オンにすると、Salon OS とホットペッパーで入った予約の時間は minimo の「すぐ予約」を止めます（予約リクエストのみになります）。取消・変更されたら元に戻します。依頼メールは送らず、拡張機能が止まったときだけ店舗にメールします。',
+  hotpepper_mail:
+    'オンにすると、Salon OS と minimo で入った予約の時間に、サロンボードへ「Salon OS予約」という予定を入れます（予定の時間はホットペッパーの予約受付が止まります）。取消・変更されたら予定を消します。SALOGIC から移した予約はサロンボードに入っているので対象外です。依頼メールは送らず、拡張機能が止まったときだけ店舗にメールします。',
+};
 const STALE_MS = 30 * 60_000;
 
 function agentState(a: SyncAgent): {
@@ -150,7 +159,7 @@ export function AgentPanel({ integrations }: { integrations: Integration[] }) {
             disabled={toggle.isPending}
             onChange={(on) => toggle.mutate({ a, on })}
             label={`${AGENT_MEDIA[a.provider]} の枠止めを自動にする（${shops.find((s) => s.id === a.shop_id)?.name ?? ''}）`}
-            description="オンにすると、Salon OS とホットペッパーで入った予約の時間は minimo の「すぐ予約」を止めます（予約リクエストのみになります）。取消・変更されたら元に戻します。依頼メールは送らず、拡張機能が止まったときだけ店舗にメールします。"
+            description={SWITCH_HELP[a.provider]}
           />
         ))}
       </div>

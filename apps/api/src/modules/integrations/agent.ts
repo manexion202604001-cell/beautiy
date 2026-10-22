@@ -132,17 +132,23 @@ export async function revokeAgent(ctx: Ctx, id: string) {
  */
 export async function requestUpcomingBlocks(
   ctx: Ctx,
-  account: { id: string; shop_id: string | null },
+  account: { id: string; shop_id: string | null; provider: string },
 ) {
   if (!account.shop_id) return 0;
-  const rows = await ctx.trx
+  let q = ctx.trx
     .selectFrom('appointments')
     .select('id')
     .where('shop_id', '=', account.shop_id)
     .where('status', 'in', [...ACTIVE_STATUSES])
     .where('deleted_at', 'is', null)
-    .where('occupied_end_at', '>', new Date())
-    .execute();
+    .where('occupied_end_at', '>', new Date());
+  // SALON BOARD already holds the bookings copied from the previous system (SALOGIC put them there)
+  if (account.provider === 'hotpepper_mail') {
+    q = q
+      .where('source', '!=', 'import')
+      .where(sql<boolean>`coalesce((source_detail->>'migrated')::boolean, false) = false`);
+  }
+  const rows = await q.execute();
   const tag = `agent-${Date.now()}`;
   for (const r of rows) await enqueuePushJob(ctx, account.id, r.id, tag);
   return rows.length;
