@@ -3,10 +3,10 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { customersApi, type CustomerOverview, type NameDuplicateGroup } from '../../../api/customers';
+import { customersApi, type CustomerOverview, type LineMergeCandidate, type NameDuplicateGroup } from '../../../api/customers';
 import { kartesApi, type KarteDetail, type KarteListItem } from '../../../api/kartes';
 import { orgApi } from '../../../api/org';
-import type { CustomerDetail, CustomerListItem, DuplicatePair } from '../../../api/types';
+import type { CustomerDetail, CustomerListItem } from '../../../api/types';
 import { ToastProvider } from '../../../components/ui';
 import CustomerCreate from './CustomerCreate';
 import CustomerShow from './CustomerShow';
@@ -191,39 +191,20 @@ describe('shared helpers', () => {
 });
 
 describe('顧客管理 list', () => {
-  const pair: DuplicatePair = {
-    a: {
-      id: 'line-1',
-      last_name: '',
-      first_name: 'hana',
-      last_name_kana: '',
-      first_name_kana: '',
-      phone: '090-1111-2222',
-      email: null,
-      birthday: null,
-      last_visit_at: null,
-      visit_count: 5,
-      created_at: '2026-10-01T00:00:00.000Z',
-      line: { display_name: 'はなちゃん', picture_url: null },
-    },
-    b: {
-      id: 'c1',
-      last_name: '山田',
-      first_name: '花子',
-      last_name_kana: 'ヤマダ',
-      first_name_kana: 'ハナコ',
-      phone: '090-1111-2222',
-      email: null,
-      birthday: null,
-      last_visit_at: '2026-10-01T03:00:00.000Z',
-      visit_count: 3,
-      created_at: '2026-01-01T00:00:00.000Z',
-      primary_staff_name: '佐藤',
-      line: null,
-    },
-    strength: 'exact',
-    score: 1,
-    reasons: ['phone_exact'],
+  const candidate: LineMergeCandidate = {
+    id: 'line-1:c1',
+    match_type: 'phone',
+    line_customer_id: 'line-1',
+    line_customer_name: 'hana',
+    line_display_name: 'はなちゃん',
+    line_customer_avatar: null,
+    existing_customer_id: 'c1',
+    existing_customer_name: '山田 花子',
+    existing_customer_name_kana: 'ヤマダ ハナコ',
+    existing_customer_phone: '090-1111-2222',
+    existing_customer_visit_count: 3,
+    existing_customer_last_visit_at: '2026-10-01T03:00:00.000Z',
+    existing_customer_staff_name: '佐藤',
   };
   const group: NameDuplicateGroup = {
     normalized_name: '山田花子',
@@ -248,7 +229,7 @@ describe('顧客管理 list', () => {
           ? { items: [listItem({ id: 'c3', display_name: '三人 目' })], nextCursor: null, total: 3 }
           : { items: first, nextCursor: 'more', total: 3 },
     );
-    vi.spyOn(customersApi, 'duplicatePairs').mockResolvedValue([]);
+    vi.spyOn(customersApi, 'lineMergeCandidates').mockResolvedValue({ candidates: [], total: 0 });
     const nameDups = vi.spyOn(customersApi, 'nameDuplicates').mockResolvedValue({ groups: [], total: 4 });
     const user = mount('/app/customers?q=山田');
 
@@ -284,7 +265,7 @@ describe('顧客管理 list', () => {
         ? { items: [listItem({ id: 'c3', display_name: '三人 目' })], nextCursor: null, total: 3 }
         : { items: [listItem({}), listItem({ id: 'c2', primary_staff_id: null, primary_staff_name: null })], nextCursor: 'more', total: 3 },
     );
-    vi.spyOn(customersApi, 'duplicatePairs').mockResolvedValue([]);
+    vi.spyOn(customersApi, 'lineMergeCandidates').mockResolvedValue({ candidates: [], total: 0 });
     vi.spyOn(customersApi, 'nameDuplicates').mockResolvedValue({ groups: [], total: 4 });
     const user = mount('/app/customers/manage?staff_id=staff-1');
 
@@ -303,7 +284,7 @@ describe('顧客管理 list', () => {
 
   it('picker mode hands the customer back to the reservation form', async () => {
     mockList([listItem({ name_source: 'line' })]);
-    vi.spyOn(customersApi, 'duplicatePairs').mockResolvedValue([]);
+    vi.spyOn(customersApi, 'lineMergeCandidates').mockResolvedValue({ candidates: [], total: 0 });
     vi.spyOn(customersApi, 'nameDuplicates').mockResolvedValue({ groups: [], total: 0 });
     const user = mount('/app/customers/manage?mode=select');
     expect(screen.getByRole('heading', { name: '顧客を選択' })).toBeInTheDocument();
@@ -317,26 +298,33 @@ describe('顧客管理 list', () => {
 
   it('統合候補: merges the LINE record into the existing one, or skips the pair', async () => {
     mockList([listItem({})]);
-    vi.spyOn(customersApi, 'duplicatePairs').mockResolvedValue([pair, { ...pair, a: { ...pair.a, id: 'line-2' } }]);
+    const second = { ...candidate, id: 'line-2:c1', line_customer_id: 'line-2', match_type: 'name_kana' as const };
+    const list = vi.spyOn(customersApi, 'lineMergeCandidates').mockResolvedValue({ candidates: [candidate, second], total: 2 });
     vi.spyOn(customersApi, 'nameDuplicates').mockResolvedValue({ groups: [], total: 0 });
     const merge = vi.spyOn(customersApi, 'merge').mockResolvedValue({ mergeLogId: 'm', targetId: 'c1', sourceId: 'line-1', moved: {} });
     const dismiss = vi.spyOn(customersApi, 'dismissDuplicate').mockResolvedValue(undefined);
     const user = mount('/app/customers');
 
-    await user.click(await screen.findByRole('tab', { name: /統合候補/ }));
+    // the badge counts the candidates of the current shop
+    const tab = await screen.findByRole('tab', { name: /統合候補/ });
+    expect(within(tab).getByText('2')).toBeInTheDocument();
+    expect(list).toHaveBeenCalledWith(expect.objectContaining({ limit: 100 }));
+    await user.click(tab);
     const cards = await waitFor(() => {
       const found = document.querySelectorAll<HTMLElement>('[data-merge-candidate]');
       expect(found).toHaveLength(2);
       return found;
     });
     const first = within(cards[0]!);
-    // the LINE record (even with more visits) goes into the record staff keep
+    // the LINE record goes into the record staff keep
     expect(first.getByText('LINE')).toBeInTheDocument();
     expect(first.getByText('LINE: はなちゃん')).toBeInTheDocument();
     expect(first.getByText('既存')).toBeInTheDocument();
     expect(first.getByText('山田 花子')).toBeInTheDocument();
     expect(first.getByText('担当: 佐藤')).toBeInTheDocument();
     expect(first.getByText('電話番号一致')).toBeInTheDocument();
+    expect(first.getByText('来店3回')).toBeInTheDocument();
+    expect(within(cards[1]!).getByText('読み仮名一致')).toBeInTheDocument();
 
     await user.click(first.getByRole('button', { name: '統合する' }));
     const dialog = screen.getByRole('alertdialog');
@@ -353,7 +341,7 @@ describe('顧客管理 list', () => {
 
   it('名前重複: link as one person, dismiss, and merge into the recommended record', async () => {
     mockList([listItem({})]);
-    vi.spyOn(customersApi, 'duplicatePairs').mockResolvedValue([]);
+    vi.spyOn(customersApi, 'lineMergeCandidates').mockResolvedValue({ candidates: [], total: 0 });
     vi.spyOn(customersApi, 'nameDuplicates').mockResolvedValue({ groups: [group, { ...group, normalized_name: '佐藤愛', customers: group.customers.map((c) => ({ ...c, id: `s-${c.id}`, name: '佐藤 愛' })) }], total: 2 });
     const link = vi.spyOn(customersApi, 'linkMaster').mockResolvedValue({ member_no: 'M00000042', customerIds: ['c1', 'c2'] });
     const dismiss = vi.spyOn(customersApi, 'dismissNameDuplicate').mockResolvedValue({ dismissed: 2 });

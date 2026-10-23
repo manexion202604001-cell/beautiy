@@ -7,6 +7,7 @@ import * as campaigns from './campaigns.js';
 import * as channels from './channels.js';
 import * as conversations from './conversations.js';
 import { issueLineLinkToken, linkLineAccount } from './line-link.js';
+import { publicLiffConfig } from './liff.js';
 import * as prefs from './preferences.js';
 import {
   createAutomationSchema,
@@ -154,6 +155,18 @@ const plugin: FastifyPluginAsyncZod = async (app) => {
     reply.status(201).send(await req.tx((ctx) => issueLineLinkToken(ctx, req.params.id, req.body))),
   );
   app.post('/public/line-link', { config: publicRate, schema: { tags, summary: 'LINEアカウント連携(LIFF idToken + 連携トークン)', body: publicLineLinkSchema } }, (req) => linkLineAccount(req.body, req.meta));
+  app.get(
+    '/public/line/liff',
+    {
+      config: publicRate,
+      schema: {
+        tags,
+        summary: 'LIFFの設定(店舗slug または LINE連携トークンから: LIFF ID・友だち追加URL)',
+        querystring: z.object({ shop: z.string().min(1).max(60).optional(), linkToken: z.string().min(10).max(200).optional() }),
+      },
+    },
+    (req) => publicLiffConfig(req.query, req.meta),
+  );
 };
 
 export default plugin;

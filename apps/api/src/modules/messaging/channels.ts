@@ -20,6 +20,7 @@ const publicColumns = [
   'basic_id',
   'liff_id',
   'login_channel_id',
+  'friend_url',
   'status',
   'webhook_verified_at',
   'created_at',
@@ -37,6 +38,7 @@ type ChannelRow = {
   basic_id: string | null;
   liff_id: string | null;
   login_channel_id: string | null;
+  friend_url: string | null;
   status: string;
   webhook_verified_at: Date | null;
   created_at: Date;
@@ -64,6 +66,8 @@ function toApi(row: ChannelRow) {
     channelSecretMasked: mask(safeDecrypt(encrypted_channel_secret)),
     accessTokenMasked: mask(safeDecrypt(encrypted_access_token)),
     webhookUrl: `${config.API_BASE_URL}/v1/webhooks/line`,
+    /** what the LIFF app's endpoint URL must be in LINE Developers (the web root serves every customer page) */
+    liffEndpointUrl: `${config.WEB_BASE_URL.replace(/\/+$/, '')}/`,
   };
 }
 
@@ -134,6 +138,7 @@ export async function createLineChannel(ctx: Ctx, input: CreateLineChannelInput,
       basic_id: verified.basicId,
       liff_id: input.liffId ?? null,
       login_channel_id: input.loginChannelId ?? null,
+      friend_url: input.friendUrl ?? null,
       encrypted_channel_secret: encrypt(input.channelSecret),
       encrypted_access_token: encrypt(input.accessToken),
       status: 'active',
@@ -162,6 +167,7 @@ export async function updateLineChannel(ctx: Ctx, id: string, input: UpdateLineC
       basic_id: input.basicId,
       liff_id: input.liffId,
       login_channel_id: input.loginChannelId,
+      friend_url: input.friendUrl,
       status: input.status,
       encrypted_channel_secret: input.channelSecret ? encrypt(input.channelSecret) : undefined,
       encrypted_access_token: input.accessToken ? encrypt(input.accessToken) : undefined,
@@ -224,18 +230,38 @@ export interface ActiveChannel {
   channelId: string;
   loginChannelId: string | null;
   liffId: string | null;
+  /** 友だち追加URL */
+  friendUrl: string | null;
   accessToken: () => string;
 }
 
-function toActive(r: { id: string; shop_id: string | null; channel_id: string; login_channel_id: string | null; liff_id: string | null; encrypted_access_token: string }): ActiveChannel {
-  return { id: r.id, shopId: r.shop_id, channelId: r.channel_id, loginChannelId: r.login_channel_id, liffId: r.liff_id, accessToken: () => decrypt(r.encrypted_access_token) };
+const activeColumns = ['id', 'shop_id', 'channel_id', 'login_channel_id', 'liff_id', 'friend_url', 'encrypted_access_token'] as const;
+
+function toActive(r: {
+  id: string;
+  shop_id: string | null;
+  channel_id: string;
+  login_channel_id: string | null;
+  liff_id: string | null;
+  friend_url: string | null;
+  encrypted_access_token: string;
+}): ActiveChannel {
+  return {
+    id: r.id,
+    shopId: r.shop_id,
+    channelId: r.channel_id,
+    loginChannelId: r.login_channel_id,
+    liffId: r.liff_id,
+    friendUrl: r.friend_url,
+    accessToken: () => decrypt(r.encrypted_access_token),
+  };
 }
 
 /** Shop channel wins over the organization channel */
 export async function channelForShop(ctx: Ctx, shopId: string | null): Promise<ActiveChannel | null> {
   const row = await ctx.trx
     .selectFrom('line_channels')
-    .select(['id', 'shop_id', 'channel_id', 'login_channel_id', 'liff_id', 'encrypted_access_token'])
+    .select(activeColumns)
     .where('status', '=', 'active')
     .where((eb) => (shopId ? eb.or([eb('shop_id', '=', shopId), eb('shop_id', 'is', null)]) : eb('shop_id', 'is', null)))
     .orderBy(sql`CASE WHEN shop_id IS NULL THEN 1 ELSE 0 END`)
@@ -244,10 +270,44 @@ export async function channelForShop(ctx: Ctx, shopId: string | null): Promise<A
   return row ? toActive(row) : null;
 }
 
+/** `aud` of a LINE ID token (JWT), read without verification — only used to pick the channel to verify against */
+function idTokenAudience(idToken: string): string | null {
+  const part = idToken.split('.')[1];
+  if (!part) return null;
+  try {
+    const aud = (JSON.parse(Buffer.from(part, 'base64url').toString('utf8')) as { aud?: unknown }).aud;
+    return typeof aud === 'string' ? aud : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The channel a LIFF / LINE Login ID token belongs to: the active channel serving the shop whose
+ * LINE Login channel issued it (its `aud`), otherwise the shop's channel (shop channel first, then
+ * the organization channel). The token is verified against that channel afterwards.
+ */
+export async function channelForIdToken(ctx: Ctx, idToken: string, shopId: string | null, opts: { anyShop?: boolean } = {}): Promise<ActiveChannel | null> {
+  const aud = idTokenAudience(idToken);
+  if (aud) {
+    const row = await ctx.trx
+      .selectFrom('line_channels')
+      .select(activeColumns)
+      .where('status', '=', 'active')
+      .where('login_channel_id', '=', aud)
+      .where((eb) => (shopId && !opts.anyShop ? eb.or([eb('shop_id', '=', shopId), eb('shop_id', 'is', null)]) : eb.lit(true)))
+      .orderBy(sql`CASE WHEN shop_id IS NULL THEN 1 ELSE 0 END`)
+      .limit(1)
+      .executeTakeFirst();
+    if (row) return toActive(row);
+  }
+  return channelForShop(ctx, shopId);
+}
+
 export async function channelById(ctx: Ctx, id: string): Promise<ActiveChannel | null> {
   const row = await ctx.trx
     .selectFrom('line_channels')
-    .select(['id', 'shop_id', 'channel_id', 'login_channel_id', 'liff_id', 'encrypted_access_token', 'status'])
+    .select([...activeColumns, 'status'])
     .where('id', '=', id)
     .executeTakeFirst();
   return row && row.status !== 'disabled' ? toActive(row) : null;
@@ -261,7 +321,7 @@ export async function lineRecipientFor(ctx: Ctx, customerId: string, shopId: str
   const row = await ctx.trx
     .selectFrom('customer_identities as ci')
     .innerJoin('line_channels as lc', (j) => j.onRef('lc.channel_id', '=', 'ci.provider_account_id'))
-    .select(['ci.external_id', 'lc.id', 'lc.shop_id', 'lc.channel_id', 'lc.login_channel_id', 'lc.liff_id', 'lc.encrypted_access_token'])
+    .select(['ci.external_id', 'lc.id', 'lc.shop_id', 'lc.channel_id', 'lc.login_channel_id', 'lc.liff_id', 'lc.friend_url', 'lc.encrypted_access_token'])
     .where('ci.customer_id', '=', customerId)
     .where('ci.provider', '=', 'line')
     .where('ci.unlinked_at', 'is', null)

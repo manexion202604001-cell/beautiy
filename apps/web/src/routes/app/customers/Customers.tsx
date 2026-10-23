@@ -18,7 +18,7 @@ import {
   Tabs,
 } from '../../../components/shad';
 import { useAuth } from '../../../lib/auth';
-import { MergeCandidates, mergeCandidatesKey } from './MergeCandidates';
+import { MergeCandidates, useLineMergeCandidates } from './MergeCandidates';
 import { NameDuplicates } from './NameDuplicates';
 import { LineIcon, formatWhen, isStaffOrigin } from './shared';
 
@@ -63,19 +63,15 @@ export default function Customers({ variant }: { variant?: 'karte' | 'manage' })
 
   const canMerge = can('customer.merge');
   const staffQ = useStaffList({});
-  const dupQ = useQuery({
-    queryKey: mergeCandidatesKey,
-    queryFn: () => customersApi.duplicatePairs(100),
-    enabled: canMerge,
-    staleTime: 60_000,
-  });
+  // 統合候補 = LINE customer ↔ existing customer of the current shop
+  const dupQ = useLineMergeCandidates();
   const nameDupQ = useQuery({
     queryKey: ['customers', 'name-duplicates', 'count'],
     queryFn: () => customersApi.nameDuplicates({ limit: 1 }),
     enabled: canMerge && manage,
     staleTime: 60_000,
   });
-  const mergeCount = dupQ.data?.length ?? 0;
+  const mergeCount = dupQ.data?.total ?? 0;
   const nameDupCount = manage ? (nameDupQ.data?.total ?? 0) : 0;
 
   const listTab = tab === 'unassigned' ? 'unassigned' : 'all';

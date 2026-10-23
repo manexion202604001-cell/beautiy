@@ -169,6 +169,7 @@ describe('Consents (同意書一覧・受付保留)', () => {
       shop: { id: 'shop-1', name: '本店', slug: 'honten', open: true },
       staff: null,
       consentForms: [{ lineageId: 'l1', templateId: 't1', name: '施術同意書', version: 1, url: 'https://app.example.com/consent/honten?form=l1' }],
+      liffId: null,
     });
     mount([]);
     expect(await screen.findByText('保留中の受付はありません')).toBeInTheDocument();
@@ -178,5 +179,23 @@ describe('Consents (同意書一覧・受付保留)', () => {
     expect(await within(dialog).findByRole('img', { name: '受付QRコード' })).toBeInTheDocument();
     expect(walkinApi.receptionLink).toHaveBeenCalledWith({ shopId: 'shop-1', staffId: undefined });
     expect(within(dialog).getByRole('button', { name: '印刷' })).toBeEnabled();
+    // no LIFF ID on the shop's LINE account → reception without LINE linking (SALOGIC's notice)
+    expect(within(dialog).getByText('この店舗はLIFF ID未設定のため、LINE連携なしの受付になります。')).toBeInTheDocument();
+  });
+
+  it('opens the reception QR in LINE when the shop has a LIFF ID', async () => {
+    const user = userEvent.setup();
+    vi.spyOn(walkinApi, 'receptionLink').mockResolvedValue({
+      url: 'https://liff.line.me/1650000000-abc/consent/honten?walkin=1',
+      shop: { id: 'shop-1', name: '本店', slug: 'honten', open: true },
+      staff: null,
+      consentForms: [{ lineageId: 'l1', templateId: 't1', name: '施術同意書', version: 1, url: 'https://liff.line.me/1650000000-abc/consent/honten?form=l1&walkin=1' }],
+      liffId: '1650000000-abc',
+    });
+    mount([]);
+    await user.click(await screen.findByRole('button', { name: '受付QRコード' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(await within(dialog).findByRole('img', { name: '受付QRコード' })).toBeInTheDocument();
+    expect(within(dialog).queryByText(/LIFF ID未設定/)).toBeNull();
   });
 });

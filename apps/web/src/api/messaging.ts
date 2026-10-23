@@ -307,6 +307,8 @@ export interface LineChannel {
   basic_id: string | null;
   liff_id: string | null;
   login_channel_id: string | null;
+  /** 友だち追加URL (https://lin.ee/…) */
+  friend_url: string | null;
   status: 'active' | 'disabled' | string;
   webhook_verified_at: string | null;
   created_at: string;
@@ -314,6 +316,8 @@ export interface LineChannel {
   channelSecretMasked: string;
   accessTokenMasked: string;
   webhookUrl: string;
+  /** the LIFF app's endpoint URL to set in LINE Developers */
+  liffEndpointUrl?: string;
 }
 
 export interface LineChannelInput {
@@ -325,6 +329,7 @@ export interface LineChannelInput {
   basicId?: string | null;
   liffId?: string | null;
   loginChannelId?: string | null;
+  friendUrl?: string | null;
   status?: 'active' | 'disabled';
   verify?: boolean;
 }
@@ -457,6 +462,9 @@ export const publicMessagingApi = {
       { token, idToken },
       { auth: 'none' },
     ),
+  /** LIFF ID / 友だち追加URL of the LINE account serving a shop (or the customer of a LINE連携 link) */
+  liffConfig: (q: { shop?: string; linkToken?: string }) =>
+    api.get<{ liffId: string | null; friendUrl: string | null }>('/public/line/liff', { ...q }, { auth: 'none' }),
   myPreferences: (token: string) =>
     api.get<Preferences>('/public/me/notification-preferences', undefined, { auth: 'customer', token }),
   updateMyPreferences: (token: string, input: PreferencesInput) =>

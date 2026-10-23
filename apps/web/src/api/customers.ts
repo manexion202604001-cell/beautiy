@@ -46,6 +46,24 @@ export interface NameDuplicateGroup {
   customers: NameDuplicateCustomer[];
 }
 
+/** 統合候補: a record that came in through LINE ↔ a record the salon already had */
+export interface LineMergeCandidate {
+  /** `<LINE customer id>:<existing customer id>` */
+  id: string;
+  match_type: 'phone' | 'name' | 'name_kana';
+  line_customer_id: string;
+  line_customer_name: string;
+  line_display_name: string | null;
+  line_customer_avatar: string | null;
+  existing_customer_id: string;
+  existing_customer_name: string;
+  existing_customer_name_kana: string | null;
+  existing_customer_phone: string | null;
+  existing_customer_visit_count: number;
+  existing_customer_last_visit_at: string | null;
+  existing_customer_staff_name: string | null;
+}
+
 export interface AssignedStaff {
   staff_id: string;
   staff_name: string;
@@ -86,6 +104,9 @@ export const customersApi = {
     downloadFile('/customers/export.csv', { ...q, limit: undefined }, 'customers.csv'),
   duplicatesFor: (id: string) => api.get<DuplicateCandidate[]>(`/customers/${id}/duplicates`),
   duplicatePairs: (limit = 100) => api.get<DuplicatePair[]>('/customers/duplicates', { limit }),
+  /** 統合候補 of the current shop (X-Shop-Id) or of one LINE customer */
+  lineMergeCandidates: (q: { shopId?: string; customerId?: string; limit?: number } = {}) =>
+    api.get<{ candidates: LineMergeCandidate[]; total: number }>('/customers/line-merge-candidates', { ...q }),
   dismissDuplicate: (a: string, b: string) =>
     api.post<void>('/customers/duplicates/dismiss', { customerIdA: a, customerIdB: b }),
   merge: (

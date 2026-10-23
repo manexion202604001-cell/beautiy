@@ -7,10 +7,13 @@ import { withSystem, withTenant } from '../../db/tenant.js';
 import { assertTokenResource, issueAccessToken, resolveAccessToken } from '../../lib/access-tokens.js';
 import { audit } from '../../lib/audit.js';
 import { Errors } from '../../lib/errors.js';
+import { verifyLineIdToken } from '../../lib/line-auth.js';
 import { decodeCursor, paginate } from '../../lib/pagination.js';
 import { normalizeKana, normalizePhone } from '../../lib/normalize.js';
 import { assertCustomerAccess } from '../customers/access.js';
 import { createCustomer, updateCustomer } from '../customers/service.js';
+import { channelById, channelForIdToken, channelForShop } from '../messaging/channels.js';
+import { attachLineUser, lineUserOwner } from '../messaging/line-link.js';
 import { signedUrlFor } from '../files/api.js';
 import { mergeIntoCounselingSheet } from './counseling.js';
 import type { FieldValues } from './fields.js';
@@ -27,6 +30,11 @@ import type { CounselingSheetData, FormField, ListWalkinIntakesInput, PublicWalk
  * register a new customer from it, or discard it. Linking turns the consent into an ordinary
  * (immutable, hash-verified) form response of that customer and writes the counselling answers
  * onto the customer's counselling sheet, category by category.
+ *
+ * LINE (LIFF): when the shop's LINE account has a LIFF ID the QR opens the page inside LINE
+ * (https://liff.line.me/<liffId>/consent/<shop>?…&walkin=1). The page sends the LIFF id token with
+ * the submission; the verified LINE user is kept on the intake and linked to the customer when
+ * staff link the intake or register the customer from it.
  */
 export type WalkinIntakeRow = Selectable<WalkinIntakes>;
 
@@ -60,12 +68,46 @@ const APPLICANT_FIELDS: FormField[] = [
 const AGREE_FIELD: FormField = { key: 'walkin_agreed', label: '上記の内容に同意します', type: 'checkbox', required: true };
 const RESERVED_KEYS = new Set([...APPLICANT_FIELDS, AGREE_FIELD].map((f) => f.key));
 
-export function walkinConsentUrl(slug: string, opts: { staffId?: string | null; form?: string | null } = {}) {
+export function walkinConsentUrl(slug: string, opts: { staffId?: string | null; form?: string | null; liffId?: string | null } = {}) {
   const qs = new URLSearchParams();
   if (opts.staffId) qs.set('staff', opts.staffId);
   if (opts.form) qs.set('form', opts.form);
+  const path = `/consent/${encodeURIComponent(slug)}`;
+  if (opts.liffId) {
+    qs.set('walkin', '1');
+    return `https://liff.line.me/${encodeURIComponent(opts.liffId)}${path}?${qs.toString()}`;
+  }
   const tail = qs.toString();
-  return `${config.WEB_BASE_URL}/consent/${encodeURIComponent(slug)}${tail ? `?${tail}` : ''}`;
+  return `${config.WEB_BASE_URL}${path}${tail ? `?${tail}` : ''}`;
+}
+
+/**
+ * The LINE user of a reception form filled inside LINE. An id token that does not verify (expired,
+ * another provider, LINE not configured or unreachable) does not block the reception: it is
+ * accepted without LINE.
+ */
+async function verifiedLineUser(shop: { organizationId: string; shopId: string }, idToken: string | undefined, meta: RequestMeta) {
+  if (!idToken) return null;
+  const channel = await withTenant(shop.organizationId, (trx) =>
+    channelForIdToken({ actor: systemActor(shop.organizationId, 'public:walkin'), trx, meta }, idToken, shop.shopId),
+  );
+  if (!channel) return null;
+  try {
+    const profile = await verifyLineIdToken(idToken, channel.loginChannelId);
+    return { channelId: channel.id, userId: profile.userId, displayName: profile.displayName ?? null };
+  } catch {
+    // includes LINE being unreachable: the customer at the counter is not kept waiting for it
+    return null;
+  }
+}
+
+/** Link the intake's LINE user (if the form was filled inside LINE) to the customer the intake was resolved to */
+async function linkIntakeLineUser(ctx: Ctx, intake: WalkinIntakeRow, customerId: string) {
+  if (!intake.line_user_id || !intake.line_channel_id) return null;
+  const channel = await channelById(ctx, intake.line_channel_id);
+  if (!channel) return { linked: false as const, reason: 'channel_unavailable' as const };
+  const res = await attachLineUser(ctx, customerId, channel, { userId: intake.line_user_id, displayName: intake.line_display_name });
+  return res.linked ? { linked: true as const, following: res.following } : { linked: false as const, reason: 'already_linked' as const, conflictCustomerId: res.conflictCustomerId };
 }
 
 // ---------------------------------------------------------------- lookups
@@ -174,6 +216,8 @@ export async function submitWalkinConsent(slug: string, input: PublicWalkinSubmi
   const shop = await resolveReceptionShop(slug);
   const birthday = DateTime.fromISO(input.customer.birthday, { zone: 'utc' });
   if (!birthday.isValid || birthday.toMillis() > Date.now() || birthday.year < 1900) throw Errors.validation('生年月日が正しくありません', { issues: [{ path: 'customer.birthday', message: '生年月日が正しくありません' }] });
+  // verified with LINE outside the transaction (network latency must not hold a connection)
+  const line = await verifiedLineUser(shop, input.lineIdToken, meta);
   return withTenant(
     shop.organizationId,
     async (trx) => {
@@ -230,6 +274,9 @@ export async function submitWalkinConsent(slug: string, input: PublicWalkinSubmi
           consent_document_hash: columns.document_hash,
           ip: columns.ip,
           user_agent: columns.user_agent,
+          line_channel_id: line?.channelId ?? null,
+          line_user_id: line?.userId ?? null,
+          line_display_name: line?.displayName ?? null,
         })
         .returning(['id', 'consent_submitted_at'])
         .executeTakeFirstOrThrow();
@@ -239,9 +286,9 @@ export async function submitWalkinConsent(slug: string, input: PublicWalkinSubmi
         resourceType: 'walkin_intake',
         resourceId: row.id,
         shopId: shop.shopId,
-        metadata: { templateId: template.id, version: template.version, staffId: staff?.id ?? null, documentHash: columns.document_hash, signed: !!columns.signature_file_id },
+        metadata: { templateId: template.id, version: template.version, staffId: staff?.id ?? null, documentHash: columns.document_hash, signed: !!columns.signature_file_id, line: !!line },
       });
-      return { ok: true as const, intakeId: row.id, submittedAt: row.consent_submitted_at, token, expiresAt };
+      return { ok: true as const, intakeId: row.id, submittedAt: row.consent_submitted_at, token, expiresAt, line: !!line };
     },
     { traceId: meta.traceId },
   );
@@ -307,6 +354,8 @@ export async function listWalkinIntakes(ctx: Ctx, input: ListWalkinIntakesInput)
       'w.status',
       'w.customer_id',
       'w.consent_submitted_at',
+      'w.line_display_name',
+      sql<boolean>`w.line_user_id IS NOT NULL`.as('from_line'),
       sql<boolean>`w.counseling_data <> '{}'::jsonb`.as('has_counseling'),
     ])
     .where('w.shop_id', '=', input.shopId)
@@ -346,6 +395,8 @@ export async function listWalkinIntakes(ctx: Ctx, input: ListWalkinIntakesInput)
       staff_name: r.staff_name ?? null,
       has_counseling: !!r.has_counseling,
       consent_submitted_at: r.consent_submitted_at,
+      /** filled inside LINE (LIFF): the LINE display name */
+      line: r.from_line ? { display_name: r.line_display_name } : null,
     })),
   };
 }
@@ -373,6 +424,12 @@ export async function getWalkinIntake(ctx: Ctx, id: string) {
     if (f) signature = { ...(await signedUrlFor(f)), contentType: f.content_type };
   }
   await audit(ctx, { action: 'walkin_intake.view', resourceType: 'walkin_intake', resourceId: id, shopId: r.shop_id });
+  // filled inside LINE: the customer that LINE user already is (to link the intake to), if any
+  let line: { display_name: string | null; customer_id: string | null } | null = null;
+  if (r.line_user_id && r.line_channel_id) {
+    const channel = await ctx.trx.selectFrom('line_channels').select('channel_id').where('id', '=', r.line_channel_id).executeTakeFirst();
+    line = { display_name: r.line_display_name, customer_id: channel ? await lineUserOwner(ctx, channel.channel_id, r.line_user_id) : null };
+  }
   const snapshot = r.consent_snapshot as unknown as TemplateSnapshot;
   return {
     intake: {
@@ -404,6 +461,7 @@ export async function getWalkinIntake(ctx: Ctx, id: string) {
       },
       counseling_data: Object.keys(counselingOf(r)).length > 0 ? counselingOf(r) : null,
       counseling_submitted_at: r.counseling_submitted_at,
+      line,
     },
   };
 }
@@ -502,8 +560,9 @@ export async function linkWalkinIntake(ctx: Ctx, id: string, customerId: string)
     if (filled.length) await updateCustomer(ctx, customerId, patch);
   }
   const res = await resolveIntake(ctx, intake, customerId, 'linked');
-  await audit(ctx, { action: 'walkin_intake.link', resourceType: 'walkin_intake', resourceId: id, shopId: intake.shop_id, metadata: { customerId, filled, ...res } });
-  return { ok: true as const, intakeId: id, customerId, filled, ...res };
+  const line = await linkIntakeLineUser(ctx, intake, customerId);
+  await audit(ctx, { action: 'walkin_intake.link', resourceType: 'walkin_intake', resourceId: id, shopId: intake.shop_id, metadata: { customerId, filled, ...res, line } });
+  return { ok: true as const, intakeId: id, customerId, filled, ...res, line };
 }
 
 /** 新規顧客として登録: a customer is created from the typed details (shop and QR staff become the primary ones) */
@@ -524,8 +583,9 @@ export async function createCustomerFromWalkinIntake(ctx: Ctx, id: string) {
     primaryStaffId: intake.staff_id,
   });
   const res = await resolveIntake(ctx, intake, customer.id, 'created');
-  await audit(ctx, { action: 'walkin_intake.create_customer', resourceType: 'walkin_intake', resourceId: id, shopId: intake.shop_id, metadata: { customerId: customer.id, ...res } });
-  return { ok: true as const, intakeId: id, customerId: customer.id, duplicateCandidates, ...res };
+  const line = await linkIntakeLineUser(ctx, intake, customer.id);
+  await audit(ctx, { action: 'walkin_intake.create_customer', resourceType: 'walkin_intake', resourceId: id, shopId: intake.shop_id, metadata: { customerId: customer.id, ...res, line } });
+  return { ok: true as const, intakeId: id, customerId: customer.id, duplicateCandidates, ...res, line };
 }
 
 /** 破棄: the intake leaves the list; nothing is attached to any customer */
@@ -548,13 +608,16 @@ export async function walkinReceptionLink(ctx: Ctx, input: { shopId: string; sta
   assertShopAccess(ctx.actor, input.shopId);
   const shop = await ctx.trx.selectFrom('shops').select(['id', 'name', 'slug', 'status']).where('id', '=', input.shopId).executeTakeFirst();
   if (!shop) throw Errors.notFound('店舗', input.shopId);
-  const [staff, consents] = await Promise.all([receptionStaff(ctx, shop.id, input.staffId), consentTemplates(ctx, shop.id)]);
+  const [staff, consents, channel] = await Promise.all([receptionStaff(ctx, shop.id, input.staffId), consentTemplates(ctx, shop.id), channelForShop(ctx, shop.id)]);
   if (input.staffId && !staff) throw Errors.notFound('スタッフ', input.staffId);
+  const liffId = channel?.liffId ?? null;
   return {
-    url: walkinConsentUrl(shop.slug, { staffId: staff?.id }),
+    url: walkinConsentUrl(shop.slug, { staffId: staff?.id, liffId }),
+    /** the LIFF ID the QR opens in LINE with (null = reception without LINE linking) */
+    liffId,
     shop: { id: shop.id, name: shop.name, slug: shop.slug, open: shop.status === 'active' },
     staff,
     /** the first one is used unless the URL carries ?form=<lineageId> */
-    consentForms: consents.map((t) => ({ lineageId: t.lineage_id, templateId: t.id, name: t.name, version: t.version, url: walkinConsentUrl(shop.slug, { staffId: staff?.id, form: t.lineage_id }) })),
+    consentForms: consents.map((t) => ({ lineageId: t.lineage_id, templateId: t.id, name: t.name, version: t.version, url: walkinConsentUrl(shop.slug, { staffId: staff?.id, form: t.lineage_id, liffId }) })),
   };
 }
