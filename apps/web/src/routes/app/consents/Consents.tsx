@@ -89,6 +89,11 @@ export default function Consents() {
 
   const listQ = useWalkinIntakes({ shopId: currentShopId, q: term || undefined }, canRead);
   const intakes = listQ.data?.pages.flatMap((p) => p.items) ?? [];
+  // every pending intake is listed (no 「さらに表示」): further pages are fetched right away
+  const { hasNextPage, isFetchingNextPage, fetchNextPage } = listQ;
+  useEffect(() => {
+    if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
   const refresh = () => qc.invalidateQueries({ queryKey: walkinKeys.all });
 
   // a shop switch leaves the dialogs of the previous shop behind
@@ -98,9 +103,10 @@ export default function Consents() {
   }, [currentShopId]);
 
   const candidatesQ = useQuery({
-    queryKey: ['customers', 'walkin-link', customerTerm],
-    queryFn: () => customersApi.search({ q: customerTerm, limit: 20 }),
-    enabled: !!linking && !!customerTerm,
+    // customers of the shop the intake was submitted at
+    queryKey: ['customers', 'walkin-link', currentShopId, customerTerm],
+    queryFn: () => customersApi.search({ shopId: currentShopId ?? undefined, q: customerTerm, limit: 20 }),
+    enabled: !!linking && !!customerTerm && !!currentShopId,
   });
   const candidates = linking && customerTerm ? (candidatesQ.data?.items ?? []) : [];
 
@@ -258,18 +264,6 @@ export default function Consents() {
               </CardContent>
             </Card>
           ))}
-          {listQ.hasNextPage ? (
-            <div className="pt-2 text-center">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={listQ.isFetchingNextPage}
-                onClick={() => void listQ.fetchNextPage()}
-              >
-                さらに表示
-              </Button>
-            </div>
-          ) : null}
         </div>
       )}
 
@@ -409,8 +403,8 @@ export default function Consents() {
             >
               <div className="text-sm font-medium">
                 {c.display_name}
-                {c.customer_number ? (
-                  <span className="ml-2 font-mono text-xs text-muted-foreground">{c.customer_number}</span>
+                {(c.member_no ?? c.customer_number) ? (
+                  <span className="ml-2 font-mono text-xs text-muted-foreground">{c.member_no ?? c.customer_number}</span>
                 ) : null}
               </div>
               <div className="text-xs text-muted-foreground">

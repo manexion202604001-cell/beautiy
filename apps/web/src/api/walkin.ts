@@ -145,7 +145,7 @@ export const walkinKeys = {
 export function useWalkinIntakes(q: { shopId: string | null; q?: string }, enabled = true) {
   return useInfiniteQuery({
     queryKey: walkinKeys.list(q),
-    queryFn: ({ pageParam }) => walkinApi.list({ shopId: q.shopId!, q: q.q, cursor: pageParam }),
+    queryFn: ({ pageParam }) => walkinApi.list({ shopId: q.shopId!, q: q.q, cursor: pageParam, limit: 200 }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.nextCursor ?? undefined,
     enabled: enabled && !!q.shopId,
