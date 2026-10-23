@@ -138,7 +138,7 @@ export default function ReservationNew() {
   });
   const pickCustomer = () => {
     saveDraft(draft());
-    navigate('/app/customers?mode=select');
+    navigate('/app/customers/manage?mode=select');
   };
   const pickMenus = () => {
     saveDraft(draft());

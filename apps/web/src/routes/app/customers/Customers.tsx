@@ -26,17 +26,25 @@ type Tab = 'all' | 'unassigned' | 'merge' | 'name-dup';
 
 const kanaOf = (c: CustomerListItem) => `${c.last_name_kana ?? ''} ${c.first_name_kana ?? ''}`.trim();
 
+/** the カルテ list loads every customer of the shop: pages this big are fetched one after another */
+const KARTE_PAGE = 1000;
+
 /**
- * 顧客管理 (main menu): the customer list that opens a customer's record, with the staff filter
- * and the 担当未設定 / 統合候補 / 名前重複 tabs.
- * ?mode=select is the customer picker of the reservation form (顧客を選択): the picked customer is
- * handed back to /app/calendar/new.
+ * Two screens, as in the system this app replaces:
+ *  - カルテ (`/app/customers`, main menu 顧客管理): the customers of the selected shop, all at once
+ *    (「(N件)」), with the staff filter and the 全顧客 / 担当未設定 / 統合候補 tabs.
+ *  - 顧客管理 (`/app/customers/manage`): every customer, 50 at a time with もっと見る, and the
+ *    担当未定 / 統合候補 / 名前重複 tabs. Opened from the staff screen (担当顧客, `?staff_id=`) and as
+ *    the customer picker of the reservation form (`?mode=select`, 顧客を選択: the picked customer is
+ *    handed back to /app/calendar/new).
  */
-export default function Customers() {
+export default function Customers({ variant }: { variant?: 'karte' | 'manage' }) {
   const [params] = useSearchParams();
   const navigate = useNavigate();
-  const { timezone: tz, can } = useAuth();
+  const { currentShopId, timezone: tz, can } = useAuth();
   const selectMode = params.get('mode') === 'select';
+  // the picker always is the 顧客管理 screen (older links open /app/customers?mode=select)
+  const manage = variant === 'manage' || selectMode;
 
   // ?q= opens the list already searched (links from other screens)
   const [searchInput, setSearchInput] = useState(params.get('q') ?? '');
@@ -64,40 +72,44 @@ export default function Customers() {
   const nameDupQ = useQuery({
     queryKey: ['customers', 'name-duplicates', 'count'],
     queryFn: () => customersApi.nameDuplicates({ limit: 1 }),
-    enabled: canMerge,
+    enabled: canMerge && manage,
     staleTime: 60_000,
   });
   const mergeCount = dupQ.data?.length ?? 0;
-  const nameDupCount = nameDupQ.data?.total ?? 0;
+  const nameDupCount = manage ? (nameDupQ.data?.total ?? 0) : 0;
 
   const listTab = tab === 'unassigned' ? 'unassigned' : 'all';
   const listQ = useCustomerSearch(
     {
       q: search || undefined,
       ...(listTab === 'unassigned' ? { unassigned: true } : staffId !== 'all' ? { staffId } : {}),
-      limit: 50,
+      ...(manage ? { limit: 50 } : { shopId: currentShopId ?? undefined, limit: KARTE_PAGE }),
     },
-    tab === 'all' || tab === 'unassigned',
+    (tab === 'all' || tab === 'unassigned') && (manage || !!currentShopId),
   );
   const customers = listQ.data?.pages.flatMap((p) => p.items) ?? [];
   const total = listQ.data?.pages[0]?.total ?? 0;
 
-  // customers nobody is in charge of (same search); the picker only counts them on its own tab
-  const unassignedQ = useQuery({
-    queryKey: ['customers', 'unassigned-count', search],
-    queryFn: () => customersApi.search({ q: search || undefined, unassigned: true, limit: 1 }),
-    enabled: !selectMode,
-    staleTime: 30_000,
-  });
-  const unassignedCount = selectMode ? (tab === 'unassigned' ? total : 0) : (unassignedQ.data?.total ?? 0);
+  // カルテ: the rest of a very large shop is fetched quietly after the first page
+  const { hasNextPage, isFetchingNextPage, fetchNextPage } = listQ;
+  useEffect(() => {
+    if (!manage && hasNextPage && !isFetchingNextPage) void fetchNextPage();
+  }, [manage, hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+  // 担当未設定 (カルテ): the listed customers nobody is in charge of; 担当未定 (顧客管理): the total of its own tab
+  const unassignedCount = manage
+    ? tab === 'unassigned'
+      ? total
+      : 0
+    : customers.filter((c) => !c.primary_staff_id).length;
 
   const open = (c: CustomerListItem) => {
     if (selectMode)
       navigate(`/app/calendar/new?customer_id=${c.id}&customer_name=${encodeURIComponent(c.display_name)}`);
-    else navigate(`/app/customers/${c.id}`);
+    else navigate(manage ? `/app/customers/${c.id}?from=manage` : `/app/customers/${c.id}`);
   };
 
-  const unassignedLabel = selectMode ? '未定' : '未設定';
+  const unassignedLabel = manage ? '未定' : '未設定';
 
   return (
     <div className="sy-4 md:sy-6">
@@ -108,7 +120,7 @@ export default function Customers() {
               <ChevronLeft className="h-5 w-5" />
             </Button>
           ) : null}
-          {selectMode ? '顧客を選択' : 'カルテ'}
+          {selectMode ? '顧客を選択' : manage ? '顧客管理' : 'カルテ'}
         </h1>
         <Button size="sm" onClick={() => navigate(selectMode ? '/app/customers/new?mode=select' : '/app/customers/new')}>
           <Plus className="mr-1 h-4 w-4 md:mr-2" />
@@ -242,7 +254,7 @@ export default function Customers() {
             <CardTitle className="text-base md:text-lg">
               顧客一覧
               <span className="ml-2 text-sm font-normal text-muted-foreground md:text-base">
-                {selectMode ? `(${customers.length}/${total}件)` : `(${total}件)`}
+                {manage ? `(${customers.length}/${total}件)` : `(${total}件)`}
               </span>
             </CardTitle>
           </CardHeader>
@@ -256,9 +268,9 @@ export default function Customers() {
                 {customers.map((c) => {
                   const kana = kanaOf(c);
                   const staffOrigin = isStaffOrigin(c.acquisition_source);
-                  // the picker also tells LINE friends apart; the 顧客管理 list does not
-                  const lineName = selectMode && c.name_source === 'line';
-                  const line = selectMode && c.has_line;
+                  // 顧客管理 also tells LINE friends apart; the カルテ list does not
+                  const lineName = manage && c.name_source === 'line';
+                  const line = manage && c.has_line;
                   return (
                     <div
                       key={c.id}
@@ -336,7 +348,7 @@ export default function Customers() {
                     </div>
                   );
                 })}
-                {listQ.hasNextPage ? (
+                {manage && listQ.hasNextPage ? (
                   <div className="pt-4 text-center">
                     <Button
                       variant="outline"

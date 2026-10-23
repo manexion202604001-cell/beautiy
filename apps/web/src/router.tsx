@@ -147,6 +147,8 @@ export const router = createRouter([
       { path: 'customers', element: s(<Customers />) },
       // previous list (tag / visit-date filters, CSV export); linked from 設定 › その他の機能
       { path: 'customers-classic', element: s(<CustomersList />) },
+      // 顧客管理 (every customer, 名前重複): the staff screen's 担当顧客 and the reservation form's picker
+      { path: 'customers/manage', element: s(<Customers variant="manage" />) },
       { path: 'customers/new', element: s(<CustomerCreate />) },
       { path: 'customers/duplicates', element: s(<Duplicates />) },
       { path: 'customers/kartes/:id', element: s(<KarteShow />) },

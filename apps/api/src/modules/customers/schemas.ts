@@ -54,7 +54,8 @@ export const searchCustomersSchema = z.object({
   birthdayMonth: z.coerce.number().int().min(1).max(12).optional(),
   sort: z.enum(['last_visit', 'created', 'name', 'total_sales']).default('last_visit'),
   cursor: z.string().optional(),
-  limit: z.coerce.number().int().min(1).max(200).default(50),
+  // カルテ loads a whole shop at once (pages of 1000)
+  limit: z.coerce.number().int().min(1).max(1000).default(50),
 });
 export type SearchCustomersInput = z.infer<typeof searchCustomersSchema>;
 

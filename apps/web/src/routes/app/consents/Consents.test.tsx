@@ -54,8 +54,12 @@ const detail: WalkinIntakeDetail = {
   counseling_submitted_at: '2026-10-13T03:05:00.000Z',
 };
 
-function mount(items: WalkinIntakeListItem[] = [row, { ...row, id: 'w2', customer_name: '別 次郎', customer_name_kana: '', has_counseling: false, staff_name: null }]) {
-  vi.spyOn(walkinApi, 'list').mockResolvedValue({ items, nextCursor: null });
+function mount(
+  items: WalkinIntakeListItem[] = [row, { ...row, id: 'w2', customer_name: '別 次郎', customer_name_kana: '', has_counseling: false, staff_name: null }],
+  list?: typeof walkinApi.list,
+) {
+  if (list) vi.spyOn(walkinApi, 'list').mockImplementation(list);
+  else vi.spyOn(walkinApi, 'list').mockResolvedValue({ items, nextCursor: null });
   vi.spyOn(walkinApi, 'get').mockResolvedValue({ intake: detail });
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
@@ -83,7 +87,7 @@ describe('Consents (同意書一覧・受付保留)', () => {
     expect(screen.getByText('カウンセリング済')).toBeInTheDocument();
     expect(screen.getByText('同意書のみ')).toBeInTheDocument();
     expect(screen.getByText('担当: 佐藤')).toBeInTheDocument();
-    expect(walkinApi.list).toHaveBeenCalledWith({ shopId: 'shop-1', q: undefined, cursor: undefined });
+    expect(walkinApi.list).toHaveBeenCalledWith({ shopId: 'shop-1', q: undefined, cursor: undefined, limit: 200 });
 
     await user.click(screen.getByText('来店 花子'));
     const dialog = await screen.findByRole('dialog');
@@ -111,6 +115,15 @@ describe('Consents (同意書一覧・受付保留)', () => {
     expect(within(dialog).queryByText('ネイル')).not.toBeInTheDocument();
   });
 
+  it('lists every pending intake at once (no 「さらに表示」)', async () => {
+    mount([], async (q) =>
+      q.cursor ? { items: [{ ...row, id: 'w3', customer_name: '三番 目' }], nextCursor: null } : { items: [row], nextCursor: 'next' },
+    );
+    expect(await screen.findByText('三番 目')).toBeInTheDocument();
+    expect(screen.getByText('来店 花子')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'さらに表示' })).not.toBeInTheDocument();
+  });
+
   it('registers a new customer, links to an existing one and discards', async () => {
     const user = userEvent.setup();
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
@@ -118,7 +131,7 @@ describe('Consents (同意書一覧・受付保留)', () => {
     const link = vi.spyOn(walkinApi, 'link').mockResolvedValue({ ok: true, intakeId: 'w1', customerId: 'c1', consentResponseId: 'r1', counselingCategories: [], filled: [] });
     const discard = vi.spyOn(walkinApi, 'discard').mockResolvedValue({ ok: true, intakeId: 'w1' });
     const search = vi.spyOn(customersApi, 'search').mockResolvedValue({
-      items: [{ id: 'c1', display_name: '来店 花子', customer_number: 'A-001', last_name_kana: 'ライテン', first_name_kana: 'ハナコ', phone: '090-1111-2222' }],
+      items: [{ id: 'c1', display_name: '来店 花子', customer_number: 'A-001', member_no: 'M00000007', last_name_kana: 'ライテン', first_name_kana: 'ハナコ', phone: '090-1111-2222' }],
       nextCursor: null,
       total: 1,
     } as unknown as Awaited<ReturnType<typeof customersApi.search>>);
@@ -136,8 +149,9 @@ describe('Consents (同意書一覧・受付保留)', () => {
     await user.click(screen.getByText('来店 花子'));
     await user.click(await screen.findByRole('button', { name: '既存の顧客に紐付け' }));
     expect(await screen.findByPlaceholderText('顧客名で検索')).toHaveValue('来店 花子');
-    await waitFor(() => expect(search).toHaveBeenCalledWith({ q: '来店 花子', limit: 20 }));
-    await user.click(await screen.findByText('A-001'));
+    // customers of the shop, with the 会員番号 shared by linked records
+    await waitFor(() => expect(search).toHaveBeenCalledWith({ shopId: 'shop-1', q: '来店 花子', limit: 20 }));
+    await user.click(await screen.findByText('M00000007'));
     await waitFor(() => expect(link).toHaveBeenCalledWith('w1', 'c1'));
     expect(await screen.findByText('既存顧客に紐付けました')).toBeInTheDocument();
 

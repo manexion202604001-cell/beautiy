@@ -205,6 +205,8 @@ export interface CustomerListItem {
   email: string | null;
   primary_shop_id: string | null;
   primary_staff_id: string | null;
+  /** 会員番号 shared by records linked as one person (名前重複 › 同一人物としてリンク) */
+  member_no?: string | null;
   first_visit_at: string | null;
   last_visit_at: string | null;
   visit_count: number;
@@ -647,6 +649,7 @@ export interface AppointmentListItem {
   version: number;
   customer_name: string;
   customer_name_kana: string;
+  customer_phone?: string | null;
   customer_visit_count: number | null;
   staff_name: string | null;
   staff_color: string | null;

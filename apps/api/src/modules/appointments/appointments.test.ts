@@ -198,6 +198,30 @@ describe('appointments', () => {
     expect(overlap.status).toBe(409);
   });
 
+  it('moves a booking by drag into closed time, keeping its length, but never onto another booking', async () => {
+    const { t, stylist, menu } = await setup();
+    const other = await createStaffUser(t, 'stylist', { displayName: '別スタイリスト' });
+    const date = nextWeekday(WED);
+    // 60-minute menu booked for 90 minutes
+    const a = (await t.owner.post('/v1/appointments', { shopId: t.shopId, staffId: stylist.staffId, startAt: jst(date, '10:00'), menuIds: [menu.id], durationMin: 90 })).body;
+    // what the calendar sends on a drop: the new staff / time, the current length and the staff override
+    const drop = (version: number, staffId: string, time: string) =>
+      t.owner.patch(`/v1/appointments/${a.id}`, { version, staffId, startAt: jst(date, time), durationMin: 90, allowOutsideSchedule: true });
+    const late = await drop(a.version, other.staffId, '20:30');
+    expect(late.status).toBe(200);
+    expect(late.body.staff_id).toBe(other.staffId);
+    expect(late.body.end_at).toBe(jst(date, '22:00'));
+    const blocker = await t.owner.post('/v1/appointments', { shopId: t.shopId, staffId: stylist.staffId, startAt: jst(date, '14:00'), menuIds: [menu.id] });
+    expect(blocker.status).toBe(201);
+    const clash = await drop(late.body.version, stylist.staffId, '13:30');
+    expect(clash.status).toBe(409);
+    // a cancelled booking stays where it is
+    await t.owner.post(`/v1/appointments/${a.id}/cancel`, {});
+    const cancelled = (await t.owner.get(`/v1/appointments/${a.id}`)).body;
+    const refused = await drop(cancelled.version, stylist.staffId, '17:00');
+    expect(refused.body.error.code).toBe('APPOINTMENT_NOT_EDITABLE');
+  });
+
   it('forbids other shops and users without permission', async () => {
     const { t, menu } = await setup();
     const assistant = await createStaffUser(t, 'assistant');
@@ -244,7 +268,11 @@ describe('appointments', () => {
     expect(await search('09012345678')).toEqual([mine.body.id]);
     expect(await search('5678')).toEqual([mine.body.id]);
     expect(await search('該当なし')).toEqual([]);
-    expect((await t.owner.get(`/v1/appointments?shopId=${t.shopId}&date=${date}`)).body).toHaveLength(3);
+    const listed = (await t.owner.get(`/v1/appointments?shopId=${t.shopId}&date=${date}`)).body;
+    expect(listed).toHaveLength(3);
+    // the search results show the customer's phone after the name
+    expect(listed.find((a: { id: string }) => a.id === mine.body.id).customer_phone).toBe('090-1234-5678');
+    expect(listed.find((a: { customer_id: string | null }) => !a.customer_id).customer_phone).toBeNull();
     // no booking medium is connected: nothing to sync
     expect(mine.body.media_sync).toEqual({ origin: null, blocks: [] });
   });

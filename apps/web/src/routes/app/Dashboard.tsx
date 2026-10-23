@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Calendar, Check, ChevronRight, Clock, MessageCircle, MessageSquare, Users, X, type LucideIcon } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
-import { SOURCE_LABEL, appointmentKeys, appointmentsApi, useAppointments } from '../../api/appointments';
+import { appointmentKeys, appointmentsApi, useAppointments } from '../../api/appointments';
 import { useUnreadCount } from '../../api/messaging';
 import type { AppointmentListItem } from '../../api/types';
 import { ReservationStatusBadge } from '../../components/appointments/ReservationStatusBadge';
@@ -29,7 +29,10 @@ import { formatCurrency, isHotPepper } from './reservations/model';
 
 const menuNameOf = (a: AppointmentListItem) => a.services.map((s) => s.name).join('、');
 
-/** Booking route badge of the dashboard dialog */
+/**
+ * Booking route badge of the dashboard dialog: like SALOGIC only Web / LINE / 電話 / 来店 / HPB get one
+ * (the other routes show nothing here; the reservation page names every route)
+ */
 function RouteBadge({ a }: { a: AppointmentListItem }) {
   if (isHotPepper(a))
     return (
@@ -43,8 +46,8 @@ function RouteBadge({ a }: { a: AppointmentListItem }) {
         LINE
       </Badge>
     );
-  const label =
-    a.source === 'web' ? 'Web' : a.source === 'phone' ? '電話' : a.source === 'walk_in' ? '来店' : (SOURCE_LABEL[a.source] ?? a.source);
+  const label = a.source === 'web' ? 'Web' : a.source === 'phone' ? '電話' : a.source === 'walk_in' ? '来店' : null;
+  if (!label) return null;
   return (
     <Badge variant="outline" className="text-xs">
       {label}
