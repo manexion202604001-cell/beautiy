@@ -28,6 +28,12 @@ import { useAuth } from '../../../lib/auth';
 import { cx } from '../../../lib/cn';
 import { formatCurrency, formatDuration } from '../reservations/model';
 import {
+  SbAssignmentsImportDialog,
+  SbBulkImportDialog,
+  SbImportButton,
+  SbSingleImportDialog,
+} from './SbImportDialogs';
+import {
   colorByCategoryName,
   couponTypeClass,
   couponTypeLabel,
@@ -301,6 +307,7 @@ function Matrix({
   colorOf,
   checked,
   onToggle,
+  importButton,
 }: {
   title: string;
   saving: boolean;
@@ -311,6 +318,8 @@ function Matrix({
   colorOf: (group: string, menus: EffectiveMenu[]) => string;
   checked: Map<string, Set<string>>;
   onToggle: (menuId: string, columnId: string) => void;
+  /** 「SB取込」 of the table */
+  importButton?: ReactNode;
 }) {
   return (
     <Card>
@@ -318,6 +327,7 @@ function Matrix({
         <div className="flex items-center justify-between">
           <CardTitle className="text-base">{title}</CardTitle>
           <div className="flex items-center gap-2">
+            {importButton}
             <Button size="sm" onClick={onSave} disabled={saving || !canManage}>
               {saving ? '保存中...' : '保存'}
             </Button>
@@ -417,7 +427,7 @@ function toggleIn(prev: Map<string, Set<string>>, menuId: string, columnId: stri
 
 /** メニュー管理: 通常メニュー / クーポン の一覧、並び順、掲載、対応スタッフ・対応設備 */
 export default function MenuList() {
-  const { currentShopId: shopId, can, timezone } = useAuth();
+  const { currentShopId: shopId, currentShop, can, timezone } = useAuth();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const qc = useQueryClient();
@@ -439,6 +449,8 @@ export default function MenuList() {
   const [savingStaff, setSavingStaff] = useState(false);
   const [savingEquipment, setSavingEquipment] = useState(false);
   const [orderSaved, setOrderSaved] = useState(false);
+  /** サロンボードから取込 dialog that is open */
+  const [sbDialog, setSbDialog] = useState<'bulk' | 'single' | 'staff' | 'equipment' | null>(null);
   const orderTimer = useRef<number | undefined>(undefined);
   useEffect(() => () => window.clearTimeout(orderTimer.current), []);
 
@@ -480,6 +492,19 @@ export default function MenuList() {
       new Map(menus.map((m) => [m.id, new Set(m.resourceRequirements.map((r) => r.resourceType))])),
     );
     setView('equipment-matrix');
+  };
+
+  // after an SB import into a table: the table restarts from the saved assignments
+  const reloadMatrix = async (which: 'staff' | 'equipment') => {
+    await refresh();
+    const fresh =
+      (shopId && qc.getQueryData<EffectiveMenu[]>(catalogKeys.menus(shopId, true))) || menus;
+    if (which === 'staff') {
+      setStaffMatrix(new Map(fresh.map((m) => [m.id, new Set(m.staffIds)])));
+    } else {
+      const types = (m: EffectiveMenu) => new Set(m.resourceRequirements.map((r) => r.resourceType));
+      setEquipmentMatrix(new Map(fresh.map((m) => [m.id, types(m)])));
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -644,6 +669,13 @@ export default function MenuList() {
           colorOf={colorOf}
           checked={staffMatrix}
           onToggle={(menuId, staffId) => setStaffMatrix((prev) => toggleIn(prev, menuId, staffId))}
+          importButton={
+            <SbImportButton
+              label="SB取込"
+              disabled={!canManage}
+              onClick={() => setSbDialog('staff')}
+            />
+          }
         />
       ) : view === 'equipment-matrix' ? (
         <Matrix
@@ -656,6 +688,13 @@ export default function MenuList() {
           colorOf={colorOf}
           checked={equipmentMatrix}
           onToggle={(menuId, type) => setEquipmentMatrix((prev) => toggleIn(prev, menuId, type))}
+          importButton={
+            <SbImportButton
+              label="SB取込"
+              disabled={!canManage}
+              onClick={() => setSbDialog('equipment')}
+            />
+          }
         />
       ) : (
         <>
@@ -690,6 +729,12 @@ export default function MenuList() {
           </div>
 
           <div className="flex items-center gap-2">
+            <SbImportButton label="SB取込" disabled={!canManage} onClick={() => setSbDialog('bulk')} />
+            <SbImportButton
+              label="SB取込（個別）"
+              disabled={!canManage}
+              onClick={() => setSbDialog('single')}
+            />
             <Button
               size="sm"
               disabled={!canManage}
@@ -761,6 +806,33 @@ export default function MenuList() {
           )}
         </>
       )}
+
+      <SbBulkImportDialog
+        open={sbDialog === 'bulk'}
+        onOpenChange={(open) => setSbDialog(open ? 'bulk' : null)}
+        shopId={shopId}
+        shopName={currentShop?.name}
+        initialKind={tab}
+        onImported={refresh}
+      />
+      <SbSingleImportDialog
+        open={sbDialog === 'single'}
+        onOpenChange={(open) => setSbDialog(open ? 'single' : null)}
+        shopId={shopId}
+        shopName={currentShop?.name}
+        onImported={refresh}
+      />
+      {(['staff', 'equipment'] as const).map((target) => (
+        <SbAssignmentsImportDialog
+          key={target}
+          target={target}
+          open={sbDialog === target}
+          onOpenChange={(open) => setSbDialog(open ? target : null)}
+          shopId={shopId}
+          shopName={currentShop?.name}
+          onImported={() => reloadMatrix(target)}
+        />
+      ))}
 
       {orderSaved ? (
         <div

@@ -1,0 +1,24 @@
+<!-- SALON BOARD: クーポン掲載情報編集 (shape only; written for the tests) -->
+<table class="couponEditTbl">
+  <tbody>
+    <tr><th>クーポン名<span class="req">必須</span></th><td><textarea name="frmCoupon.couponName">【再来】まつげパーマ</textarea></td></tr>
+    <tr><th>クーポン内容</th><td><textarea name="frmCoupon.contentExplanation">前回から2ヶ月以内の方
+限定</textarea></td></tr>
+    <tr><th>価格</th><td><input type="text" id="TagIN_NM_PRICE_01" value="5,500"> 円</td></tr>
+    <tr><th>所要目安時間</th><td><select name="frmCoupon.sejyutsuAimTime"><option value="45">45分</option><option value="60" selected>60分</option></select></td></tr>
+    <tr><th>提示条件</th><td><select id="TagSL_NM_COUPON_CONDITION_CD_01"><option value="01">指定なし</option><option value="02" selected>予約時</option></select></td></tr>
+    <tr><th>利用条件</th><td><input type="text" name="frmCoupon.useCondition" value="再来の方 平日限定"></td></tr>
+    <tr>
+      <th>検索用カテゴリ</th>
+      <td>
+        <div id="TagIN_COUPON_CATEGORY">
+          <table>
+            <tr><th>まつげ</th><td><ul><li><input type="checkbox"> まつげエクステ</li><li><input type="checkbox" checked> まつげパーマ</li></ul></td></tr>
+            <tr><th>ネイル</th><td><ul><li><input type="checkbox"> ジェル</li></ul></td></tr>
+          </table>
+        </div>
+      </td>
+    </tr>
+  </tbody>
+</table>
+<img id="TagImgCouponPoto" src="https://imgbp.salonboard.com/CLP/img/p.jpg?impolicy=x&amp;w=200&amp;h=150">
