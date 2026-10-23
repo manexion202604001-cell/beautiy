@@ -796,6 +796,7 @@ export interface LineChannels {
   created_at: Generated<Timestamp>;
   encrypted_access_token: string;
   encrypted_channel_secret: string;
+  friend_url: string | null;
   id: Generated<string>;
   liff_id: string | null;
   login_channel_id: string | null;
@@ -1652,6 +1653,9 @@ export interface WalkinIntakes {
   ip: string | null;
   last_name: Generated<string>;
   last_name_kana: Generated<string>;
+  line_channel_id: string | null;
+  line_display_name: string | null;
+  line_user_id: string | null;
   occupation: string | null;
   organization_id: string;
   phone: string | null;

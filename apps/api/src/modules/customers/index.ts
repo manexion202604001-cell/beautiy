@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { idParam, uuid } from '../../lib/schemas.js';
 import { dismissDuplicate, findDuplicateCandidates, listDuplicatePairs } from './duplicates.js';
 import { assertCustomerAccess } from './access.js';
+import { listLineMergeCandidates } from './line-merge-candidates.js';
 import { listMergeLogs, mergeCustomers, undoMerge } from './merge.js';
 import { dismissNameDuplicate, linkMaster, listNameDuplicates, unlinkMaster } from './name-duplicates.js';
 import { customerOverview } from './overview.js';
@@ -38,6 +39,22 @@ const plugin: FastifyPluginAsyncZod = async (app) => {
   });
   app.get('/customers/duplicates', { schema: { tags, summary: '重複候補ペア一覧(名寄せ)', querystring: z.object({ limit: z.coerce.number().int().min(1).max(500).default(100) }) } }, (req) =>
     req.tx((ctx) => listDuplicatePairs(ctx, req.query.limit)),
+  );
+  app.get(
+    '/customers/line-merge-candidates',
+    {
+      schema: {
+        tags,
+        summary: '統合候補(LINEから来た顧客 ↔ 既存顧客。既定は現在の店舗)',
+        querystring: z.object({
+          shopId: uuid.optional(),
+          /** only the pairs of this LINE customer (予約詳細の統合候補) */
+          customerId: uuid.optional(),
+          limit: z.coerce.number().int().min(1).max(500).default(100),
+        }),
+      },
+    },
+    (req) => req.tx((ctx) => listLineMergeCandidates(ctx, req.query)),
   );
   app.post('/customers/duplicates/dismiss', { schema: { tags, summary: '重複候補の除外', body: z.object({ customerIdA: uuid, customerIdB: uuid }) } }, async (req, reply) => {
     await req.tx((ctx) => dismissDuplicate(ctx, req.body.customerIdA, req.body.customerIdB));

@@ -18,6 +18,14 @@ const lineChannelFields = {
   basicId: z.string().max(50).nullable().optional(),
   liffId: z.string().max(100).nullable().optional(),
   loginChannelId: z.string().max(100).nullable().optional(),
+  /** 友だち追加URL (LINE Official Account Manager › 友だち追加ガイド) */
+  friendUrl: z
+    .string()
+    .trim()
+    .max(300)
+    .regex(/^https:\/\/(lin\.ee|line\.me|page\.line\.me)\/\S+$/, '友だち追加URLは https://lin.ee/… の形式で入力してください')
+    .nullable()
+    .optional(),
 };
 
 export const createLineChannelSchema = z.object({
@@ -36,6 +44,7 @@ export const updateLineChannelSchema = z
     basicId: lineChannelFields.basicId,
     liffId: lineChannelFields.liffId,
     loginChannelId: lineChannelFields.loginChannelId,
+    friendUrl: lineChannelFields.friendUrl,
     status: z.enum(['active', 'disabled']),
   })
   .partial();

@@ -298,6 +298,8 @@ export const publicWalkinSubmitSchema = z.object({
   agreed: z.literal(true, { message: '同意が必要です' }),
   answers: answersSchema.default({}),
   signature: z.object({ dataUrl: signatureDataUrl, signerName: z.string().min(1).max(100) }).optional(),
+  /** LIFF id token when the form is filled inside LINE: the LINE user is linked to the customer */
+  lineIdToken: z.string().min(5).max(4000).optional(),
 });
 export type PublicWalkinSubmitInput = z.infer<typeof publicWalkinSubmitSchema>;
 
