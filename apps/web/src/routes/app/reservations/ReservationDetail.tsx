@@ -4,7 +4,9 @@ import QRCode from 'qrcode';
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { SOURCE_LABEL, appointmentKeys, appointmentsApi, useAppointment } from '../../../api/appointments';
+import { useCustomer } from '../../../api/customers';
 import { formsApi, useFormTemplates } from '../../../api/forms';
+import { consentSections } from '../../../api/walkin';
 import type { AppointmentDetail, AppointmentStatus } from '../../../api/types';
 import { AppointmentDrawer } from '../../../components/appointments/AppointmentDrawer';
 import {
@@ -53,6 +55,13 @@ function syncState(a: AppointmentDetail): -1 | 0 | 1 {
   const bad = (s: string) => ['action_required', 'remove_required', 'error', 'conflict'].includes(s);
   if (sync.blocks.some((b) => bad(b.state)) || (sync.origin && bad(sync.origin.sync_state))) return -1;
   return sync.origin || sync.blocks.length > 0 ? 1 : 0;
+}
+
+/** Menu text of a booking without menu rows (taken over from a booking medium) */
+function menuText(a: AppointmentDetail): string {
+  const d = a.source_detail ?? {};
+  const v = d.menuName ?? d.menu_name ?? d.menuText;
+  return typeof v === 'string' ? v : '';
 }
 
 /** QR code as an inline SVG (quiet zone of 4 modules, error correction M) */
@@ -117,6 +126,15 @@ export default function ReservationDetail() {
     queryFn: () => formsApi.responses({ customerId: a!.customer_id!, appointmentId: id, status: 'submitted' }),
     enabled: consentOpen && !!a?.customer_id,
   });
+  // 同意書 dialog: the signed document (its text) and the customer's details
+  const consentResponseId =
+    (consentQ.data?.items ?? []).find((r) => r.appointment_id === id && r.status === 'submitted')?.id ?? null;
+  const consentDocQ = useQuery({
+    queryKey: ['forms', 'response', consentResponseId],
+    queryFn: () => formsApi.response(consentResponseId!),
+    enabled: consentOpen && !!consentResponseId,
+  });
+  const consentCustomerQ = useCustomer(consentOpen && can('customer.read') ? a?.customer_id : null);
 
   const formatDate = (iso: string) =>
     new Date(zonedToIso(zonedParts(iso, tz).date, '12:00', tz)).toLocaleDateString('ja-JP', {
@@ -127,6 +145,16 @@ export default function ReservationDetail() {
       weekday: 'short',
     });
   const timeOf = (iso: string) => zonedParts(iso, tz).time;
+  /** 2026年10月13日 14:30 (同意日時) */
+  const formatDateTime = (iso: string) =>
+    new Date(iso).toLocaleString('ja-JP', {
+      timeZone: tz,
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
 
   if (apptQ.isLoading) {
     return (
@@ -231,16 +259,23 @@ export default function ReservationDetail() {
             </div>
             <div>
               <span className="text-sm text-muted-foreground">メニュー</span>
-              <div className="mt-1 sy-1">
-                {a.services.map((s) => (
-                  <div key={s.id} className="flex justify-between text-sm">
-                    <span className="font-medium">{s.name}</span>
-                    <span className="text-muted-foreground">
-                      {s.duration_min}分 / {formatCurrency(s.price)}
-                    </span>
-                  </div>
-                ))}
-              </div>
+              {a.services.length > 0 ? (
+                <div className="mt-1 sy-1">
+                  {a.services.map((s) => (
+                    <div key={s.id} className="flex justify-between text-sm">
+                      <span className="font-medium">{s.name}</span>
+                      <span className="text-muted-foreground">
+                        {s.duration_min}分 / {formatCurrency(s.price)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                // bookings taken over without menu rows keep the menu text of the medium
+                <div className="flex justify-between">
+                  <span className="font-medium">{menuText(a)}</span>
+                </div>
+              )}
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">担当</span>
@@ -391,32 +426,69 @@ export default function ReservationDetail() {
             <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
           </div>
         ) : consentResponses.length > 0 ? (
-          <div className="text-sm sy-4">
-            <div className="sy-2">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">お名前</span>
-                <span className="font-medium">{customerName}</span>
-              </div>
-              {consentResponses.map((r) => (
-                <div key={r.id} className="flex justify-between">
-                  <span className="text-muted-foreground">{r.template_name}</span>
-                  <button
-                    type="button"
-                    className="text-primary underline-offset-4 hover:underline"
-                    onClick={() => navigate(`/app/customers/${a.customer_id}`)}
-                  >
-                    回答を見る
-                  </button>
+          (() => {
+            const doc = consentDocQ.data;
+            const c = consentCustomerQ.data;
+            // what the customer typed at reception (受付の同意書) wins over the customer record
+            const typed = (key: string) => {
+              const v = doc?.answers[key];
+              return typeof v === 'string' && v.trim() ? v : null;
+            };
+            const kana =
+              typed('walkin_name_kana') ??
+              (`${c?.last_name_kana ?? a.customer_last_name_kana ?? ''} ${c?.first_name_kana ?? a.customer_first_name_kana ?? ''}`.trim() ||
+                null);
+            const rows: [string, string | null][] = [
+              ['フリガナ', kana],
+              ['生年月日', typed('walkin_birthday') ?? c?.birthday ?? null],
+              ['電話番号', typed('walkin_phone') ?? c?.phone ?? a.customer_phone],
+              ['職業', typed('walkin_occupation') ?? c?.occupation ?? null],
+              ['来店理由', typed('walkin_visit_reason') ?? c?.acquisition_source ?? null],
+            ];
+            const sections = consentSections(doc?.template_snapshot.bodyMarkdown);
+            const agreedAt = doc?.submitted_at ?? doc?.signed_at ?? consentResponses[0]?.submitted_at ?? null;
+            return (
+              <div className="text-sm sy-4">
+                <div className="sy-2">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">お名前</span>
+                    <span className="font-medium">{typed('walkin_name') ?? customerName}</span>
+                  </div>
+                  {rows.map(([label, value]) =>
+                    value ? (
+                      <div key={label} className="flex justify-between">
+                        <span className="text-muted-foreground">{label}</span>
+                        <span>{value}</span>
+                      </div>
+                    ) : null,
+                  )}
                 </div>
-              ))}
-            </div>
-            <div className="border-t pt-3 text-xs text-muted-foreground">
-              同意日時:{' '}
-              {consentResponses[0]?.submitted_at
-                ? `${formatDate(consentResponses[0].submitted_at)} ${timeOf(consentResponses[0].submitted_at)}`
-                : '-'}
-            </div>
-          </div>
+                {sections.length > 0 ? (
+                  <div className="border-t pt-3 sy-3">
+                    {sections.map((sec, i) => (
+                      <div key={i}>
+                        <h4 className="text-sm font-medium">{sec.title}</h4>
+                        <p className="mt-1 whitespace-pre-wrap text-xs text-muted-foreground">
+                          {[...sec.items.map((it) => `・${it}`), sec.content].filter(Boolean).join('\n')}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                <div className="border-t pt-3 text-xs text-muted-foreground">
+                  同意日時: {agreedAt ? formatDateTime(agreedAt) : '-'}
+                </div>
+                {/* Salon OS: every answer of the form stays readable on the customer's documents */}
+                <button
+                  type="button"
+                  className="text-xs text-primary underline-offset-4 hover:underline"
+                  onClick={() => navigate(`/app/customers/${a.customer_id}`)}
+                >
+                  回答を見る
+                </button>
+              </div>
+            );
+          })()
         ) : (
           <p className="py-4 text-sm text-muted-foreground">同意書データが見つかりません</p>
         )}
