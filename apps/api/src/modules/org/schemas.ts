@@ -113,6 +113,16 @@ export const updateStaffSchema = createStaffSchema
   .extend({
     status: z.enum(['invited', 'active', 'inactive', 'retired']).optional(),
     retiredOn: isoDate.nullable().optional(),
+    /** サロンボード スタッフ名 ('' / null = not set); kept in the SALON BOARD connector's staff map */
+    salonboardName: z.string().trim().max(100).nullable().optional(),
+    /** サロンボード スタッフID: the number after staffId= in SALON BOARD's new-booking URL */
+    salonboardStaffId: z
+      .string()
+      .trim()
+      .max(50)
+      .regex(/^[A-Za-z0-9]*$/, 'サロンボード スタッフIDは英数字で入力してください')
+      .nullable()
+      .optional(),
   });
 export type UpdateStaffInput = z.infer<typeof updateStaffSchema>;
 

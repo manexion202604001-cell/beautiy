@@ -1421,6 +1421,8 @@ export interface Staffs {
   public_slug: string | null;
   retired_on: string | null;
   role_id: string;
+  salonboard_name: string | null;
+  salonboard_staff_id: string | null;
   sort_order: Generated<number>;
   status: Generated<string>;
   title: string | null;

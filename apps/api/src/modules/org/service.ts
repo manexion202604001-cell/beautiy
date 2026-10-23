@@ -19,6 +19,7 @@ import { runOrgSeeders } from '../../lib/org-seeders.js';
 import { mergeShopSettings, parseShopSettings } from '../../lib/shop-settings.js';
 import { config } from '../../config.js';
 import { staffAvatarUrls } from './avatars.js';
+import { assertSalonboardUnique, blankToNull, syncSalonboardStaffMap } from './salonboard-staff.js';
 import type {
   CreateShopInput,
   CreateStaffInput,
@@ -302,6 +303,8 @@ const staffColumns = [
   'staffs.status',
   'staffs.hired_on',
   'staffs.retired_on',
+  'staffs.salonboard_name',
+  'staffs.salonboard_staff_id',
   'staffs.created_at',
 ] as const;
 
@@ -444,6 +447,9 @@ export async function updateStaff(ctx: Ctx, staffId: string, input: UpdateStaffI
   if (input.roleId && input.roleId !== before.role_id) {
     return changeRoleThenUpdate(ctx, staffId, input);
   }
+  const salonboardName = blankToNull(input.salonboardName);
+  const salonboardStaffId = blankToNull(input.salonboardStaffId);
+  await assertSalonboardUnique(ctx, staffId, { name: salonboardName, staffId: salonboardStaffId });
   await ctx.trx
     .updateTable('staffs')
     .set({
@@ -462,11 +468,14 @@ export async function updateStaff(ctx: Ctx, staffId: string, input: UpdateStaffI
       status: input.status,
       hired_on: input.hiredOn,
       retired_on: input.retiredOn,
+      salonboard_name: salonboardName,
+      salonboard_staff_id: salonboardStaffId,
       updated_by: auditUserId(ctx.actor),
       trace_id: ctx.meta.traceId ?? null,
     })
     .where('id', '=', staffId)
     .execute();
+  if (salonboardName !== undefined) await syncSalonboardStaffMap(ctx, staffId, before.salonboard_name, salonboardName);
   invalidateActorCache(staffId);
   const after = await getStaff(ctx, staffId);
   await audit(ctx, { action: 'staff.update', resourceType: 'staff', resourceId: staffId, ...diff(before as never, after as never) });

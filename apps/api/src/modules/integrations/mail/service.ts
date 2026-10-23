@@ -70,12 +70,18 @@ export async function resolveMappings(
     const shopStaff = await ctx.trx
       .selectFrom('staffs')
       .innerJoin('staff_shop_assignments as a', 'a.staff_id', 'staffs.id')
-      .select(['staffs.id', 'staffs.display_name', 'staffs.display_name_kana'])
+      .select(['staffs.id', 'staffs.display_name', 'staffs.display_name_kana', 'staffs.salonboard_name'])
       .where('a.shop_id', '=', acc.shop_id)
       .where('a.ended_on', 'is', null)
       .where('staffs.deleted_at', 'is', null)
       .execute();
     const byId = new Map(shopStaff.map((s) => [s.id, s.display_name]));
+    // サロンボード スタッフ名 set on the stylist (スタッフ編集) counts as a mapping
+    const sbNamed =
+      acc.provider === 'hotpepper_mail' && !staffMap[parsed.staffName]
+        ? shopStaff.filter((s) => s.salonboard_name && normalizeName(s.salonboard_name) === normalizeName(parsed.staffName!))
+        : [];
+    if (sbNamed.length === 1) staffMap[parsed.staffName] = sbNamed[0]!.id;
     if (staffMap[parsed.staffName]) {
       staff = {
         name: parsed.staffName,
