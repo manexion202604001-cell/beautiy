@@ -384,6 +384,29 @@ describe('Staff (スタッフ管理)', () => {
     expect(credentials).not.toHaveBeenCalled();
   });
 
+  it('スタッフ編集 saves the サロンボード スタッフ名 / スタッフID with the staff fields', async () => {
+    const user = userEvent.setup();
+    const update = vi.spyOn(staffScreenApi, 'update').mockResolvedValue(staffResult);
+    vi.spyOn(staffScreenApi, 'extras').mockResolvedValue(staffResult);
+    mount();
+    const row = await rowOf('山田 花子');
+    await user.click(first(within(row).getAllByRole('button', { name: 'スタッフ編集' })));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByPlaceholderText('サロンボードに登録されている名前')).toHaveValue('');
+    expect(
+      within(dialog).getByText('サロンボードで新規予約を作成した時のURLに含まれる「staffId=」の後の番号を登録してください'),
+    ).toBeInTheDocument();
+    await user.type(within(dialog).getByLabelText('サロンボード スタッフ名'), 'hana ko');
+    await user.type(within(dialog).getByLabelText('サロンボード スタッフID'), ' W000123456 ');
+    await user.click(within(dialog).getByRole('button', { name: '更新' }));
+    await waitFor(() =>
+      expect(update).toHaveBeenCalledWith('s1', {
+        salonboardName: 'hana ko',
+        salonboardStaffId: 'W000123456',
+      }),
+    );
+  });
+
   it('ログイン情報を設定 registers the address with a generated temporary password and shows what to send', async () => {
     const user = userEvent.setup();
     const credentials = vi.spyOn(staffScreenApi, 'credentials').mockResolvedValue(staffResult);

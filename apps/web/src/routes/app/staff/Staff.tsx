@@ -99,6 +99,8 @@ const EMPTY_FORM = {
   roleId: '',
   notifyLine: false,
   lineUserId: '',
+  salonboardName: '',
+  salonboardStaffId: '',
 };
 
 /** スタッフ管理: invitations, the shop's staff (order, photo, role, login, visibility, hours, reception QR) */
@@ -212,6 +214,8 @@ export default function Staff() {
       roleId: s.role_id,
       notifyLine: s.notify_line,
       lineUserId: s.line_user_id ?? '',
+      salonboardName: s.salonboard_name ?? '',
+      salonboardStaffId: s.salonboard_staff_id ?? '',
     });
     setAvatarPreview(s.avatar_url ?? null);
     setAvatarFile(null);
@@ -240,6 +244,10 @@ export default function Staff() {
       if (form.name.trim() && form.name.trim() !== editing.display_name)
         patch.displayName = form.name.trim();
       if (form.roleId && form.roleId !== editing.role_id) patch.roleId = form.roleId;
+      if (form.salonboardName.trim() !== (editing.salonboard_name ?? ''))
+        patch.salonboardName = form.salonboardName.trim() || null;
+      if (form.salonboardStaffId.trim() !== (editing.salonboard_staff_id ?? ''))
+        patch.salonboardStaffId = form.salonboardStaffId.trim() || null;
       // without a login the address is only a contact address until a password is set
       if (!hasLogin && !form.password && email && email !== (editing.email ?? ''))
         patch.email = email;
@@ -1013,6 +1021,45 @@ export default function Staff() {
                 </p>
               </div>
             ) : null}
+          </div>
+          <div className="mt-4 border-t pt-4">
+            <div className="sy-4">
+              <div className="sy-2">
+                <Label htmlFor="staff-salonboard-name" className="font-medium">
+                  サロンボード スタッフ名
+                </Label>
+                <Input
+                  id="staff-salonboard-name"
+                  type="text"
+                  placeholder="サロンボードに登録されている名前"
+                  value={form.salonboardName}
+                  onChange={(e) => setForm({ ...form, salonboardName: e.target.value })}
+                />
+                <p className="text-xs text-muted-foreground">
+                  サロンボードに登録されている名前。CSV予約インポート時のスタッフマッチングに使用します
+                </p>
+              </div>
+              <div className="sy-2">
+                <Label htmlFor="staff-salonboard-staff-id" className="font-medium">
+                  サロンボード スタッフID
+                </Label>
+                <Input
+                  id="staff-salonboard-staff-id"
+                  type="text"
+                  placeholder="サロンボード上のスタッフID"
+                  value={form.salonboardStaffId}
+                  onChange={(e) => setForm({ ...form, salonboardStaffId: e.target.value })}
+                />
+                <p className="rounded-md border bg-muted/50 px-3 py-2 font-mono text-xs text-muted-foreground">
+                  …/KLP/reserve/…?
+                  <span className="font-semibold text-foreground">staffId=W000123456</span>
+                  &amp;…
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  サロンボードで新規予約を作成した時のURLに含まれる「staffId=」の後の番号を登録してください
+                </p>
+              </div>
+            </div>
           </div>
         </div>
         <div className="flex flex-col-reverse sm:flex-row sm:justify-end sm:sx-2">

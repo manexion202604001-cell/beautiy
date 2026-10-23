@@ -9,6 +9,7 @@ import * as conflicts from './conflicts.js';
 import './mail/adapter.js';
 import * as mail from './mail/service.js';
 import './push.js';
+import { syncAppointmentToSalonboard } from './salonboard.js';
 import { createIntegrationSchema, listConflictsSchema, resolveConflictSchema, resyncSchema, syncJobsQuery, updateIntegrationSchema } from './schemas.js';
 import './sync.js';
 import { receiveWebhook, WEBHOOK_BODY_LIMIT } from './webhooks.js';
@@ -129,6 +130,11 @@ const plugin: FastifyPluginAsyncZod = async (app) => {
   );
   app.post('/agent/report', { ...agentOpts, schema: { tags: ['agent'], summary: '自動枠止め: 結果と媒体のログイン状態の報告', body: agent.agentReportSchema } }, async (req) =>
     agent.agentReport(await agent.authenticateAgent(req.headers.authorization), req.body),
+  );
+
+  // ---- 予約詳細「サロンボードに連携」
+  app.post('/appointments/:id/sync-salonboard', { schema: { tags, summary: '予約をサロンボードに連携(枠止めを依頼し直す。10分以内に反映)', params: idParam } }, (req) =>
+    req.tx((ctx) => syncAppointmentToSalonboard(ctx, req.params.id)),
   );
 
   app.post('/integrations/manual-blocks/:id/done', { schema: { tags, summary: '手動ブロック依頼を対応済みにする', params: idParam } }, (req) =>

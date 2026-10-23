@@ -279,7 +279,27 @@ export async function agentPlan(agent: AgentRow, input: AgentPlanInput) {
       // medium stylist → Salon OS staff, with the same name matching as the booking mails
       const toMedium = new Map<string, string>();
       const unmatched: string[] = [];
-      for (const s of input.media[provider]?.staff ?? []) {
+      const mediumStaff = input.media[provider]?.staff ?? [];
+      // サロンボード スタッフID set on the stylist (スタッフ編集) wins over any name matching
+      const explicit = new Set<string>();
+      if (provider === 'hotpepper_mail' && mediumStaff.length) {
+        const withId = await trx
+          .selectFrom('staffs')
+          .innerJoin('staff_shop_assignments as a', 'a.staff_id', 'staffs.id')
+          .select(['staffs.id', 'staffs.salonboard_staff_id'])
+          .where('a.shop_id', '=', agent.shop_id)
+          .where('a.ended_on', 'is', null)
+          .where('staffs.deleted_at', 'is', null)
+          .where('staffs.salonboard_staff_id', 'in', [...new Set(mediumStaff.map((s) => s.id))])
+          .execute();
+        for (const r of withId) {
+          if (toMedium.has(r.id)) continue;
+          toMedium.set(r.id, r.salonboard_staff_id!);
+          explicit.add(r.salonboard_staff_id!);
+        }
+      }
+      for (const s of mediumStaff) {
+        if (explicit.has(s.id)) continue;
         const m = await resolveMappings(ctx, acc, { staffName: s.name, menuNames: [] });
         if (m.staff.staffId && !toMedium.has(m.staff.staffId)) toMedium.set(m.staff.staffId, s.id);
         else if (!m.staff.staffId) unmatched.push(s.name);

@@ -306,7 +306,7 @@ function Matrix({
   saving: boolean;
   onSave: () => void;
   canManage: boolean;
-  columns: { id: string; name: string }[];
+  columns: { id: string; name: string; sub?: string | null }[];
   groups: Map<string, EffectiveMenu[]>;
   colorOf: (group: string, menus: EffectiveMenu[]) => string;
   checked: Map<string, Set<string>>;
@@ -338,6 +338,9 @@ function Matrix({
                     className="min-w-[60px] whitespace-nowrap px-2 py-2 text-center font-medium"
                   >
                     <div className="text-xs">{c.name}</div>
+                    {c.sub ? (
+                      <div className="text-[10px] font-normal text-muted-foreground">{c.sub}</div>
+                    ) : null}
                   </th>
                 ))}
               </tr>
@@ -448,7 +451,7 @@ export default function MenuList() {
     () =>
       (staffQ.data ?? [])
         .filter((s) => s.status === 'active')
-        .map((s) => ({ id: s.id, name: s.display_name })),
+        .map((s) => ({ id: s.id, name: s.display_name, sub: s.salonboard_name })),
     [staffQ.data],
   );
   // a menu is linked to an equipment by its name (the resource type of its units)

@@ -1422,6 +1422,8 @@ export interface Staffs {
   public_slug: string | null;
   retired_on: string | null;
   role_id: string;
+  salonboard_name: string | null;
+  salonboard_staff_id: string | null;
   sort_order: Generated<number>;
   /** 6-digit staff ID (「ID: 123456」), unique across organizations */
   staff_code: Generated<string>;

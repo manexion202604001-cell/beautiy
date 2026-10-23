@@ -331,8 +331,12 @@ describe('Hot Pepper / LiME booking-notification mail sync', () => {
     }[];
     expect(list).toHaveLength(2);
     const external = list.find((a) => a.source === 'external')!;
-    expect(external.media_sync.origin).toMatchObject({ provider: 'hotpepper_mail', sync_state: 'synced' });
+    expect(external.media_sync.origin).toMatchObject({ provider: 'hotpepper_mail', sync_state: 'synced', external_id: 'BE00000777' });
     expect(external.media_sync.blocks).toEqual([]);
+    // 予約詳細 SB chip: an HPB booking is on SALON BOARD by itself (links to its reservation there)
+    const sb = (await t.owner.get(`/v1/appointments/${external.id}`)).body.media_sync.salonboard;
+    expect(sb).toMatchObject({ origin: 'hotpepper', reserve_id: 'BE00000777', state: 'synced' });
+    expect((await t.owner.post(`/v1/appointments/${external.id}/sync-salonboard`)).body.error.code).toBe('SALONBOARD_ORIGIN');
     expect(list.find((a) => a.id === appt.id)!.media_sync.blocks).toHaveLength(1);
   });
 

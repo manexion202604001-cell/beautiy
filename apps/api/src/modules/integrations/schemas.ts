@@ -29,6 +29,9 @@ export const mailConfigSchema = z.object({
   /** slot blocking on this medium is done by the 自動枠止め helper (Chrome): no request mails;
    * the shop is mailed only when the helper stops (see agent.ts) */
   agentManaged: z.boolean().optional(),
+  /** HPBメール受信アドレス: the address the medium's notification mails are sent to (shown on 店舗設定;
+   * the mailbox forwards them to the inbound URL). Display only, '' = not set */
+  forwardAddress: z.string().trim().max(200).optional(),
   /** Mailgun webhook signing key (optional extra verification) */
   mailgunSigningKey: z.string().max(200).optional(),
 });

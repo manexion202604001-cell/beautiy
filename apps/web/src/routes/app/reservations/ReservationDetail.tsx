@@ -25,6 +25,7 @@ import { mediaBadges } from '../../../lib/mediaSync';
 import { zonedParts, zonedToIso } from '../../../lib/time';
 import { MessageDialog } from './MessageDialog';
 import { formatCurrency } from './model';
+import { SalonboardButton, SalonboardChip, SalonboardRow, isFromHotPepper } from './salonboard';
 
 const STATUS_BADGE: Record<AppointmentStatus, { label: string; variant: BadgeVariant }> = {
   tentative: { label: '確認待ち', variant: 'warning' },
@@ -38,23 +39,14 @@ const STATUS_BADGE: Record<AppointmentStatus, { label: string; variant: BadgeVar
 
 /** Booking route chip: medium colours for HPB / minimo / LINE, the house colour for the rest */
 function routeChip(a: AppointmentDetail): { label: string; color: string } {
-  const origin = a.media_sync?.origin?.provider ?? '';
-  if (a.source === 'phone_hpb' || origin.startsWith('hotpepper')) return { label: 'HPB', color: '#CB006D' };
+  // only bookings taken in from the SALON BOARD connector are HPB ('phone_hpb' is a phone booking)
+  if (isFromHotPepper(a)) return { label: 'HPB', color: '#CB006D' };
   if (a.source === 'minimo') return { label: 'minimo', color: '#00A7FF' };
   if (a.source === 'line') return { label: 'LINE', color: '#00B900' };
   if (a.source === 'web') return { label: 'Web', color: '#FD7878' };
   if (a.source === 'phone') return { label: '電話', color: '#FD7878' };
   if (a.source === 'walk_in') return { label: '来店', color: '#FD7878' };
   return { label: SOURCE_LABEL[a.source] ?? a.source, color: '#FD7878' };
-}
-
-/** 1 = reflected on the booking media, -1 = something is still to do / failed, 0 = nothing to show */
-function syncState(a: AppointmentDetail): -1 | 0 | 1 {
-  const sync = a.media_sync;
-  if (!sync) return 0;
-  const bad = (s: string) => ['action_required', 'remove_required', 'error', 'conflict'].includes(s);
-  if (sync.blocks.some((b) => bad(b.state)) || (sync.origin && bad(sync.origin.sync_state))) return -1;
-  return sync.origin || sync.blocks.length > 0 ? 1 : 0;
 }
 
 /** Menu text of a booking without menu rows (taken over from a booking medium) */
@@ -197,9 +189,12 @@ export default function ReservationDetail() {
   };
   const status = STATUS_BADGE[a.status];
   const route = routeChip(a);
-  const sync = syncState(a);
-  const fromHotPepper = route.label === 'HPB';
-  const syncNotes = mediaBadges(a.media_sync).filter((b) => b.tone === 'danger' || b.tone === 'warning');
+  // the SB chip / row are SALON BOARD only; other media (minimo, LiME) keep their own notes
+  const otherMedia = a.media_sync && {
+    origin: a.media_sync.origin?.provider === 'hotpepper_mail' ? null : a.media_sync.origin,
+    blocks: a.media_sync.blocks.filter((b) => b.provider !== 'hotpepper_mail'),
+  };
+  const syncNotes = mediaBadges(otherMedia).filter((b) => b.tone === 'danger' || b.tone === 'warning');
   const isNew = a.is_new_customer != null ? a.is_new_customer : a.customer_visit_count === 0;
   const customerName = a.customer_name || '顧客未登録';
   const consentResponses = (consentQ.data?.items ?? []).filter((r) => r.appointment_id === a.id && r.status === 'submitted');
@@ -216,17 +211,7 @@ export default function ReservationDetail() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <h2 className="text-lg font-semibold">予約詳細</h2>
-              {sync !== 0 && a.status !== 'tentative' ? (
-                <span
-                  className="inline-flex items-center gap-1 rounded-full border px-3 py-1 text-sm"
-                  title={
-                    sync === 1 ? '予約媒体に反映済み' : syncNotes.map((n) => n.title).join(' / ') || '予約媒体への反映が必要です'
-                  }
-                >
-                  {sync === 1 ? <span className="text-green-600">✓</span> : <span className="text-red-500">✗</span>}
-                  <span className="text-muted-foreground">SB</span>
-                </span>
-              ) : null}
+              <SalonboardChip a={a} />
             </div>
             {a.has_consent ? (
               <Badge
@@ -306,27 +291,12 @@ export default function ReservationDetail() {
                 {route.label}
               </span>
             </div>
-            {!fromHotPepper && sync !== 0 ? (
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">SB連携</span>
-                <div className="flex items-center gap-2">
-                  {sync === 1 ? (
-                    <Badge variant="outline" className="border-blue-500 bg-blue-50 text-xs text-blue-600">
-                      SB連携済
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline" className="border-red-500 bg-red-50 text-xs text-red-600">
-                      SBエラー
-                    </Badge>
-                  )}
-                </div>
-              </div>
-            ) : null}
-            {sync === -1 && syncNotes.length > 0 ? (
-              <div className="rounded-md border border-red-200 bg-red-50 p-2">
+            <SalonboardRow a={a} tz={tz} />
+            {syncNotes.length > 0 ? (
+              <div className="rounded-md border border-amber-200 bg-amber-50 p-2">
                 {syncNotes.map((n) => (
-                  <p key={n.key} className="text-xs text-red-700">
-                    {n.title}
+                  <p key={n.key} className="text-xs text-amber-800">
+                    {n.label}: {n.title}
                   </p>
                 ))}
               </div>
@@ -383,6 +353,8 @@ export default function ReservationDetail() {
               メッセージを送る
             </Button>
           </div>
+
+          {can('appointment.write') ? <SalonboardButton a={a} /> : null}
 
           {a.status === 'tentative' ? (
             <div className="flex gap-2 border-t pt-4">

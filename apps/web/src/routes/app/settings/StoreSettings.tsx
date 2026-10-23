@@ -21,13 +21,14 @@ import { useToast } from '../../../components/ui';
 import { errorMessage } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth';
 import { addressOf, splitAddress } from './address';
+import { SalonboardSettingsCard } from './SalonboardSettingsCard';
 
-type Tab = 'store' | 'equipment';
+type Tab = 'store' | 'salonboard' | 'equipment';
 
 const PANEL =
   'mt-6 ring-offset-background focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
 
-/** 店舗設定: shop profile, seat alert and equipment of the selected shop */
+/** 店舗設定: shop profile, seat alert, サロンボード連携 and equipment of the selected shop */
 export default function StoreSettings() {
   const { currentShopId } = useAuth();
   const shopQ = useShop(currentShopId);
@@ -65,12 +66,18 @@ export default function StoreSettings() {
           listClassName="flex h-auto w-full flex-wrap gap-1"
           items={[
             { value: 'store', label: '店舗情報' },
+            { value: 'salonboard', label: 'サロンボード' },
             { value: 'equipment', label: '設備' },
           ]}
         />
         {tab === 'store' ? (
           <div role="tabpanel" className={PANEL}>
             <StoreInfoCard key={shop.id} shop={shop} />
+          </div>
+        ) : null}
+        {tab === 'salonboard' ? (
+          <div role="tabpanel" className={PANEL}>
+            <SalonboardSettingsCard key={shop.id} shopId={shop.id} />
           </div>
         ) : null}
         {tab === 'equipment' ? (
