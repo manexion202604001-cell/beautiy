@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { config } from '../../config.js';
 import { uuid } from '../../lib/schemas.js';
 import { signup } from '../org/service.js';
-import { signupSchema } from '../org/schemas.js';
+import { passwordSchema, signupSchema } from '../org/schemas.js';
 import * as svc from './service.js';
 
 const authRateLimit = { rateLimit: { max: config.NODE_ENV === 'test' ? 100000 : 20, timeWindow: '1 minute' } };
@@ -67,9 +67,18 @@ const plugin: FastifyPluginAsyncZod = async (app) => {
     '/auth/accept-invite',
     {
       config: { auth: 'public', ...authRateLimit },
-      schema: { tags: ['auth'], summary: 'スタッフ招待の受諾', body: z.object({ token: z.string().min(10), password: z.string().min(10).max(200) }) },
+      schema: { tags: ['auth'], summary: 'スタッフ招待の受諾', body: z.object({ token: z.string().min(10), password: passwordSchema }) },
     },
     (req) => svc.acceptInvite(req.body.token, req.body.password, meta(req)),
+  );
+
+  app.post(
+    '/auth/decline-invite',
+    { config: { auth: 'public', ...authRateLimit }, schema: { tags: ['auth'], summary: 'スタッフ招待の辞退', body: z.object({ token: z.string().min(10) }) } },
+    async (req, reply) => {
+      await svc.declineInvite(req.body.token);
+      return reply.status(204).send();
+    },
   );
 
   app.post(
@@ -88,7 +97,7 @@ const plugin: FastifyPluginAsyncZod = async (app) => {
     '/auth/password-reset/confirm',
     {
       config: { auth: 'public', ...authRateLimit },
-      schema: { tags: ['auth'], summary: 'パスワードリセットの確定', body: z.object({ token: z.string().min(10), password: z.string().min(10).max(200) }) },
+      schema: { tags: ['auth'], summary: 'パスワードリセットの確定', body: z.object({ token: z.string().min(10), password: passwordSchema }) },
     },
     async (req, reply) => {
       await svc.resetPassword(req.body.token, req.body.password);
@@ -104,7 +113,10 @@ const plugin: FastifyPluginAsyncZod = async (app) => {
 
   app.post(
     '/auth/password',
-    { config: authRateLimit, schema: { tags: ['auth'], summary: 'パスワード変更', body: z.object({ currentPassword: z.string(), newPassword: z.string().min(10).max(200) }) } },
+    {
+      config: { ...authRateLimit, beforePasswordChange: true },
+      schema: { tags: ['auth'], summary: 'パスワード変更(初回ログイン時の仮パスワードの変更を含む)', body: z.object({ currentPassword: z.string(), newPassword: passwordSchema }) },
+    },
     async (req, reply) => {
       await svc.changePassword(req.staff().userId, req.body.currentPassword, req.body.newPassword);
       return reply.status(204).send();
@@ -116,7 +128,7 @@ const plugin: FastifyPluginAsyncZod = async (app) => {
     return { enabled: req.body.enabled };
   });
 
-  app.get('/me', { schema: { tags: ['auth'], summary: '自分の権限/所属' } }, async (req) => {
+  app.get('/me', { config: { beforePasswordChange: true }, schema: { tags: ['auth'], summary: '自分の権限/所属' } }, async (req) => {
     const actor = req.staff();
     const base = await svc.me(actor.userId, actor.organizationId, actor.staffId);
     return {

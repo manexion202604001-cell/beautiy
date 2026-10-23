@@ -1382,7 +1382,8 @@ export interface StaffBookingSettings {
 export interface StaffInvitations {
   accepted_at: Timestamp | null;
   created_at: Generated<Timestamp>;
-  email: string;
+  declined_at: Timestamp | null;
+  email: string | null;
   id: Generated<string>;
   invited_by_staff_id: string | null;
   organization_id: string;
@@ -1422,6 +1423,8 @@ export interface Staffs {
   retired_on: string | null;
   role_id: string;
   sort_order: Generated<number>;
+  /** 6-digit staff ID (「ID: 123456」), unique across organizations */
+  staff_code: Generated<string>;
   status: Generated<string>;
   title: string | null;
   trace_id: string | null;
@@ -1625,6 +1628,7 @@ export interface Users {
   last_login_at: Timestamp | null;
   locked_until: Timestamp | null;
   mfa_enabled: Generated<boolean>;
+  must_change_password: Generated<boolean>;
   password_hash: string | null;
   status: Generated<string>;
   updated_at: Generated<Timestamp>;

@@ -25,6 +25,7 @@ import { channelForShop } from '../messaging/channels.js';
 import '../messaging/line-id-check.js';
 import { linePush, textMessage } from '../messaging/providers/line.js';
 import { getAppointmentUnchecked } from '../appointments/service.js';
+import { passwordSchema } from './schemas.js';
 import { getShop, getStaff, listStaff } from './service.js';
 
 const NO_ID = '00000000-0000-0000-0000-000000000000';
@@ -127,7 +128,12 @@ export async function updateStaffExtras(ctx: Ctx, staffId: string, input: StaffE
 export const staffCredentialsSchema = z.object({
   email: z.string().trim().toLowerCase().email('メールアドレスの形式が正しくありません'),
   /** omitted = keep the current password (only the e-mail address changes) */
-  password: z.string().min(10, 'パスワードは10文字以上で入力してください').max(200).optional(),
+  password: passwordSchema.optional(),
+  /**
+   * 「ログイン情報を設定」: the password is a temporary one the manager hands over, so the staff member
+   * has to choose their own at the first login. Without it (スタッフ編集) the password is final.
+   */
+  temporary: z.boolean().optional(),
 });
 export type StaffCredentialsInput = z.infer<typeof staffCredentialsSchema>;
 
@@ -147,6 +153,8 @@ export async function setStaffCredentials(ctx: Ctx, staffId: string, input: Staf
   if (staff.role?.key === 'owner' && !isSelf) requirePermission(ctx.actor, 'role.manage');
 
   const taken = await ctx.trx.selectFrom('users').select('id').where('email', '=', input.email).executeTakeFirst();
+  // a password someone else typed is never the final one when it was handed over as temporary
+  const mustChange = !!input.temporary && !isSelf;
   let userId = staff.user_id;
   if (userId) {
     if (taken && taken.id !== userId) throw Errors.conflict('EMAIL_TAKEN', 'このメールアドレスは既に別のアカウントで使われています');
@@ -160,7 +168,9 @@ export async function setStaffCredentials(ctx: Ctx, staffId: string, input: Staf
       .updateTable('users')
       .set({
         email: input.email,
-        ...(input.password ? { password_hash: await hashPassword(input.password), failed_login_count: 0, locked_until: null } : {}),
+        ...(input.password
+          ? { password_hash: await hashPassword(input.password), failed_login_count: 0, locked_until: null, must_change_password: mustChange }
+          : {}),
       })
       .where('id', '=', userId)
       .execute();
@@ -171,7 +181,7 @@ export async function setStaffCredentials(ctx: Ctx, staffId: string, input: Staf
     if (!input.password) throw Errors.validation('パスワードを入力してください');
     const user = await ctx.trx
       .insertInto('users')
-      .values({ email: input.email, display_name: staff.display_name, password_hash: await hashPassword(input.password) })
+      .values({ email: input.email, display_name: staff.display_name, password_hash: await hashPassword(input.password), must_change_password: mustChange })
       .returning('id')
       .executeTakeFirstOrThrow();
     userId = user.id;
@@ -189,7 +199,7 @@ export async function setStaffCredentials(ctx: Ctx, staffId: string, input: Staf
     .where('id', '=', staffId)
     .execute();
   invalidateActorCache(staffId);
-  await audit(ctx, { action: 'staff.credentials_set', resourceType: 'staff', resourceId: staffId, after: { email: input.email, passwordChanged: !!input.password } });
+  await audit(ctx, { action: 'staff.credentials_set', resourceType: 'staff', resourceId: staffId, after: { email: input.email, passwordChanged: !!input.password, temporary: !!input.password && mustChange } });
   return getStaff(ctx, staffId);
 }
 

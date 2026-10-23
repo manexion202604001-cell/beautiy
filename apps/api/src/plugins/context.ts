@@ -24,6 +24,8 @@ declare module 'fastify' {
     auth?: RouteAuth;
     /** honour Idempotency-Key header ('required' rejects requests without one) */
     idempotent?: boolean | 'required';
+    /** still callable while the staff member must replace a temporary password (/me, password change) */
+    beforePasswordChange?: boolean;
   }
 }
 
@@ -93,6 +95,10 @@ async function contextPlugin(app: FastifyInstance) {
     if (auth === 'public') return;
     if (!req.actor) throw Errors.unauthenticated();
     if (auth === 'staff' && req.actor.kind !== 'staff') throw Errors.forbidden('スタッフ認証が必要です');
+    // 「ログイン情報を設定」 gave a temporary password: nothing else works until the user sets their own
+    if (req.actor.kind === 'staff' && req.actor.mustChangePassword && !req.routeOptions.config?.beforePasswordChange) {
+      throw Errors.forbidden('初回ログインのため、新しいパスワードを設定してください', 'PASSWORD_CHANGE_REQUIRED');
+    }
     if (auth === 'customer' && req.actor.kind !== 'customer') throw Errors.forbidden('顧客認証が必要です');
   });
 }

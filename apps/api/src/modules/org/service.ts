@@ -299,6 +299,7 @@ const staffColumns = [
   'staffs.public_profile',
   'staffs.public_slug',
   'staffs.sort_order',
+  'staffs.staff_code',
   'staffs.status',
   'staffs.hired_on',
   'staffs.retired_on',
