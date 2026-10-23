@@ -230,7 +230,7 @@ describe('招待の辞退', () => {
     expect((await api().post('/v1/auth/decline-invite', { token })).status).toBe(204);
     const history = (await t.owner.get('/v1/staff-invitations')).body as Row[];
     expect(history[0]).toMatchObject({ status: 'declined', staff_name: '辞退 花子' });
-    expect(history[0].declined_at).toBeTruthy();
+    expect(history[0]!.declined_at).toBeTruthy();
     expect(
       ((await t.owner.get('/v1/staff', { includeInactive: true })).body as Row[]).some(
         (s) => s.id === invited.body.staffId,
