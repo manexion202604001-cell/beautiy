@@ -47,6 +47,8 @@ interface SgStaff {
   sort_order: number;
   salonboard_name: string | null;
   avatar_url: string | null;
+  /** 6-digit staff ID the staff member already knows from SALOGIC */
+  staff_code?: string | null;
 }
 interface SgMenu {
   id: string;
@@ -346,6 +348,13 @@ async function main() {
         .set({ public_profile: sql`coalesce(public_profile, '{}'::jsonb) || ${JSON.stringify({ salogicId: s.id })}::jsonb` })
         .where('id', '=', id)
         .execute();
+      // keep the 6-digit staff ID from SALOGIC unless another staff member (any salon) already has it
+      if (s.staff_code && /^\d{6}$/.test(s.staff_code)) {
+        const code = s.staff_code;
+        const taken = await withSystem((trx) => trx.selectFrom('staffs').select('id').where('staff_code', '=', code).where('id', '!=', id).executeTakeFirst());
+        if (!taken) await ctx.trx.updateTable('staffs').set({ staff_code: code }).where('id', '=', id).execute();
+        else console.warn(`staff ID ${code} is already used by another staff member; a new ID was kept`);
+      }
 
       const own = data.per_staff[s.id];
       const weekly = (own?.hours.business_hours ?? []).filter((h) => h.day_of_week <= 6);

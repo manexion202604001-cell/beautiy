@@ -21,7 +21,7 @@ const h = vi.hoisted(() => ({
   invalidateShops: vi.fn(),
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
   shopApi: { create: vi.fn(), delete: vi.fn() },
-  staffApi: { setShops: vi.fn(), setVisibility: vi.fn(), invite: vi.fn(), invitations: vi.fn() },
+  staffApi: { setShops: vi.fn(), setVisibility: vi.fn(), invite: vi.fn(), invitations: vi.fn(), searchByCode: vi.fn(), linkByCode: vi.fn() },
   orgStaff: vi.fn(),
 }));
 
@@ -29,7 +29,7 @@ vi.mock('../../../lib/auth', () => ({
   useAuth: () => ({
     me: {
       user: { email: 'owner@example.com', mfa_enabled: false },
-      staff: { id: 'me', display_name: 'オーナー 太郎' },
+      staff: { id: 'me', display_name: 'オーナー 太郎', staff_code: '305172' },
       organization: { id: 'o1' },
       organizations: [{ id: 'o1', name: '自社', slug: 'own' }],
     },
@@ -143,6 +143,8 @@ describe('設定: tabs', () => {
 
     await user.click(screen.getByRole('tab', { name: 'アカウント' }));
     expect(screen.queryByText('事業形態や会社情報を設定します')).not.toBeInTheDocument();
+    // the own 6-digit staff ID, to tell the owner
+    expect(screen.getByTestId('own-staff-code')).toHaveTextContent('305172');
     await user.click(screen.getByRole('button', { name: 'パスワード変更' }));
     expect(screen.getByText('password dialog')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '二段階認証' }));
@@ -179,6 +181,7 @@ describe('設定 › 店舗一覧', () => {
     await user.click(screen.getByRole('button', { name: '新しい店舗' }));
     const dialog = screen.getByRole('dialog');
     expect(within(dialog).getByText('新しい店舗を作成')).toBeInTheDocument();
+    expect(dialog).toHaveTextContent('オーナーアカウントは全店舗にアクセスできるため、別途作成する必要はありません');
     const create = within(dialog).getByRole('button', { name: '作成' });
     expect(create).toBeDisabled();
     await user.type(within(dialog).getByLabelText('店舗名 *'), '新宿店');
@@ -313,7 +316,7 @@ describe('設定 › スタッフ管理', () => {
     h.orgStaff.mockResolvedValue([]);
     h.staffApi.invite.mockResolvedValue({ invitationId: 'i1', staffId: 'n1', inviteUrl: 'https://app.example/invite/tok', emailSent: true });
     renderAt('/app/system?tab=staff');
-    const search = screen.getByRole('button', { name: '検索' });
+    const search = await openEmailInvite(user);
     expect(search).toBeDisabled();
     await user.type(screen.getByLabelText('スタッフのメールアドレス'), 'new@example.com');
     await user.click(search);
@@ -339,8 +342,9 @@ describe('設定 › スタッフ管理', () => {
     h.orgStaff.mockResolvedValue([member('b', '鈴木', [{ shop_id: 's2', is_primary: true }])]);
     h.staffApi.setShops.mockResolvedValue({});
     renderAt('/app/system?tab=staff');
+    const search = await openEmailInvite(user);
     await user.type(screen.getByLabelText('スタッフのメールアドレス'), 'B@example.com');
-    await user.click(screen.getByRole('button', { name: '検索' }));
+    await user.click(search);
     const result = await screen.findByTestId('invite-result');
     expect(within(result).getByText('鈴木')).toBeInTheDocument();
     await user.click(within(result).getByRole('button', { name: 'この店舗に追加' }));
@@ -364,20 +368,84 @@ describe('設定 › スタッフ管理', () => {
       role_key: 'stylist',
       role_name: 'スタイリスト',
       invited_by_name: 'オーナー 太郎',
+      staff_code: `48291${id}`,
       status,
     });
-    h.invitations = [inv('1', 'pending'), inv('2', 'accepted'), inv('3', 'cancelled')];
+    h.invitations = [inv('1', 'pending'), inv('2', 'accepted'), inv('3', 'declined'), { ...inv('4', 'cancelled'), role_key: 'manager' }];
     renderAt('/app/system?tab=staff');
     const rows = screen.getAllByTestId('invitation-row');
-    expect(rows.map((r) => within(r).getByText(/承認待ち|承認済み|取消/).textContent)).toEqual(['承認待ち', '承認済み', '取消']);
-    expect(rows[0]).toHaveTextContent('渋谷店 / スタイリスト / オーナー 太郎が招待');
+    expect(rows.map((r) => within(r).getByText(/承認待ち|承認済み|辞退|取消/).textContent)).toEqual(['承認待ち', '承認済み', '辞退', '取消']);
+    expect(rows[0]).toHaveTextContent('招待1ID: 482911');
+    expect(rows[0]).toHaveTextContent('渋谷店 / スタッフ / オーナー 太郎が招待');
+    expect(rows[3]).toHaveTextContent('渋谷店 / ディレクター / オーナー 太郎が招待');
     expect(rows[0]).toHaveTextContent('2026/10/1');
 
+    const search = await openEmailInvite(user);
     await user.type(screen.getByLabelText('スタッフのメールアドレス'), 'dup@example.com');
-    await user.click(screen.getByRole('button', { name: '検索' }));
+    await user.click(search);
     const result = await screen.findByTestId('invite-result');
     await user.type(within(result).getByLabelText('お名前'), '重複');
     await user.click(within(result).getByRole('button', { name: '招待を送信' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('このメールアドレスのスタッフは既に登録されています');
   });
+
+  it('invites a staff member of this salon by the 6-digit ID with the chosen 権限', async () => {
+    const user = userEvent.setup();
+    h.staff = [member('b', '鈴木', [{ shop_id: 's2', is_primary: true }], { staff_code: '482913' })];
+    h.staffApi.searchByCode.mockResolvedValue({
+      staff: { staff_code: '482913', name: '鈴木', avatar_url: null, same_organization: true, id: 'b', status: 'active', role_key: 'stylist', shop_ids: ['s2'] },
+    });
+    h.staffApi.linkByCode.mockResolvedValue({ invitationId: 'i1', staffId: 'b', status: 'accepted' });
+    renderAt('/app/system?tab=staff');
+    expect(screen.getByText('スタッフの6桁IDを入力して、現在選択中の店舗に招待します')).toBeInTheDocument();
+    // 店舗割り当て shows the ID under the name
+    expect(screen.getByTestId('staff-row')).toHaveTextContent('鈴木ID: 482913');
+    // the e-mail invitation stays folded away until asked for
+    expect(screen.queryByLabelText('スタッフのメールアドレス')).not.toBeInTheDocument();
+
+    const input = screen.getByLabelText('6桁のスタッフID');
+    const search = screen.getByRole('button', { name: '検索' });
+    await user.type(input, '48a29-1');
+    expect(input).toHaveValue('48291');
+    expect(search).toBeDisabled();
+    await user.clear(input);
+    await user.type(input, '4829134');
+    expect(input).toHaveValue('482913');
+    await user.click(search);
+    await waitFor(() => expect(h.staffApi.searchByCode).toHaveBeenCalledWith('482913'));
+    const result = await screen.findByTestId('staff-code-result');
+    expect(result).toHaveTextContent('鈴木ID: 482913');
+    await user.click(within(result).getByRole('combobox', { name: '権限' }));
+    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['スタッフ', 'ディレクター']);
+    await user.click(screen.getByRole('option', { name: 'ディレクター' }));
+    await user.click(within(result).getByRole('button', { name: '招待を送信' }));
+    await waitFor(() => expect(h.staffApi.linkByCode).toHaveBeenCalledWith({ staffCode: '482913', shopId: 's1', roleKey: 'manager' }));
+    await waitFor(() => expect(screen.queryByTestId('staff-code-result')).not.toBeInTheDocument());
+  });
+
+  it('cannot add a staff member of another salon by ID and points to the e-mail invitation', async () => {
+    const user = userEvent.setup();
+    h.staffApi.searchByCode.mockResolvedValueOnce({ staff: { staff_code: '777777', name: '他店 太郎', avatar_url: null, same_organization: false } });
+    renderAt('/app/system?tab=staff');
+    await user.type(screen.getByLabelText('6桁のスタッフID'), '777777');
+    await user.click(screen.getByRole('button', { name: '検索' }));
+    const result = await screen.findByTestId('staff-code-result');
+    expect(result).toHaveTextContent('このスタッフは別のサロンに登録されているため、IDでは招待できません');
+    expect(within(result).getByRole('button', { name: '招待を送信' })).toBeDisabled();
+    await user.click(within(result).getByRole('button', { name: 'メールアドレスで招待' }));
+    expect(screen.getByLabelText('スタッフのメールアドレス')).toBeInTheDocument();
+
+    h.staffApi.searchByCode.mockRejectedValueOnce(new Error('スタッフが見つかりません'));
+    await user.clear(screen.getByLabelText('6桁のスタッフID'));
+    await user.type(screen.getByLabelText('6桁のスタッフID'), '111111');
+    await user.click(screen.getAllByRole('button', { name: '検索' })[0]!);
+    expect(await screen.findByText('スタッフが見つかりません')).toBeInTheDocument();
+    expect(h.staffApi.linkByCode).not.toHaveBeenCalled();
+  });
 });
+
+/** Opens 「メールアドレスで招待」 and returns its 検索 button (the first one searches the 6-digit ID) */
+async function openEmailInvite(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('button', { name: 'メールアドレスで招待' }));
+  return screen.getAllByRole('button', { name: '検索' })[1]!;
+}

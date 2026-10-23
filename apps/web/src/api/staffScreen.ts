@@ -58,8 +58,11 @@ export const staffScreenApi = {
       lineUserId?: string | null;
     },
   ) => api.put<Staff>(`/staff/${staffId}/extras`, input),
-  credentials: (staffId: string, input: { email: string; password?: string }) =>
-    api.put<Staff>(`/staff/${staffId}/credentials`, input),
+  /** temporary: 「ログイン情報を設定」 — the staff member must replace the password at the first login */
+  credentials: (
+    staffId: string,
+    input: { email: string; password?: string; temporary?: boolean },
+  ) => api.put<Staff>(`/staff/${staffId}/credentials`, input),
   businessHours: (staffId: string, shopId: string) =>
     api.get<StaffHoursResult>(`/staff/${staffId}/business-hours`, { shopId }),
   saveBusinessHours: (staffId: string, shopId: string, hours: StaffDayHours[]) =>

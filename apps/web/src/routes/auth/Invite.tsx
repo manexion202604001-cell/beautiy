@@ -5,6 +5,7 @@ import { authApi } from '../../api/auth';
 import { Button, Input, Label } from '../../components/shad';
 import { errorMessage } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
+import { PASSWORD_MIN_LENGTH, PASSWORD_TOO_SHORT } from '../../lib/password';
 import { AuthCard, AuthErrorBox } from './AuthCard';
 
 /** Target of the staff invitation link: set a password and join the organization */
@@ -17,12 +18,27 @@ export default function Invite() {
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [declined, setDeclined] = useState(false);
+
+  const decline = async () => {
+    if (!window.confirm('この招待を辞退しますか？')) return;
+    setError('');
+    setBusy(true);
+    try {
+      await authApi.declineInvite(token);
+      setDeclined(true);
+    } catch (err) {
+      setError(errorMessage(err) || 'エラーが発生しました');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
-    if (password.length < 10) {
-      setError('パスワードは10文字以上にしてください');
+    if (password.length < PASSWORD_MIN_LENGTH) {
+      setError(PASSWORD_TOO_SHORT);
       return;
     }
     if (password !== confirm) {
@@ -42,6 +58,14 @@ export default function Invite() {
     }
   };
 
+  if (declined) {
+    return (
+      <AuthCard description="スタッフ招待">
+        <p className="text-center text-sm text-muted-foreground">招待を辞退しました。</p>
+      </AuthCard>
+    );
+  }
+
   return (
     <AuthCard description="スタッフ招待">
       <form onSubmit={submit} className="sy-4" noValidate>
@@ -55,11 +79,11 @@ export default function Invite() {
             id="password"
             type="password"
             autoComplete="new-password"
-            placeholder="10文字以上"
+            placeholder={`${PASSWORD_MIN_LENGTH}文字以上`}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            minLength={10}
+            minLength={PASSWORD_MIN_LENGTH}
             autoFocus
           />
         </div>
@@ -73,11 +97,20 @@ export default function Invite() {
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
             required
-            minLength={10}
+            minLength={PASSWORD_MIN_LENGTH}
           />
         </div>
         <Button type="submit" className="w-full" disabled={busy}>
           {busy ? '設定中...' : '招待を受け付ける'}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full"
+          disabled={busy}
+          onClick={() => void decline()}
+        >
+          辞退
         </Button>
         <p className="text-xs text-muted-foreground">
           ※

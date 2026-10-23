@@ -44,6 +44,8 @@ export const authApi = {
     }>('/auth/signup', input, { auth: 'none' }),
   acceptInvite: (token: string, password: string) =>
     api.post<TokenPair>('/auth/accept-invite', { token, password }, { auth: 'none' }),
+  declineInvite: (token: string) =>
+    api.post<void>('/auth/decline-invite', { token }, { auth: 'none' }),
   logout: (refreshToken: string) =>
     api.post<void>('/auth/logout', { refreshToken }, { auth: 'none' }),
   switchOrganization: (organizationId: string) =>

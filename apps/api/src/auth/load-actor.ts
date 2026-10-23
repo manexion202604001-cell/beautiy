@@ -23,6 +23,7 @@ export async function loadStaffActor(organizationId: string, staffId: string, us
         'staffs.role_id',
         'roles.key as role_key',
         'users.status as user_status',
+        'users.must_change_password',
         'organizations.status as org_status',
       ])
       .where('staffs.id', '=', staffId)
@@ -52,6 +53,7 @@ export async function loadStaffActor(organizationId: string, staffId: string, us
       permissions,
       shopIds: shops.map((s) => s.shop_id),
       allShops: permissions.has('scope.all_shops'),
+      ...(staff.must_change_password ? { mustChangePassword: true } : {}),
     } satisfies StaffActor;
   });
 
@@ -65,4 +67,9 @@ export function invalidateActorCache(staffId?: string): void {
     return;
   }
   for (const key of cache.keys()) if (key.includes(`:${staffId}:`)) cache.delete(key);
+}
+
+/** Drop every cached actor of the user (all organizations), e.g. after the password changed */
+export function invalidateActorCacheForUser(userId: string): void {
+  for (const key of cache.keys()) if (key.endsWith(`:${userId}`)) cache.delete(key);
 }

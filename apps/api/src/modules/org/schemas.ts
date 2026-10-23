@@ -1,6 +1,10 @@
 import { z } from 'zod';
 import { isoDate, uuid } from '../../lib/schemas.js';
 
+/** SALOGIC's rule: at least 8 characters (sign-up, invitation, reset, change, temporary passwords) */
+export const PASSWORD_MIN_LENGTH = 8;
+export const passwordSchema = z.string().min(PASSWORD_MIN_LENGTH, `パスワードは${PASSWORD_MIN_LENGTH}文字以上にしてください`).max(200);
+
 const slug = z
   .string()
   .min(3)
@@ -26,7 +30,7 @@ export const signupSchema = z.object({
   shopSlug: slug.optional(),
   ownerName: z.string().min(1).max(100),
   email: z.string().email(),
-  password: z.string().min(10).max(200),
+  password: passwordSchema,
   /** shop phone number */
   phone: z.string().max(30).optional(),
   shopPostalCode: z.string().max(10).optional(),
@@ -91,7 +95,7 @@ export const createStaffSchema = z.object({
   displayName: z.string().min(1).max(100),
   displayNameKana: z.string().max(100).optional(),
   email: z.string().email().optional(),
-  initialPassword: z.string().min(10).max(200).optional(),
+  initialPassword: passwordSchema.optional(),
   phone: z.string().max(30).optional(),
   roleId: uuid,
   shopIds: z.array(uuid).default([]),

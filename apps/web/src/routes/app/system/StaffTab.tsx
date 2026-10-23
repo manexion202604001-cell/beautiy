@@ -1,5 +1,16 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowUpDown, Check, Clock, Eye, EyeOff, Mail, UserPlus, X } from 'lucide-react';
+import {
+  ArrowUpDown,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Clock,
+  Eye,
+  EyeOff,
+  Mail,
+  UserPlus,
+  X,
+} from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { orgApi, orgKeys, useRoles, useStaffList } from '../../../api/org';
 import {
@@ -26,12 +37,16 @@ import {
 import { useToast } from '../../../components/ui';
 import { errorMessage } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth';
+import { StaffCodeInvite } from '../staff/StaffCodeInvite';
 import { nextAssignment, sortShopsForAssignment, sortStaffByShop } from './shared';
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** Labels of the two roles an invitation can grant, used until the role list has loaded */
-const ROLE_FALLBACK: Record<InviteRoleKey, string> = { stylist: 'スタッフ', manager: 'ディレクター' };
+const ROLE_FALLBACK: Record<InviteRoleKey, string> = {
+  stylist: 'スタッフ',
+  manager: 'ディレクター',
+};
 
 type SearchResult = { kind: 'existing'; staff: Staff } | { kind: 'new'; email: string };
 
@@ -57,6 +72,7 @@ export function StaffTab() {
   const [inviteError, setInviteError] = useState('');
   const [inviteName, setInviteName] = useState('');
   const [inviteRole, setInviteRole] = useState<InviteRoleKey>('stylist');
+  const [emailOpen, setEmailOpen] = useState(false);
   const [sent, setSent] = useState<{ email: string; emailSent: boolean; inviteUrl: string } | null>(
     null,
   );
@@ -167,129 +183,160 @@ export function StaffTab() {
             <UserPlus className="h-5 w-5" />
             スタッフ招待
           </CardTitle>
-          <CardDescription>
-            スタッフのメールアドレスを入力して、現在選択中の店舗に招待します
-          </CardDescription>
+          <CardDescription>スタッフの6桁IDを入力して、現在選択中の店舗に招待します</CardDescription>
         </CardHeader>
         <CardContent className="sy-4">
-          {inviteError ? (
-            <div role="alert" className="rounded-md bg-destructive/15 p-3 text-sm text-destructive">
-              {inviteError}
-            </div>
-          ) : null}
-          <div className="flex gap-2">
-            <Input
-              type="email"
-              aria-label="スタッフのメールアドレス"
-              placeholder="スタッフのメールアドレス"
-              value={email}
-              onChange={(e) => {
-                setEmail(e.target.value);
-                setResult(null);
-                setInviteError('');
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && EMAIL.test(email.trim())) void search();
-              }}
-              className="max-w-[320px]"
-            />
-            <Button onClick={() => void search()} disabled={searching || !EMAIL.test(email.trim())}>
-              {searching ? '検索中...' : '検索'}
-            </Button>
-          </div>
-          {result ? (
-            <div className="rounded-lg border p-4 sy-3" data-testid="invite-result">
-              {result.kind === 'existing' ? (
-                <>
-                  <div className="flex items-center gap-3">
-                    <Avatar name={result.staff.display_name} className="h-10 w-10" />
-                    <div>
-                      <p className="font-medium">{result.staff.display_name}</p>
-                      <p className="text-sm text-muted-foreground">{result.staff.email}</p>
-                    </div>
+          <StaffCodeInvite
+            shopId={currentShop?.id ?? null}
+            shopName={currentShop?.name}
+            onLinked={refresh}
+            onUseEmail={() => setEmailOpen(true)}
+          />
+          {/* Salon OS: people not registered yet (or registered at another salon) are invited by e-mail */}
+          <div className="sy-4 border-t pt-4">
+            <button
+              type="button"
+              className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground"
+              aria-expanded={emailOpen}
+              onClick={() => setEmailOpen((v) => !v)}
+            >
+              <Mail className="h-4 w-4" />
+              メールアドレスで招待
+              {emailOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </button>
+            {emailOpen ? (
+              <>
+                {inviteError ? (
+                  <div
+                    role="alert"
+                    className="rounded-md bg-destructive/15 p-3 text-sm text-destructive"
+                  >
+                    {inviteError}
                   </div>
-                  {notWorking ? (
-                    <p className="text-sm text-destructive">
-                      このスタッフは{result.staff.status === 'retired' ? '退職' : '休止'}
-                      として登録されています。スタッフ画面で在籍に戻してから店舗を割り当ててください
-                    </p>
-                  ) : alreadyHere ? (
-                    <p className="text-sm text-muted-foreground">
-                      このスタッフは既に「{currentShop?.name}」に所属しています
-                    </p>
-                  ) : (
-                    <div className="flex items-center gap-3">
-                      <p className="text-sm text-muted-foreground">
-                        登録済みのスタッフです（{result.staff.role?.name ?? ''}）
+                ) : null}
+                <div className="flex gap-2">
+                  <Input
+                    type="email"
+                    aria-label="スタッフのメールアドレス"
+                    placeholder="スタッフのメールアドレス"
+                    value={email}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      setResult(null);
+                      setInviteError('');
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && EMAIL.test(email.trim())) void search();
+                    }}
+                    className="max-w-[320px]"
+                  />
+                  <Button
+                    onClick={() => void search()}
+                    disabled={searching || !EMAIL.test(email.trim())}
+                  >
+                    {searching ? '検索中...' : '検索'}
+                  </Button>
+                </div>
+                {result ? (
+                  <div className="rounded-lg border p-4 sy-3" data-testid="invite-result">
+                    {result.kind === 'existing' ? (
+                      <>
+                        <div className="flex items-center gap-3">
+                          <Avatar name={result.staff.display_name} className="h-10 w-10" />
+                          <div>
+                            <p className="font-medium">{result.staff.display_name}</p>
+                            <p className="text-sm text-muted-foreground">{result.staff.email}</p>
+                          </div>
+                        </div>
+                        {notWorking ? (
+                          <p className="text-sm text-destructive">
+                            このスタッフは{result.staff.status === 'retired' ? '退職' : '休止'}
+                            として登録されています。スタッフ画面で在籍に戻してから店舗を割り当ててください
+                          </p>
+                        ) : alreadyHere ? (
+                          <p className="text-sm text-muted-foreground">
+                            このスタッフは既に「{currentShop?.name}」に所属しています
+                          </p>
+                        ) : (
+                          <div className="flex items-center gap-3">
+                            <p className="text-sm text-muted-foreground">
+                              登録済みのスタッフです（{result.staff.role?.name ?? ''}）
+                            </p>
+                            <Button
+                              onClick={() => void invite()}
+                              disabled={inviting}
+                              className="mt-auto"
+                            >
+                              {inviting ? '追加中...' : 'この店舗に追加'}
+                            </Button>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-3">
+                          <Avatar name={inviteName.trim() || result.email} className="h-10 w-10" />
+                          <div className="flex-1 sy-1">
+                            <Label htmlFor="invite-name">お名前</Label>
+                            <Input
+                              id="invite-name"
+                              value={inviteName}
+                              onChange={(e) => setInviteName(e.target.value)}
+                              placeholder="例: 山田 花子"
+                              className="max-w-[320px]"
+                            />
+                            <p className="text-sm text-muted-foreground">{result.email}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="sy-1">
+                            <Label>権限</Label>
+                            <Select
+                              label="権限"
+                              className="w-[160px]"
+                              value={inviteRole}
+                              onValueChange={(v) => setInviteRole(v as InviteRoleKey)}
+                              options={[
+                                { value: 'stylist', label: roleLabel('stylist') },
+                                { value: 'manager', label: roleLabel('manager') },
+                              ]}
+                            />
+                          </div>
+                          <Button
+                            onClick={() => void invite()}
+                            disabled={inviting || !inviteName.trim() || !currentShop}
+                            className="mt-auto"
+                          >
+                            {inviting ? '送信中...' : '招待を送信'}
+                          </Button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ) : null}
+                {sent ? (
+                  <div className="rounded-lg border p-4 sy-2 text-sm" data-testid="invite-sent">
+                    {sent.emailSent ? (
+                      <p>{sent.email} に招待メールを送信しました。</p>
+                    ) : (
+                      <p className="text-destructive">
+                        招待は登録しましたが、メールを送信できませんでした。下のリンクをご本人に伝えてください。
                       </p>
-                      <Button onClick={() => void invite()} disabled={inviting} className="mt-auto">
-                        {inviting ? '追加中...' : 'この店舗に追加'}
-                      </Button>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <>
-                  <div className="flex items-center gap-3">
-                    <Avatar name={inviteName.trim() || result.email} className="h-10 w-10" />
-                    <div className="flex-1 sy-1">
-                      <Label htmlFor="invite-name">お名前</Label>
-                      <Input
-                        id="invite-name"
-                        value={inviteName}
-                        onChange={(e) => setInviteName(e.target.value)}
-                        placeholder="例: 山田 花子"
-                        className="max-w-[320px]"
-                      />
-                      <p className="text-sm text-muted-foreground">{result.email}</p>
-                    </div>
+                    )}
+                    <p className="text-muted-foreground">
+                      招待リンク（7日間有効）。メールが届かない場合はこのリンクを伝えてください。
+                    </p>
+                    <Input
+                      readOnly
+                      aria-label="招待リンク"
+                      value={sent.inviteUrl}
+                      onFocus={(e) => e.currentTarget.select()}
+                    />
                   </div>
-                  <div className="flex items-center gap-3">
-                    <div className="sy-1">
-                      <Label>権限</Label>
-                      <Select
-                        label="権限"
-                        className="w-[160px]"
-                        value={inviteRole}
-                        onValueChange={(v) => setInviteRole(v as InviteRoleKey)}
-                        options={[
-                          { value: 'stylist', label: roleLabel('stylist') },
-                          { value: 'manager', label: roleLabel('manager') },
-                        ]}
-                      />
-                    </div>
-                    <Button
-                      onClick={() => void invite()}
-                      disabled={inviting || !inviteName.trim() || !currentShop}
-                      className="mt-auto"
-                    >
-                      {inviting ? '送信中...' : '招待を送信'}
-                    </Button>
-                  </div>
-                </>
-              )}
-            </div>
-          ) : null}
-          {sent ? (
-            <div className="rounded-lg border p-4 sy-2 text-sm" data-testid="invite-sent">
-              {sent.emailSent ? (
-                <p>{sent.email} に招待メールを送信しました。</p>
-              ) : (
-                <p className="text-destructive">
-                  招待は登録しましたが、メールを送信できませんでした。下のリンクをご本人に伝えてください。
-                </p>
-              )}
-              <p className="text-muted-foreground">
-                招待リンク（7日間有効）。メールが届かない場合はこのリンクを伝えてください。
-              </p>
-              <Input
-                readOnly
-                aria-label="招待リンク"
-                value={sent.inviteUrl}
-                onFocus={(e) => e.currentTarget.select()}
-              />
-            </div>
-          ) : null}
+                ) : null}
+              </>
+            ) : null}
+          </div>
         </CardContent>
       </Card>
 
@@ -352,6 +399,11 @@ export function StaffTab() {
                                 {member.title}
                               </p>
                             ) : null}
+                            {member.staff_code ? (
+                              <p className="text-xs text-muted-foreground">
+                                ID: {member.staff_code}
+                              </p>
+                            ) : null}
                           </div>
                         </div>
                       </td>
@@ -367,7 +419,9 @@ export function StaffTab() {
                             <div className="flex items-center justify-center gap-1">
                               <span
                                 className={
-                                  busy ? 'pointer-events-none flex opacity-50' : 'flex cursor-pointer'
+                                  busy
+                                    ? 'pointer-events-none flex opacity-50'
+                                    : 'flex cursor-pointer'
                                 }
                               >
                                 <Checkbox
@@ -451,10 +505,14 @@ export function StaffTab() {
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="truncate text-sm font-medium">{inv.staff_name}</p>
-                        <span className="truncate text-xs text-muted-foreground">{inv.email}</span>
+                        {inv.staff_code ? (
+                          <span className="whitespace-nowrap text-xs text-muted-foreground">
+                            ID: {inv.staff_code}
+                          </span>
+                        ) : null}
                       </div>
                       <p className="truncate text-xs text-muted-foreground">
-                        {inv.shop_name} / {inv.role_name}
+                        {inv.shop_name} / {inv.role_key === 'manager' ? 'ディレクター' : 'スタッフ'}
                         {inv.invited_by_name ? ` / ${inv.invited_by_name}が招待` : ''}
                       </p>
                     </div>
@@ -481,10 +539,19 @@ export function StaffTab() {
                         承認済み
                       </Badge>
                     ) : null}
-                    {inv.status === 'cancelled' ? (
+                    {inv.status === 'declined' ? (
                       <Badge
                         variant="outline"
                         className="flex items-center gap-1 border-red-300 bg-red-50 text-red-600"
+                      >
+                        <X className="h-3 w-3" />
+                        辞退
+                      </Badge>
+                    ) : null}
+                    {inv.status === 'cancelled' ? (
+                      <Badge
+                        variant="outline"
+                        className="flex items-center gap-1 text-muted-foreground"
                       >
                         <X className="h-3 w-3" />
                         取消

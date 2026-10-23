@@ -16,6 +16,7 @@ import {
 import { errorMessage } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth';
 import { EMPLOYMENT_LABEL, STAFF_COLORS as COLORS } from './shared';
+import { PASSWORD_MIN_LENGTH } from '../../../lib/password';
 
 /** API returns an absolute invite URL (WEB_BASE_URL); show it on the current origin */
 function inviteLink(url: string) {
@@ -60,8 +61,8 @@ export function StaffCreateDialog({ onClose }: { onClose: () => void }) {
     if (!f.roleId) errs.roleId = '権限ロールを選択してください';
     if (mode !== 'none' && !/^\S+@\S+\.\S+$/.test(f.email))
       errs.email = 'メールアドレスを入力してください';
-    if (mode === 'password' && f.initialPassword.length < 10)
-      errs.initialPassword = '10文字以上で入力してください';
+    if (mode === 'password' && f.initialPassword.length < PASSWORD_MIN_LENGTH)
+      errs.initialPassword = `${PASSWORD_MIN_LENGTH}文字以上で入力してください`;
     setErrors(errs);
     if (Object.keys(errs).length) return;
     setSaving(true);
@@ -103,7 +104,10 @@ export function StaffCreateDialog({ onClose }: { onClose: () => void }) {
         description="このリンクをスタッフに送ってください。7日間有効です。リンクからパスワードを設定するとログインできます。"
         footer={
           <>
-            <Button variant="ghost" onClick={() => navigate(`/app/staff-classic/${invite.staffId}`)}>
+            <Button
+              variant="ghost"
+              onClick={() => navigate(`/app/staff-classic/${invite.staffId}`)}
+            >
               スタッフ詳細へ
             </Button>
             <Button
@@ -241,7 +245,7 @@ export function StaffCreateDialog({ onClose }: { onClose: () => void }) {
                   label="初期パスワード"
                   required
                   error={errors.initialPassword}
-                  hint="10文字以上"
+                  hint={`${PASSWORD_MIN_LENGTH}文字以上`}
                 >
                   <Input
                     type="password"

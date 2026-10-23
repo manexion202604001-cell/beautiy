@@ -35,6 +35,8 @@ export interface Me {
     display_name: string | null;
     mfa_enabled: boolean;
     last_login_at: string | null;
+    /** signed in with a temporary password (「ログイン情報を設定」): must set their own first */
+    must_change_password?: boolean;
   };
   organization: {
     id: string;
@@ -53,7 +55,11 @@ export interface Me {
     role_id: string;
     role_key: string;
     role_name: string;
+    /** 6-digit staff ID the staff member tells the owner to be added to a shop */
+    staff_code?: string;
   };
+  /** 主 shop of the signed-in staff member (default shop after signing in) */
+  primaryShopId?: string | null;
   organizations: OrgRef[];
   permissions: string[];
   shopIds: string[];
@@ -160,6 +166,8 @@ export interface Staff {
   public_profile: PublicProfile;
   public_slug: string | null;
   sort_order: number;
+  /** 6-digit staff ID (「ID: 123456」) */
+  staff_code?: string;
   status: 'invited' | 'active' | 'inactive' | 'retired';
   hired_on: string | null;
   retired_on: string | null;

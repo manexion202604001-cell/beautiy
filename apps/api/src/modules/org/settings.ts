@@ -5,13 +5,16 @@
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { sql } from 'kysely';
 import { z } from 'zod';
-import { accessibleShopIds, assertShopAccess, auditUserId, requirePermission, type Ctx } from '../../auth/actor.js';
+import { accessibleShopIds, assertShopAccess, auditUserId, can, requirePermission, type Ctx } from '../../auth/actor.js';
 import { invalidateActorCache } from '../../auth/load-actor.js';
+import { config } from '../../config.js';
+import { withSystem } from '../../db/tenant.js';
 import { audit } from '../../lib/audit.js';
 import { Errors } from '../../lib/errors.js';
 import { sendEmail, type MailMessage } from '../../lib/mailer.js';
 import { idParam, uuid } from '../../lib/schemas.js';
 import { countUpcomingAppointments } from '../appointments/api.js';
+import { staffAvatarUrls } from './avatars.js';
 import { createStaff, ensurePrimaryShop, getShop, getStaff } from './service.js';
 
 // ---------------------------------------------------------------- shop removal
@@ -84,7 +87,8 @@ export const inviteStaffSchema = z.object({
 });
 export type InviteStaffInput = z.infer<typeof inviteStaffSchema>;
 
-export type InvitationStatus = 'pending' | 'accepted' | 'cancelled';
+/** 保留中 / 承認済 / 辞退; 取消 = the invited staff row was retired or removed before an answer */
+export type InvitationStatus = 'pending' | 'accepted' | 'declined' | 'cancelled';
 
 export async function listInvitations(ctx: Ctx) {
   requirePermission(ctx.actor, 'staff.manage');
@@ -101,8 +105,10 @@ export async function listInvitations(ctx: Ctx) {
       'i.shop_id',
       'i.email',
       'i.accepted_at',
+      'i.declined_at',
       'i.created_at',
       's.display_name as staff_name',
+      's.staff_code',
       's.status as staff_status',
       's.deleted_at as staff_deleted_at',
       'sh.name as shop_name',
@@ -116,7 +122,15 @@ export async function listInvitations(ctx: Ctx) {
   if (shopIds) q = q.where('i.shop_id', 'in', shopIds.length ? [...shopIds] : ['00000000-0000-0000-0000-000000000000']);
   const rows = await q.execute();
   return rows.map(({ staff_status, staff_deleted_at, ...r }) => {
-    const status: InvitationStatus = r.accepted_at ? 'accepted' : staff_status === 'invited' && !staff_deleted_at ? 'pending' : staff_status === 'active' && !staff_deleted_at ? 'accepted' : 'cancelled';
+    const status: InvitationStatus = r.declined_at
+      ? 'declined'
+      : r.accepted_at
+        ? 'accepted'
+        : staff_status === 'invited' && !staff_deleted_at
+          ? 'pending'
+          : staff_status === 'active' && !staff_deleted_at
+            ? 'accepted'
+            : 'cancelled';
     return { ...r, status };
   });
 }
@@ -184,6 +198,131 @@ export async function inviteStaff(ctx: Ctx, input: InviteStaffInput) {
   return { invitationId: invitation.id, staffId: staff.id, inviteUrl, mail };
 }
 
+// ---------------------------------------------------------------- 6桁のスタッフID (search / link)
+
+export const staffCodeSchema = z.string().regex(/^\d{6}$/, '6桁のスタッフIDを入力してください');
+
+/**
+ * スタッフ招待 › 検索: the staff member a 6-digit ID belongs to. Codes are unique across salons, so the
+ * lookup is not limited to this organization, but only the name, photo and code are returned (plus
+ * whether the person belongs to this organization, which decides whether they can be added).
+ */
+export async function searchStaffByCode(ctx: Ctx, code: string) {
+  requirePermission(ctx.actor, 'staff.manage');
+  const notFound = () => Errors.notFound('スタッフ'); // 「スタッフが見つかりません」
+  const mine = await ctx.trx
+    .selectFrom('staffs')
+    .innerJoin('roles', 'roles.id', 'staffs.role_id')
+    .select(['staffs.id', 'staffs.display_name', 'staffs.staff_code', 'staffs.public_profile', 'staffs.status', 'roles.key as role_key'])
+    .where('staffs.staff_code', '=', code)
+    .where('staffs.deleted_at', 'is', null)
+    .executeTakeFirst();
+  if (mine) {
+    const avatars = await staffAvatarUrls(ctx, [mine]);
+    const shops = await ctx.trx.selectFrom('staff_shop_assignments').select('shop_id').where('staff_id', '=', mine.id).where('ended_on', 'is', null).execute();
+    return {
+      staff: {
+        staff_code: mine.staff_code,
+        name: mine.display_name,
+        avatar_url: avatars.get(mine.id) ?? null,
+        same_organization: true,
+        id: mine.id,
+        status: mine.status,
+        role_key: mine.role_key,
+        shop_ids: shops.map((s) => s.shop_id),
+      },
+    };
+  }
+  return withSystem(async (trx) => {
+    const other = await trx
+      .selectFrom('staffs')
+      .select(['id', 'display_name', 'staff_code', 'public_profile'])
+      .where('staff_code', '=', code)
+      .where('deleted_at', 'is', null)
+      .where('status', 'in', ['active', 'invited'])
+      .executeTakeFirst();
+    if (!other) throw notFound();
+    const avatars = await staffAvatarUrls({ ...ctx, trx }, [other]);
+    return { staff: { staff_code: other.staff_code, name: other.display_name, avatar_url: avatars.get(other.id) ?? null, same_organization: false } };
+  });
+}
+
+export const linkStaffByCodeSchema = z.object({
+  staffCode: staffCodeSchema,
+  shopId: uuid,
+  roleKey: z.enum(INVITE_ROLE_KEYS).default('stylist'),
+});
+export type LinkStaffByCodeInput = z.infer<typeof linkStaffByCodeSchema>;
+
+/**
+ * スタッフ招待 › 招待を送信 (by 6-digit ID): adds a staff member of this organization to the shop with
+ * the chosen 権限 and records it in 招待履歴 as 承認済. Staff rows belong to one organization, so a
+ * code of another salon's staff is refused (that person is invited by e-mail instead).
+ */
+export async function linkStaffByCode(ctx: Ctx, input: LinkStaffByCodeInput) {
+  requirePermission(ctx.actor, 'staff.manage');
+  assertShopAccess(ctx.actor, input.shopId);
+  const shop = await getShop(ctx, input.shopId);
+  const found = await searchStaffByCode(ctx, input.staffCode);
+  if (!found.staff.same_organization || !('id' in found.staff)) {
+    throw Errors.business('STAFF_IN_OTHER_ORGANIZATION', 'このスタッフは別のサロンに登録されているため、IDでは招待できません。「メールアドレスで招待」から招待してください');
+  }
+  const target = found.staff;
+  if (target.status === 'retired' || target.status === 'inactive') {
+    throw Errors.business('STAFF_NOT_WORKING', `このスタッフは${target.status === 'retired' ? '退職' : '無効'}として登録されています。スタッフ画面で在籍に戻してから招待してください`);
+  }
+  if (target.shop_ids.includes(input.shopId)) {
+    throw Errors.conflict('ALREADY_ASSIGNED', `このスタッフは既に「${shop.name}」に所属しています`);
+  }
+
+  const role = await ctx.trx
+    .selectFrom('roles')
+    .select(['id', 'key', 'name'])
+    .where('organization_id', '=', ctx.actor.organizationId)
+    .where('key', '=', input.roleKey)
+    .executeTakeFirstOrThrow();
+  // the role is the staff member's role in the whole organization: an owner (or a custom role) keeps it
+  let roleId: string | null = null;
+  if ((INVITE_ROLE_KEYS as readonly string[]).includes(target.role_key) && target.role_key !== role.key) {
+    if (!can(ctx.actor, 'role.manage')) {
+      throw Errors.forbidden(`権限の変更はオーナーのみ行えます。現在の権限（${target.role_key === 'manager' ? 'ディレクター' : 'スタッフ'}）のまま招待してください`, 'FORBIDDEN', { permission: 'role.manage' });
+    }
+    await ctx.trx.updateTable('staffs').set({ role_id: role.id, updated_by: auditUserId(ctx.actor) }).where('id', '=', target.id).execute();
+    roleId = role.id;
+  }
+  const current = await ctx.trx.selectFrom('staffs').select(['role_id', 'email']).where('id', '=', target.id).executeTakeFirstOrThrow();
+
+  await ctx.trx
+    .insertInto('staff_shop_assignments')
+    .values({ organization_id: ctx.actor.organizationId, staff_id: target.id, shop_id: input.shopId })
+    .execute();
+  await ensurePrimaryShop(ctx, target.id);
+  invalidateActorCache(target.id);
+
+  const invitation = await ctx.trx
+    .insertInto('staff_invitations')
+    .values({
+      organization_id: ctx.actor.organizationId,
+      staff_id: target.id,
+      shop_id: input.shopId,
+      role_id: current.role_id,
+      email: current.email,
+      invited_by_staff_id: auditUserId(ctx.actor),
+      accepted_at: new Date(),
+      trace_id: ctx.meta.traceId ?? null,
+    })
+    .returning('id')
+    .executeTakeFirstOrThrow();
+  await audit(ctx, {
+    action: 'staff.link_by_code',
+    resourceType: 'staff',
+    resourceId: target.id,
+    shopId: input.shopId,
+    after: { staffCode: input.staffCode, ...(roleId ? { role: role.key } : {}) },
+  });
+  return { invitationId: invitation.id, staffId: target.id, status: 'accepted' as const };
+}
+
 // ---------------------------------------------------------------- routes
 
 export const settingsRoutes: FastifyPluginAsyncZod = async (app) => {
@@ -201,6 +340,18 @@ export const settingsRoutes: FastifyPluginAsyncZod = async (app) => {
   );
 
   app.get('/staff-invitations', { schema: { tags, summary: '招待履歴' } }, (req) => req.tx((ctx) => listInvitations(ctx)));
+
+  // bounded: the 6-digit space is small, so the lookup must not be usable to enumerate staff
+  const codeRateLimit = { rateLimit: { max: config.NODE_ENV === 'test' ? 100000 : 30, timeWindow: '1 minute' } };
+  app.get(
+    '/staff/search/code/:code',
+    { config: codeRateLimit, schema: { tags, summary: '6桁のスタッフIDで検索(名前・写真・IDのみ)', params: z.object({ code: staffCodeSchema }) } },
+    (req) => req.tx((ctx) => searchStaffByCode(ctx, req.params.code)),
+  );
+  app.post('/staff/link-by-code', { config: codeRateLimit, schema: { tags, summary: '6桁のスタッフIDで店舗に招待(同じ法人のスタッフ)', body: linkStaffByCodeSchema } }, async (req, reply) => {
+    const result = await req.tx((ctx) => linkStaffByCode(ctx, req.body));
+    return reply.status(201).send(result);
+  });
 
   app.post('/staff-invitations', { schema: { tags, summary: 'スタッフ招待(メール送信)', body: inviteStaffSchema } }, async (req, reply) => {
     const { mail, ...result } = await req.tx((ctx) => inviteStaff(ctx, req.body));

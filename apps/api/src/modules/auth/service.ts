@@ -1,6 +1,6 @@
 import { sql } from 'kysely';
 import { signStaffAccessToken } from '../../auth/jwt.js';
-import { invalidateActorCache } from '../../auth/load-actor.js';
+import { invalidateActorCache, invalidateActorCacheForUser } from '../../auth/load-actor.js';
 import { config } from '../../config.js';
 import { withSystem, type Tx } from '../../db/tenant.js';
 import { hashPassword, hashToken, otpCode, randomToken, signPayload, verifyPassword, verifySignedPayload } from '../../lib/crypto.js';
@@ -238,9 +238,9 @@ export async function acceptInvite(token: string, password: string, meta: LoginM
   const payload = verifySignedPayload<{ typ: string; uid: string; org: string; stf: string }>(token);
   if (!payload || payload.typ !== 'invite') throw Errors.unauthenticated('招待リンクが無効か期限切れです', 'INVALID_INVITE');
   return withSystem(async (trx) => {
-    const staff = await trx.selectFrom('staffs').select(['id', 'status', 'user_id']).where('id', '=', payload.stf).forUpdate().executeTakeFirst();
-    // single use: once accepted (status active) the link can no longer be used as a login
-    if (!staff || staff.user_id !== payload.uid || staff.status !== 'invited') {
+    const staff = await trx.selectFrom('staffs').select(['id', 'status', 'user_id', 'deleted_at']).where('id', '=', payload.stf).forUpdate().executeTakeFirst();
+    // single use: once accepted (status active) or declined (removed) the link can no longer be used
+    if (!staff || staff.user_id !== payload.uid || staff.status !== 'invited' || staff.deleted_at) {
       throw Errors.unauthenticated('招待リンクが無効か、既に使用されています', 'INVALID_INVITE');
     }
     const user = await trx.selectFrom('users').select(['id', 'password_hash']).where('id', '=', payload.uid).executeTakeFirstOrThrow();
@@ -258,13 +258,47 @@ export async function acceptInvite(token: string, password: string, meta: LoginM
   });
 }
 
+/**
+ * 招待を辞退: the invitee declines on the invitation page. The staff row created for the invitation
+ * is removed (with its shop assignments), so the link stops working and the address can be invited
+ * again later; 招待履歴 shows 辞退.
+ */
+export async function declineInvite(token: string): Promise<void> {
+  const payload = verifySignedPayload<{ typ: string; uid: string; org: string; stf: string }>(token);
+  if (!payload || payload.typ !== 'invite') throw Errors.unauthenticated('招待リンクが無効か期限切れです', 'INVALID_INVITE');
+  await withSystem(async (trx) => {
+    const staff = await trx.selectFrom('staffs').select(['id', 'status', 'user_id', 'deleted_at']).where('id', '=', payload.stf).forUpdate().executeTakeFirst();
+    if (!staff || staff.user_id !== payload.uid || staff.status !== 'invited' || staff.deleted_at) {
+      throw Errors.unauthenticated('招待リンクが無効か、既に使用されています', 'INVALID_INVITE');
+    }
+    const now = new Date();
+    await trx.updateTable('staffs').set({ deleted_at: now }).where('id', '=', staff.id).execute();
+    await trx
+      .updateTable('staff_shop_assignments')
+      .set({ ended_on: sql<string>`greatest(started_on, ${now.toISOString().slice(0, 10)}::date)`, is_primary: false })
+      .where('staff_id', '=', staff.id)
+      .where('ended_on', 'is', null)
+      .execute();
+    await trx
+      .updateTable('staff_invitations')
+      .set({ declined_at: now })
+      .where('staff_id', '=', staff.id)
+      .where('accepted_at', 'is', null)
+      .where('declined_at', 'is', null)
+      .execute();
+    invalidateActorCache(staff.id);
+  });
+}
+
 export async function changePassword(userId: string, currentPassword: string, newPassword: string) {
   await withSystem(async (trx) => {
     const user = await trx.selectFrom('users').select(['id', 'password_hash']).where('id', '=', userId).executeTakeFirstOrThrow();
     if (!(await verifyPassword(currentPassword, user.password_hash))) {
       throw Errors.unauthenticated('現在のパスワードが正しくありません', 'INVALID_CREDENTIALS');
     }
-    await trx.updateTable('users').set({ password_hash: await hashPassword(newPassword) }).where('id', '=', userId).execute();
+    if (currentPassword === newPassword) throw Errors.validation('現在のパスワードとは別のパスワードを設定してください');
+    await trx.updateTable('users').set({ password_hash: await hashPassword(newPassword), must_change_password: false }).where('id', '=', userId).execute();
+    invalidateActorCacheForUser(userId);
     // revoke other sessions
     await trx.updateTable('auth_sessions').set({ revoked_at: new Date() }).where('user_id', '=', userId).where('revoked_at', 'is', null).execute();
   });
@@ -303,9 +337,10 @@ export async function resetPassword(token: string, newPassword: string) {
     if (!user || passwordFingerprint(user.password_hash) !== payload.pf) throw invalid();
     await trx
       .updateTable('users')
-      .set({ password_hash: await hashPassword(newPassword), failed_login_count: 0, locked_until: null })
+      .set({ password_hash: await hashPassword(newPassword), failed_login_count: 0, locked_until: null, must_change_password: false })
       .where('id', '=', user.id)
       .execute();
+    invalidateActorCacheForUser(user.id);
     await trx.updateTable('auth_sessions').set({ revoked_at: new Date() }).where('user_id', '=', user.id).where('revoked_at', 'is', null).execute();
   });
 }
@@ -316,15 +351,35 @@ export async function setMfa(userId: string, enabled: boolean) {
 
 export async function me(userId: string, organizationId: string, staffId: string) {
   return withSystem(async (trx) => {
-    const user = await trx.selectFrom('users').select(['id', 'email', 'display_name', 'mfa_enabled', 'last_login_at']).where('id', '=', userId).executeTakeFirstOrThrow();
+    const user = await trx
+      .selectFrom('users')
+      .select(['id', 'email', 'display_name', 'mfa_enabled', 'last_login_at', 'must_change_password'])
+      .where('id', '=', userId)
+      .executeTakeFirstOrThrow();
     const orgs = await memberships(trx, userId);
     const org = await trx.selectFrom('organizations').select(['id', 'name', 'slug', 'plan', 'status', 'timezone', 'currency']).where('id', '=', organizationId).executeTakeFirstOrThrow();
     const staff = await trx
       .selectFrom('staffs')
       .innerJoin('roles', 'roles.id', 'staffs.role_id')
-      .select(['staffs.id', 'staffs.display_name', 'staffs.color', 'staffs.title', 'roles.id as role_id', 'roles.key as role_key', 'roles.name as role_name'])
+      .select(['staffs.id', 'staffs.display_name', 'staffs.color', 'staffs.title', 'staffs.staff_code', 'roles.id as role_id', 'roles.key as role_key', 'roles.name as role_name'])
       .where('staffs.id', '=', staffId)
       .executeTakeFirstOrThrow();
-    return { user, organization: org, staff, organizations: orgs.map((o) => ({ id: o.organization_id, name: o.organization_name, slug: o.organization_slug })) };
+    // 主 shop: the default shop after signing in when no other shop was chosen on this device
+    const primary = await trx
+      .selectFrom('staff_shop_assignments')
+      .innerJoin('shops', 'shops.id', 'staff_shop_assignments.shop_id')
+      .select('staff_shop_assignments.shop_id')
+      .where('staff_shop_assignments.staff_id', '=', staffId)
+      .where('staff_shop_assignments.ended_on', 'is', null)
+      .where('staff_shop_assignments.is_primary', '=', true)
+      .where('shops.deleted_at', 'is', null)
+      .executeTakeFirst();
+    return {
+      user,
+      organization: org,
+      staff,
+      primaryShopId: primary?.shop_id ?? null,
+      organizations: orgs.map((o) => ({ id: o.organization_id, name: o.organization_name, slug: o.organization_slug })),
+    };
   });
 }

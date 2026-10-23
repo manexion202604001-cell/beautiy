@@ -14,6 +14,8 @@ export interface StaffActor {
   shopIds: readonly string[];
   /** true when role grants scope.all_shops */
   allShops: boolean;
+  /** signed in with a temporary password set by someone else: only the password change is allowed */
+  mustChangePassword?: boolean;
 }
 
 export interface CustomerActor {

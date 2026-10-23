@@ -100,20 +100,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const shops = useMemo(() => shopsQuery.data ?? [], [shopsQuery.data]);
 
   const storedShopId = session.getShopId();
+  // the shop chosen on this device if still accessible, else the staff member's 主 shop, else the first
   const currentShop = useMemo(() => {
     if (!shops.length) return null;
     return (
       shops.find((s) => s.id === storedShopId) ??
+      shops.find((s) => s.id === me?.primaryShopId) ??
       shops.find((s) => me?.shopIds.includes(s.id)) ??
       shops[0] ??
       null
     );
   }, [shops, storedShopId, me]);
 
-  // persist the resolved shop (first load / shop removed)
+  // persist the resolved shop (first load / shop removed) once /me told which shop is the 主 one
   useEffect(() => {
-    if (currentShop && currentShop.id !== storedShopId) session.setShopId(currentShop.id);
-  }, [currentShop, storedShopId]);
+    if (currentShop && me && currentShop.id !== storedShopId) session.setShopId(currentShop.id);
+  }, [currentShop, storedShopId, me]);
 
   const permissions = useMemo(() => new Set(me?.permissions ?? []), [me]);
   const can = useCallback((p: string) => permissions.has(p), [permissions]);

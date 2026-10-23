@@ -9,7 +9,7 @@ import Signup from './Signup';
 
 const h = vi.hoisted(() => ({
   acceptTokens: vi.fn(),
-  api: { resetPassword: vi.fn(), signup: vi.fn(), acceptInvite: vi.fn() },
+  api: { resetPassword: vi.fn(), signup: vi.fn(), acceptInvite: vi.fn(), declineInvite: vi.fn() },
 }));
 
 vi.mock('../../lib/auth', () => ({ useAuth: () => ({ acceptTokens: h.acceptTokens }) }));
@@ -49,7 +49,7 @@ describe('新しいパスワードの設定', () => {
     await user.type(screen.getByLabelText('新しいパスワード'), 'short');
     await user.type(screen.getByLabelText('パスワード（確認）'), 'short');
     await user.click(screen.getByRole('button', { name: 'パスワードを変更' }));
-    expect(screen.getByRole('alert')).toHaveTextContent('パスワードは10文字以上にしてください');
+    expect(screen.getByRole('alert')).toHaveTextContent('パスワードは8文字以上にしてください');
 
     await user.clear(screen.getByLabelText('新しいパスワード'));
     await user.type(screen.getByLabelText('新しいパスワード'), 'new-password-1');
@@ -146,7 +146,7 @@ describe('初期設定', () => {
       },
     });
     await waitFor(() => expect(h.acceptTokens).toHaveBeenCalled());
-    expect(screen.getByTestId('location')).toHaveTextContent('/app/settings-classic?welcome=1');
+    expect(screen.getByTestId('location')).toHaveTextContent(/^\/app$/);
   });
 
   it('names a sole proprietor’s business after the shop and shows a failed registration', async () => {
@@ -183,5 +183,23 @@ describe('スタッフ招待の受諾', () => {
     await waitFor(() => expect(h.api.acceptInvite).toHaveBeenCalledWith('invite-token-1', 'password-1234'));
     await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/app'));
     expect(h.acceptTokens).toHaveBeenCalled();
+  });
+  it('accepts 8 characters (not 7) and can decline the invitation instead', async () => {
+    const user = userEvent.setup();
+    h.api.declineInvite.mockResolvedValue(undefined);
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    renderAt('/invite/invite-token-2');
+    await user.type(screen.getByLabelText('パスワード'), '1234567');
+    await user.type(screen.getByLabelText('パスワード（確認）'), '1234567');
+    await user.click(screen.getByRole('button', { name: '招待を受け付ける' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('パスワードは8文字以上にしてください');
+    expect(h.api.acceptInvite).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: '辞退' }));
+    expect(confirm).toHaveBeenCalledWith('この招待を辞退しますか？');
+    await waitFor(() => expect(h.api.declineInvite).toHaveBeenCalledWith('invite-token-2'));
+    expect(await screen.findByText('招待を辞退しました。')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '招待を受け付ける' })).not.toBeInTheDocument();
+    confirm.mockRestore();
   });
 });
