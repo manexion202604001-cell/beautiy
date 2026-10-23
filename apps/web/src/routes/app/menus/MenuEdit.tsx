@@ -23,6 +23,13 @@ import { useToast } from '../../../components/ui';
 import { errorMessage, isApiError } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth';
 import { DEFAULT_CATEGORY_COLOR, childLabel } from './model';
+import {
+  SbCouponFormImportDialog,
+  SbImportButton,
+  matchSbCategories,
+  type SbCouponForm,
+} from './SbImportDialogs';
+import { importSbImages } from '../../../api/menuSbImport';
 
 type MenuType = 'regular' | 'coupon';
 type CouponType = 'all' | 'new' | 'repeat';
@@ -183,6 +190,9 @@ export default function MenuEdit() {
   /** a new menu already created by a save whose picture upload then failed: saving again updates it */
   const [createdId, setCreatedId] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  /** picture URL brought in by 「SBから取込」: the server fetches it when the form is saved */
+  const [sbImageUrl, setSbImageUrl] = useState<string | null>(null);
+  const [sbOpen, setSbOpen] = useState(false);
 
   const categoriesQ = useCategories(shopId ?? undefined);
   const categories = useMemo(() => categoriesQ.data ?? [], [categoriesQ.data]);
@@ -230,6 +240,38 @@ export default function MenuEdit() {
   }, [menuQ.data, shopId]);
 
   const listPath = menuType === 'coupon' ? '/app/menus?tab=coupon' : '/app/menus';
+
+  /** 「SBから取込」: fills the form with a SALON BOARD coupon (saved only by 登録 / 更新) */
+  const applySb = (data: SbCouponForm) => {
+    const matched = matchSbCategories(data.categories, categories);
+    setForm((f) => ({
+      ...f,
+      couponType: data.couponType ?? f.couponType,
+      name: data.name || f.name,
+      description: data.description || f.description,
+      presentationCondition: data.presentationCondition || f.presentationCondition,
+      usageCondition: data.usageCondition || f.usageCondition,
+      expiryDate: data.expiryDate ?? '',
+      hasExpiry: !!data.expiryDate,
+      price: data.price ?? f.price,
+      priceTilde: data.priceTilde ?? f.priceTilde,
+      duration: data.durationMin ?? f.duration,
+    }));
+    if (matched.length > 0) setSelectedCategories(matched);
+    setMenuType('coupon');
+    if (data.imageUrl) {
+      setImageFile(null);
+      setImagePreview(data.imageUrl);
+      setSbImageUrl(data.imageUrl);
+    }
+    const unmatched = data.categories.length - matched.length;
+    if (data.categories.length > 0 && unmatched > 0) {
+      toast.info(
+        '取り込みました。',
+        `${matched.length}件のカテゴリをマッチ、${unmatched}件は未マッチです。`,
+      );
+    }
+  };
   const set = (patch: Partial<FormState>) => setForm((f) => ({ ...f, ...patch }));
 
   const handleSave = async () => {
@@ -288,6 +330,9 @@ export default function MenuEdit() {
       if (imageFile) {
         const file = await uploadFile(imageFile, 'menu_image');
         await catalogApi.updateMenu(menuId, { imageFileId: file.id });
+      } else if (sbImageUrl && imagePreview === sbImageUrl) {
+        // a picture that cannot be fetched leaves the menu as it is (as in SALOGIC)
+        await importSbImages([{ menuId, url: sbImageUrl }]);
       } else if (!imagePreview && savedImageId) {
         await catalogApi.updateMenu(menuId, { imageFileId: null });
       }
@@ -438,7 +483,9 @@ export default function MenuEdit() {
           <ChevronLeft className="mr-1 h-4 w-4" />
           メニュー一覧に戻る
         </Button>
+        <SbImportButton label="SBから取込" onClick={() => setSbOpen(true)} />
       </div>
+      <SbCouponFormImportDialog open={sbOpen} onOpenChange={setSbOpen} onApply={applySb} />
 
       <h1 className="text-xl font-bold">
         {isNew

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { assertShopAccess, requirePermission } from '../../auth/actor.js';
 import { booleanQuery, idParam, uuid } from '../../lib/schemas.js';
 import { equipmentRoutes } from './equipment.js';
+import { sbImportRoutes } from './sbImport.js';
 import * as svc from './service.js';
 import {
   createCouponSchema,
@@ -128,6 +129,8 @@ const plugin: FastifyPluginAsyncZod = async (app) => {
 
   // 設備 (name + quantity view over resources; 店舗設定 › 設備)
   await app.register(equipmentRoutes);
+  // サロンボードから取込 (menus, coupons, 対応スタッフ / 対応設備, categories, pictures by URL)
+  await app.register(sbImportRoutes);
 };
 
 export default plugin;

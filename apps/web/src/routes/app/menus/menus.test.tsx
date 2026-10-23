@@ -562,7 +562,7 @@ describe('カテゴリ管理', () => {
     expect(within(rowOfCategory('c-eye-up')).getByText('上')).toBeInTheDocument();
     expect(within(rowOfCategory('c-eye-low')).getByText('下')).toBeInTheDocument();
     expect(rowOfCategory('c-eye-up').parentElement).toHaveStyle({ borderColor: '#EAB30840' });
-    expect(screen.queryByText('SBから取込')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'SBから取込' })).toBeInTheDocument();
 
     // collapse and reopen
     await user.click(screen.getByRole('button', { name: 'まつげ を閉じる' }));
@@ -707,7 +707,9 @@ describe('カテゴリ管理', () => {
   it('shows the empty state without 全削除 when there are no categories', () => {
     h.categories = [];
     renderAt('/app/menus/categories', routes);
-    expect(screen.getByText('カテゴリがありません。ボタンから追加してください。')).toBeInTheDocument();
+    expect(
+      screen.getByText('カテゴリがありません。「SBから取込」またはボタンから追加してください。'),
+    ).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '全削除' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '親カテゴリを追加' })).toBeInTheDocument();
   });

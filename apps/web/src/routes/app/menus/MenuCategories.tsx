@@ -10,6 +10,7 @@ import { errorMessage } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth';
 import { cx } from '../../../lib/cn';
 import { CATEGORY_SEPARATOR, DEFAULT_CATEGORY_COLOR } from './model';
+import { SbCategoryImportDialog, SbImportButton } from './SbImportDialogs';
 
 /** Colours a parent category can take (also the colour of its reservations on the calendar) */
 const COLORS = [
@@ -136,6 +137,7 @@ export default function MenuCategories() {
   const [color, setColor] = useState(DEFAULT_CATEGORY_COLOR);
   const [parentId, setParentId] = useState('');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [sbOpen, setSbOpen] = useState(false);
 
   const categories = useMemo(() => categoriesQ.data ?? [], [categoriesQ.data]);
   const parents = useMemo(() => categories.filter((c) => !c.parent_id), [categories]);
@@ -270,6 +272,11 @@ export default function MenuCategories() {
           メニュー一覧に戻る
         </Button>
         <div className="flex gap-2">
+          <SbImportButton
+            label="SBから取込"
+            disabled={!canManage}
+            onClick={() => setSbOpen(true)}
+          />
           {categories.length > 0 ? (
             <Button
               variant="outline"
@@ -291,7 +298,7 @@ export default function MenuCategories() {
         <CardContent className="p-4 sy-1">
           {parents.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
-              カテゴリがありません。ボタンから追加してください。
+              カテゴリがありません。「SBから取込」またはボタンから追加してください。
             </p>
           ) : (
             parents.map((p) => {
@@ -475,6 +482,12 @@ export default function MenuCategories() {
           </Button>
         </div>
       </Dialog>
+      <SbCategoryImportDialog
+        open={sbOpen}
+        onOpenChange={setSbOpen}
+        shopId={shopId}
+        onImported={refresh}
+      />
     </div>
   );
 }
