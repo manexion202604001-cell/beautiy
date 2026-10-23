@@ -29,6 +29,8 @@ export interface MailConfig {
   requiresText?: string;
   /** slot blocking is done by the 自動枠止め helper (Chrome) */
   agentManaged?: boolean;
+  /** HPBメール受信アドレス (display only) */
+  forwardAddress?: string;
 }
 
 /** 媒体の自動枠止め: helper running in the salon's Chrome (infra/chrome-sync-agent) */

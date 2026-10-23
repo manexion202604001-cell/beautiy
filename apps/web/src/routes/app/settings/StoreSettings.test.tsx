@@ -77,7 +77,7 @@ describe('店舗設定 › 店舗情報', () => {
     const user = userEvent.setup();
     renderPage();
     expect(screen.getByRole('heading', { name: '店舗設定' })).toBeInTheDocument();
-    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['店舗情報', '設備']);
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['店舗情報', 'サロンボード', '設備']);
     expect(screen.getByLabelText('店舗名')).toHaveValue('サロン 渋谷店');
     expect(screen.getByLabelText('郵便番号')).toHaveValue('150-0001');
     expect(screen.getByLabelText('住所')).toHaveValue('東京都渋谷区神南1-2-3');

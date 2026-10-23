@@ -163,6 +163,9 @@ export interface Staff {
   status: 'invited' | 'active' | 'inactive' | 'retired';
   hired_on: string | null;
   retired_on: string | null;
+  /** サロンボード スタッフ名 / スタッフID (staffId= in SALON BOARD's new-booking URL) */
+  salonboard_name?: string | null;
+  salonboard_staff_id?: string | null;
   created_at: string;
   /** profile photo (short-lived link); null when none was uploaded */
   avatar_url?: string | null;
@@ -622,9 +625,43 @@ export type AppointmentSource =
 /** How a reservation stands with the booking media (Hot Pepper / SALON BOARD, LiME ...) */
 export interface AppointmentMediaSync {
   /** the medium the booking came from; null = taken in Salon OS */
-  origin: { provider: string; sync_state: string; last_synced_at: string | null; last_error: string | null } | null;
+  origin: {
+    provider: string;
+    /** the medium's booking number (HPB: BE…) */
+    external_id?: string;
+    sync_state: string;
+    last_synced_at: string | null;
+    last_error: string | null;
+  } | null;
   /** slot blocks on the other media; action_required / remove_required are open staff tasks */
-  blocks: { id: string; provider: string; state: string; manual: boolean; last_error: string | null; updated_at: string }[];
+  blocks: {
+    id: string;
+    provider: string;
+    state: string;
+    manual: boolean;
+    last_error: string | null;
+    /** settled without changing the medium (why) */
+    skipped?: string | null;
+    pushed_at?: string | null;
+    done_at?: string | null;
+    updated_at: string;
+  }[];
+  /** SALON BOARD (予約詳細 SB chip); absent when the shop has no SALON BOARD connector */
+  salonboard?: SalonboardSync;
+}
+
+export interface SalonboardSync {
+  /** the connector blocks slots (店舗設定 › サロンボード) */
+  enabled: boolean;
+  /** done by the 自動枠止め helper every 10 minutes */
+  auto: boolean;
+  /** on SALON BOARD by itself: an HPB booking, or copied from the previous system */
+  origin: 'hotpepper' | 'migrated' | null;
+  /** HPB reservation number (BE…) */
+  reserve_id: string | null;
+  state: 'synced' | 'waiting' | 'error' | null;
+  message: string | null;
+  synced_at: string | null;
 }
 
 export interface AppointmentListItem {

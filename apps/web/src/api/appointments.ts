@@ -9,6 +9,7 @@ import type {
   AttentionItem,
   AvailabilityResult,
   CreateAppointmentInput,
+  SalonboardSync,
   UpdateAppointmentInput,
 } from './types';
 
@@ -31,6 +32,9 @@ export type TransitionAction =
 export const appointmentsApi = {
   list: (q: AppointmentQuery) => api.get<AppointmentListItem[]>('/appointments', { ...q }),
   get: (id: string) => api.get<AppointmentDetail>(`/appointments/${id}`),
+  /** サロンボードに連携 / 再同期: ask the 自動枠止め helper again (reflected within 10 minutes) */
+  syncSalonboard: (id: string) =>
+    api.post<{ salonboard: SalonboardSync | null }>(`/appointments/${id}/sync-salonboard`),
   history: (id: string) => api.get<AppointmentEvent[]>(`/appointments/${id}/history`),
   attention: (shopId: string) =>
     api.get<{ tentative: AttentionItem[]; noShowCandidates: AttentionItem[] }>(
