@@ -4,9 +4,9 @@ import { authApi } from '../../api/auth';
 import { Button, Input, Label, buttonVariants } from '../../components/shad';
 import { errorMessage } from '../../lib/api';
 import { AuthCard, AuthErrorBox } from './AuthCard';
+import { PASSWORD_MIN_LENGTH } from '../../lib/password';
 
 /** Passwords are at least this long (API rule) */
-const MIN_PASSWORD = 10;
 
 /** Target of the emailed reset link: set a new password */
 export default function ResetPassword() {
@@ -22,8 +22,8 @@ export default function ResetPassword() {
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
-    if (password.length < MIN_PASSWORD) {
-      setError(`パスワードは${MIN_PASSWORD}文字以上にしてください`);
+    if (password.length < PASSWORD_MIN_LENGTH) {
+      setError(`パスワードは${PASSWORD_MIN_LENGTH}文字以上にしてください`);
       return;
     }
     if (password !== confirm) {
@@ -68,11 +68,11 @@ export default function ResetPassword() {
               id="password"
               type="password"
               autoComplete="new-password"
-              placeholder={`${MIN_PASSWORD}文字以上`}
+              placeholder={`${PASSWORD_MIN_LENGTH}文字以上`}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              minLength={MIN_PASSWORD}
+              minLength={PASSWORD_MIN_LENGTH}
             />
           </div>
           <div className="sy-2">
@@ -84,7 +84,7 @@ export default function ResetPassword() {
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
               required
-              minLength={MIN_PASSWORD}
+              minLength={PASSWORD_MIN_LENGTH}
             />
           </div>
           <Button type="submit" className="w-full" disabled={busy}>

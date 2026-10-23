@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router';
 import { authApi } from '../../api/auth';
 import { errorMessage } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
+import { PASSWORD_MIN_LENGTH, PASSWORD_TOO_SHORT } from '../../lib/password';
 import { Button, Dialog, Field, Input, Switch, useToast } from '../ui';
 
 export function PasswordDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -25,7 +26,7 @@ export function PasswordDialog({ open, onClose }: { open: boolean; onClose: () =
   }, [open]);
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (next.length < 10) return setError('新しいパスワードは10文字以上で入力してください');
+    if (next.length < PASSWORD_MIN_LENGTH) return setError(PASSWORD_TOO_SHORT);
     if (next !== confirm) return setError('確認用パスワードが一致しません');
     setSaving(true);
     try {
@@ -67,7 +68,7 @@ export function PasswordDialog({ open, onClose }: { open: boolean; onClose: () =
             onChange={(e) => setCurrent(e.target.value)}
           />
         </Field>
-        <Field label="新しいパスワード" hint="10文字以上" required>
+        <Field label="新しいパスワード" hint={`${PASSWORD_MIN_LENGTH}文字以上`} required>
           <Input
             type="password"
             autoComplete="new-password"

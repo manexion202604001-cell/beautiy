@@ -18,42 +18,41 @@ export interface NavItem {
   /** short label of the mobile bottom bar (first four items only) */
   shortLabel?: string;
   icon: LucideIcon;
-  /** required permission to show the item (any of) */
+  /** required permission to show the item (any of); items without one are shown to everyone */
   permissions?: string[];
   end?: boolean;
 }
 
-/** Main menu: same ten entries, order, labels and icons as the system this app replaces */
+/**
+ * Main menu: same ten entries, order, labels and icons as the system this app replaces.
+ * Visibility follows its roles: メニュー・スタッフ・予約受付設定・店舗設定 for オーナー and ディレクター (店長),
+ * 設定 for the オーナー only. Expressed as permissions so custom roles follow what they may manage:
+ * menu.manage / staff.manage / shop.manage are held by the オーナー and 店長 system roles only, org.manage
+ * by the オーナー only. The four items of the mobile bottom bar are shown to everyone.
+ */
 export const NAV: NavItem[] = [
   { to: '/app', label: 'ダッシュボード', shortLabel: 'ホーム', icon: House, end: true },
-  {
-    to: '/app/calendar',
-    label: '予約管理',
-    shortLabel: '予約',
-    icon: Calendar,
-    permissions: ['appointment.read'],
-  },
-  {
-    to: '/app/customers',
-    label: '顧客管理',
-    shortLabel: '顧客',
-    icon: Users,
-    permissions: ['customer.read'],
-  },
+  { to: '/app/calendar', label: '予約管理', shortLabel: '予約', icon: Calendar },
+  { to: '/app/customers', label: '顧客管理', shortLabel: '顧客', icon: Users },
   { to: '/app/consents', label: '同意書一覧', icon: FileText, permissions: ['karte.read'] },
+  { to: '/app/messages', label: 'メッセージ', shortLabel: 'メッセージ', icon: MessageSquare },
+  { to: '/app/menus', label: 'メニュー', icon: Menu, permissions: ['menu.manage'] },
+  { to: '/app/staff', label: 'スタッフ', icon: UserCog, permissions: ['staff.manage'] },
   {
-    to: '/app/messages',
-    label: 'メッセージ',
-    shortLabel: 'メッセージ',
-    icon: MessageSquare,
-    permissions: ['message.read'],
+    to: '/app/reservation-settings',
+    label: '予約受付設定',
+    icon: CalendarCog,
+    permissions: ['shop.manage'],
   },
-  { to: '/app/menus', label: 'メニュー', icon: Menu },
-  { to: '/app/staff', label: 'スタッフ', icon: UserCog, permissions: ['staff.read'] },
-  { to: '/app/reservation-settings', label: '予約受付設定', icon: CalendarCog },
-  { to: '/app/settings', label: '店舗設定', icon: Store },
-  { to: '/app/system', label: '設定', icon: Settings },
+  { to: '/app/settings', label: '店舗設定', icon: Store, permissions: ['shop.manage'] },
+  { to: '/app/system', label: '設定', icon: Settings, permissions: ['org.manage'] },
 ];
+
+/** Role shown under the name in the sidebar, worded as the original screen (オーナー / ディレクター / スタッフ) */
+export function sidebarRoleLabel(roleKey: string | undefined): string {
+  if (!roleKey) return '';
+  return roleKey === 'owner' ? 'オーナー' : roleKey === 'manager' ? 'ディレクター' : 'スタッフ';
+}
 
 export interface FeatureLink {
   to: string;

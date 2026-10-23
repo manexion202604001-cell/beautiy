@@ -6,6 +6,7 @@ import {
   ChevronUp,
   Eye,
   EyeOff,
+  Mail,
   QrCode,
   Settings,
   SquarePen,
@@ -50,8 +51,10 @@ import { useToast } from '../../../components/ui';
 import { errorMessage } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth';
 import { cx } from '../../../lib/cn';
+import { PASSWORD_MIN_LENGTH } from '../../../lib/password';
 import { todayIn } from '../../../lib/time';
 import { ReceptionQrDialog } from '../consents/ReceptionQrDialog';
+import { StaffCodeInvite } from './StaffCodeInvite';
 import { StaffSettingsDialog } from './StaffSettingsDialog';
 
 /** Role names as this screen words them; other roles (受付・経理・カスタム) keep their own name */
@@ -142,6 +145,7 @@ export default function Staff() {
     null,
   );
   const [inviteCopied, setInviteCopied] = useState(false);
+  const [emailInviteOpen, setEmailInviteOpen] = useState(false);
 
   const sendInvite = async () => {
     if (!shopId || !inviteEmail.trim() || !inviteName.trim()) return;
@@ -277,7 +281,7 @@ export default function Staff() {
   const [credDone, setCredDone] = useState(false);
   const [credCopied, setCredCopied] = useState(false);
   const loginUrl = `${window.location.origin}/login`;
-  const credText = `【Salon OS ログイン情報】\nURL: ${loginUrl}\nメールアドレス: ${credEmail}\n仮パスワード: ${credPassword}\n\n※ログイン後に、ご自身の新しいパスワードへの変更をお願いします。`;
+  const credText = `【Salon OS スタッフアプリ ログイン情報】\nURL: ${loginUrl}\nメールアドレス: ${credEmail}\n仮パスワード: ${credPassword}\n\n※初回ログイン時に、ご自身の新しいパスワードの設定をお願いします。`;
 
   const openCredentials = (s: StaffDirectoryRow) => {
     setCredStaff(s);
@@ -296,6 +300,8 @@ export default function Staff() {
       await staffScreenApi.credentials(credStaff.id, {
         email: credEmail.trim(),
         password: credPassword,
+        // the staff member must replace it at the first login
+        temporary: true,
       });
       setCredDone(true);
       await refresh();
@@ -491,59 +497,91 @@ export default function Staff() {
                 スタッフ招待
               </CardTitle>
               <p className="text-sm text-muted-foreground">
-                スタッフのメールアドレスを入力して、{currentShop?.name || 'この店舗'}に招待します
+                スタッフの6桁IDを入力して、{currentShop?.name || 'この店舗'}に招待します
               </p>
             </CardHeader>
             <CardContent className="sy-4">
-              {inviteError ? (
-                <div className="rounded-md bg-destructive/15 p-3 text-sm text-destructive">
-                  {inviteError}
-                </div>
-              ) : null}
-              <div className="flex flex-wrap gap-2">
-                <Input
-                  type="email"
-                  aria-label="招待するメールアドレス"
-                  placeholder="メールアドレス"
-                  value={inviteEmail}
-                  onChange={(e) => {
-                    setInviteEmail(e.target.value);
-                    setInviteError('');
-                  }}
-                  className="max-w-[280px]"
-                />
-                <Input
-                  aria-label="招待するスタッフの氏名"
-                  placeholder="氏名"
-                  value={inviteName}
-                  onChange={(e) => {
-                    setInviteName(e.target.value);
-                    setInviteError('');
-                  }}
-                  className="max-w-[200px]"
-                />
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="sy-1">
-                  <Label>権限</Label>
-                  <Select
-                    label="招待する権限"
-                    className="w-[160px]"
-                    value={inviteRole}
-                    onValueChange={(v) => setInviteRole(v as InviteRoleKey)}
-                    options={[
-                      { value: 'stylist', label: 'スタッフ' },
-                      { value: 'manager', label: 'ディレクター' },
-                    ]}
-                  />
-                </div>
-                <Button
-                  onClick={() => void sendInvite()}
-                  disabled={!inviteEmail.trim() || !inviteName.trim() || inviting}
-                  className="mt-auto"
+              <StaffCodeInvite
+                shopId={currentShopId}
+                shopName={currentShop?.name}
+                onLinked={() =>
+                  Promise.all([
+                    qc.invalidateQueries({ queryKey: staffAdminKeys.invitations }),
+                    refresh(),
+                  ])
+                }
+                onUseEmail={() => setEmailInviteOpen(true)}
+              />
+              {/* Salon OS: people not registered yet (or registered at another salon) are invited by e-mail */}
+              <div className="sy-4 border-t pt-4">
+                <button
+                  type="button"
+                  className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground"
+                  aria-expanded={emailInviteOpen}
+                  onClick={() => setEmailInviteOpen((v) => !v)}
                 >
-                  {inviting ? '送信中...' : '招待を送信'}
-                </Button>
+                  <Mail className="h-4 w-4" />
+                  メールアドレスで招待
+                  {emailInviteOpen ? (
+                    <ChevronUp className="h-4 w-4" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" />
+                  )}
+                </button>
+                {emailInviteOpen ? (
+                  <>
+                    {inviteError ? (
+                      <div className="rounded-md bg-destructive/15 p-3 text-sm text-destructive">
+                        {inviteError}
+                      </div>
+                    ) : null}
+                    <div className="flex flex-wrap gap-2">
+                      <Input
+                        type="email"
+                        aria-label="招待するメールアドレス"
+                        placeholder="メールアドレス"
+                        value={inviteEmail}
+                        onChange={(e) => {
+                          setInviteEmail(e.target.value);
+                          setInviteError('');
+                        }}
+                        className="max-w-[280px]"
+                      />
+                      <Input
+                        aria-label="招待するスタッフの氏名"
+                        placeholder="氏名"
+                        value={inviteName}
+                        onChange={(e) => {
+                          setInviteName(e.target.value);
+                          setInviteError('');
+                        }}
+                        className="max-w-[200px]"
+                      />
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="sy-1">
+                        <Label>権限</Label>
+                        <Select
+                          label="招待する権限"
+                          className="w-[160px]"
+                          value={inviteRole}
+                          onValueChange={(v) => setInviteRole(v as InviteRoleKey)}
+                          options={[
+                            { value: 'stylist', label: 'スタッフ' },
+                            { value: 'manager', label: 'ディレクター' },
+                          ]}
+                        />
+                      </div>
+                      <Button
+                        onClick={() => void sendInvite()}
+                        disabled={!inviteEmail.trim() || !inviteName.trim() || inviting}
+                        className="mt-auto"
+                      >
+                        {inviting ? '送信中...' : '招待を送信'}
+                      </Button>
+                    </div>
+                  </>
+                ) : null}
               </div>
               {invited ? (
                 <div className="sy-3 rounded-lg border p-4" data-testid="invite-result">
@@ -587,7 +625,7 @@ export default function Staff() {
                         variant={
                           inv.status === 'accepted'
                             ? 'default'
-                            : inv.status === 'cancelled'
+                            : inv.status === 'declined'
                               ? 'destructive'
                               : 'secondary'
                         }
@@ -595,9 +633,11 @@ export default function Staff() {
                       >
                         {inv.status === 'accepted'
                           ? '承認済'
-                          : inv.status === 'cancelled'
-                            ? '取消'
-                            : '保留中'}
+                          : inv.status === 'declined'
+                            ? '辞退'
+                            : inv.status === 'cancelled'
+                              ? '取消'
+                              : '保留中'}
                       </Badge>
                     </div>
                   ))}
@@ -1019,7 +1059,7 @@ export default function Staff() {
             <p className="text-sm text-muted-foreground">
               {credDone
                 ? '設定が完了しました。下の内容をコピーしてスタッフにメールで送ってください。'
-                : 'メールアドレスと仮パスワードを登録します。スタッフには、ログイン後にご自身のパスワードへ変更するよう伝えてください。'}
+                : 'メールアドレスと仮パスワードを登録します。スタッフは初回ログイン時にパスワードの変更が必須になります。'}
             </p>
           </>
         }
@@ -1073,7 +1113,7 @@ export default function Staff() {
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">
-                10文字以上。自動生成されたものをそのまま使えます。
+                {PASSWORD_MIN_LENGTH}文字以上。自動生成されたものをそのまま使えます。
               </p>
             </div>
             {credError ? <p className="text-sm text-destructive">{credError}</p> : null}
@@ -1083,7 +1123,9 @@ export default function Staff() {
               </Button>
               <Button
                 onClick={() => void saveCredentials()}
-                disabled={credSaving || !credEmail.trim() || credPassword.length < 10}
+                disabled={
+                  credSaving || !credEmail.trim() || credPassword.length < PASSWORD_MIN_LENGTH
+                }
               >
                 {credSaving ? '設定中...' : '設定する'}
               </Button>

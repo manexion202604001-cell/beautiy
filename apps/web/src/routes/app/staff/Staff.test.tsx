@@ -164,6 +164,7 @@ function mount(rows: StaffDirectoryRow[] = [retired, owner, hanako, invited, noL
   vi.spyOn(staffAdminApi, 'invitations').mockResolvedValue([
     invitation,
     { ...invitation, id: 'i2', shop_id: 'other-shop', staff_name: '他店の人' },
+    { ...invitation, id: 'i3', staff_name: '辞退の人', role_key: 'manager', status: 'declined' },
   ]);
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
@@ -242,6 +243,7 @@ describe('Staff (スタッフ管理)', () => {
     expect(screen.getByText('招待履歴')).toBeInTheDocument();
     expect(screen.getByText('スタッフ / 佐藤 オーナーが招待')).toBeInTheDocument();
     expect(screen.getByText('保留中')).toBeInTheDocument();
+    expect(screen.getByText('辞退')).toBeInTheDocument();
     expect(screen.queryByText('他店の人')).not.toBeInTheDocument();
   });
 
@@ -399,9 +401,19 @@ describe('Staff (スタッフ管理)', () => {
     const regenerated = (within(dialog).getByLabelText('仮パスワード') as HTMLInputElement).value;
     expect(regenerated).not.toBe(password);
 
-    // too short → cannot be saved
-    fireEvent.change(within(dialog).getByLabelText('仮パスワード'), { target: { value: 'short' } });
+    expect(dialog).toHaveTextContent(
+      'メールアドレスと仮パスワードを登録します。スタッフは初回ログイン時にパスワードの変更が必須になります。',
+    );
+    expect(dialog).toHaveTextContent('8文字以上。自動生成されたものをそのまま使えます。');
+    // too short (under 8 characters) → cannot be saved
+    fireEvent.change(within(dialog).getByLabelText('仮パスワード'), {
+      target: { value: '1234567' },
+    });
     expect(within(dialog).getByRole('button', { name: '設定する' })).toBeDisabled();
+    fireEvent.change(within(dialog).getByLabelText('仮パスワード'), {
+      target: { value: '12345678' },
+    });
+    expect(within(dialog).getByRole('button', { name: '設定する' })).toBeEnabled();
     fireEvent.change(within(dialog).getByLabelText('仮パスワード'), {
       target: { value: 'temp-pass-1234' },
     });
@@ -410,11 +422,17 @@ describe('Staff (スタッフ管理)', () => {
       expect(credentials).toHaveBeenCalledWith('s2', {
         email: 'taro@example.com',
         password: 'temp-pass-1234',
+        temporary: true,
       }),
     );
     expect(await within(dialog).findByText(/設定が完了しました/)).toBeInTheDocument();
     expect(within(dialog).getByText(/メールアドレス: taro@example.com/)).toBeInTheDocument();
     expect(within(dialog).getByText(/仮パスワード: temp-pass-1234/)).toBeInTheDocument();
+    const sent = within(dialog).getByText(/仮パスワード: temp-pass-1234/).textContent ?? '';
+    expect(sent.startsWith('【Salon OS スタッフアプリ ログイン情報】\nURL: ')).toBe(true);
+    expect(
+      sent.endsWith('\n\n※初回ログイン時に、ご自身の新しいパスワードの設定をお願いします。'),
+    ).toBe(true);
     expect(
       within(dialog).getByRole('button', { name: 'URL・メール・パスワードを一式コピー' }),
     ).toBeInTheDocument();
@@ -422,19 +440,18 @@ describe('Staff (スタッフ管理)', () => {
 
   it('スタッフ招待 sends the invitation for the current shop and shows the link', async () => {
     const user = userEvent.setup();
-    const invite = vi
-      .spyOn(staffAdminApi, 'invite')
-      .mockResolvedValue({
-        invitationId: 'i9',
-        staffId: 's9',
-        inviteUrl: 'https://app.example/invite/tok',
-        emailSent: false,
-      });
+    const invite = vi.spyOn(staffAdminApi, 'invite').mockResolvedValue({
+      invitationId: 'i9',
+      staffId: 's9',
+      inviteUrl: 'https://app.example/invite/tok',
+      emailSent: false,
+    });
     mount();
     await screen.findByText('スタッフ招待');
-    expect(
-      screen.getByText('スタッフのメールアドレスを入力して、渋谷店に招待します'),
-    ).toBeInTheDocument();
+    expect(screen.getByText('スタッフの6桁IDを入力して、渋谷店に招待します')).toBeInTheDocument();
+    // the e-mail invitation (Salon OS) is folded under the ID search
+    expect(screen.queryByLabelText('招待するメールアドレス')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'メールアドレスで招待' }));
     const send = screen.getByRole('button', { name: '招待を送信' });
     expect(send).toBeDisabled();
     await user.type(screen.getByLabelText('招待するメールアドレス'), 'new@example.com');
@@ -453,6 +470,44 @@ describe('Staff (スタッフ管理)', () => {
     const result = await screen.findByTestId('invite-result');
     expect(within(result).getByText(/招待メールを送信できませんでした/)).toBeInTheDocument();
     expect(within(result).getByText('https://app.example/invite/tok')).toBeInTheDocument();
+  });
+
+  it('スタッフ招待 adds a staff member of the salon to this shop by the 6-digit ID', async () => {
+    const user = userEvent.setup();
+    const search = vi.spyOn(staffAdminApi, 'searchByCode').mockResolvedValue({
+      staff: {
+        staff_code: '615204',
+        name: '他店 次郎',
+        avatar_url: null,
+        same_organization: true,
+        id: 's7',
+        status: 'active',
+        role_key: 'manager',
+        shop_ids: ['shop-2'],
+      },
+    });
+    const link = vi
+      .spyOn(staffAdminApi, 'linkByCode')
+      .mockResolvedValue({ invitationId: 'i1', staffId: 's7', status: 'accepted' });
+    mount();
+    await screen.findByText('スタッフ招待');
+    await user.type(screen.getByLabelText('6桁のスタッフID'), '615204');
+    await user.click(screen.getByRole('button', { name: '検索' }));
+    await waitFor(() => expect(search).toHaveBeenCalledWith('615204'));
+    const result = await screen.findByTestId('staff-code-result');
+    expect(result).toHaveTextContent('他店 次郎ID: 615204');
+    // 権限 starts at the staff member's current role
+    expect(within(result).getByRole('combobox', { name: '権限' })).toHaveTextContent(
+      'ディレクター',
+    );
+    await user.click(within(result).getByRole('button', { name: '招待を送信' }));
+    await waitFor(() =>
+      expect(link).toHaveBeenCalledWith({
+        staffCode: '615204',
+        shopId: 'shop-1',
+        roleKey: 'manager',
+      }),
+    );
   });
 
   it('営業時間・予約設定 opens the staff settings, saves hours and the individual booking rules', async () => {

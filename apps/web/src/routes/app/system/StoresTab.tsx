@@ -15,6 +15,7 @@ import {
   DialogTitle,
   Input,
   Label,
+  Separator,
 } from '../../../components/shad';
 import { usePrimaryShopId } from '../../../components/layout/usePrimaryShop';
 import { AlertDialog } from '../../../components/shad/alert-dialog';
@@ -219,6 +220,12 @@ export function StoresTab() {
               />
             </div>
           </div>
+          {/* the original screen points to its 「オーナー作成」 button here; Salon OS has none: the owner
+              account already reaches every shop */}
+          <Separator />
+          <p className="text-xs text-muted-foreground">
+            オーナーアカウントは全店舗にアクセスできるため、別途作成する必要はありません
+          </p>
           <div className="flex justify-end gap-2 pt-4">
             <Button variant="outline" onClick={() => setCreateOpen(false)}>
               キャンセル

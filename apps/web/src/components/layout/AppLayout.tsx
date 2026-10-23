@@ -1,11 +1,11 @@
 import { Check, ChevronDown, Ellipsis, LogOut, Settings, Store } from 'lucide-react';
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { useUnreadCount } from '../../api/messaging';
 import { useAuth } from '../../lib/auth';
 import { cn } from '../../lib/cn';
 import { Button, Separator, Wordmark } from '../shad';
 import { Menu, MenuItem, MenuLabel, MenuLink, MenuSeparator } from '../shad/dropdown-menu';
-import { NAV, type NavItem } from './nav';
+import { NAV, sidebarRoleLabel, type NavItem } from './nav';
 import { usePrimaryShopId } from './usePrimaryShop';
 
 function useVisibleNav(): NavItem[] {
@@ -49,7 +49,9 @@ function DesktopSidebar() {
                     <Store className="h-4 w-4 shrink-0" />
                     <span className="truncate">{currentShop?.name || '店舗を選択'}</span>
                   </div>
-                  {shops.length > 1 ? <ChevronDown className="h-4 w-4 shrink-0 opacity-50" /> : null}
+                  {shops.length > 1 ? (
+                    <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+                  ) : null}
                 </>
               }
             >
@@ -93,15 +95,22 @@ function DesktopSidebar() {
       </nav>
       <Separator />
       <div className="p-4">
-        <div className="mb-3 flex items-center gap-3">
+        {/* Salon OS: opens the own account (password, staff ID), which staff reach without 設定 in the menu */}
+        <Link
+          to="/app/system?tab=owner"
+          title="アカウント"
+          className="mb-3 flex items-center gap-3 rounded-lg"
+        >
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground">
             {name.charAt(0)}
           </div>
           <div className="flex-1 overflow-hidden">
             <p className="truncate text-sm font-medium">{name}</p>
-            <p className="truncate text-xs text-muted-foreground">{me?.staff.role_name ?? ''}</p>
+            <p className="truncate text-xs text-muted-foreground">
+              {sidebarRoleLabel(me?.staff.role_key)}
+            </p>
           </div>
-        </div>
+        </Link>
         <Button variant="outline" className="w-full" onClick={logout}>
           <LogOut className="mr-2 h-4 w-4" />
           ログアウト
@@ -196,7 +205,8 @@ function MobileBottomNav() {
   const { can, currentShopId } = useAuth();
   const items = useVisibleNav();
   const location = useLocation();
-  const primary = items.filter((it) => it.shortLabel);
+  // the bottom bar always shows its four items (ホーム・予約・顧客・メッセージ)
+  const primary = NAV.filter((it) => it.shortLabel);
   const rest = items
     .filter((it) => !it.shortLabel)
     .sort((a, b) => MOBILE_MORE_ORDER.indexOf(a.to) - MOBILE_MORE_ORDER.indexOf(b.to));

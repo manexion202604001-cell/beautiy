@@ -93,16 +93,19 @@ export function useSaveOwnerProfile() {
 
 // ---------------------------------------------------------------- スタッフ管理
 
-export type InvitationStatus = 'pending' | 'accepted' | 'cancelled';
+/** 保留中 / 承認済 / 辞退; cancelled = the invited staff was retired or removed before answering */
+export type InvitationStatus = 'pending' | 'accepted' | 'declined' | 'cancelled';
 
 export interface StaffInvitation {
   id: string;
   staff_id: string;
   shop_id: string;
-  email: string;
+  email: string | null;
   accepted_at: string | null;
+  declined_at?: string | null;
   created_at: string;
   staff_name: string;
+  staff_code?: string;
   shop_name: string;
   role_key: string;
   role_name: string;
@@ -112,12 +115,33 @@ export interface StaffInvitation {
 
 export type InviteRoleKey = 'stylist' | 'manager';
 
+/** Result of the 6-digit ID search: name, photo and ID only for a staff member of another salon */
+export type StaffCodeMatch =
+  | { staff_code: string; name: string; avatar_url: string | null; same_organization: false }
+  | {
+      staff_code: string;
+      name: string;
+      avatar_url: string | null;
+      same_organization: true;
+      id: string;
+      status: Staff['status'];
+      role_key: string;
+      shop_ids: string[];
+    };
+
 export const staffAdminApi = {
   setShops: (staffId: string, shopIds: string[], primaryShopId?: string) =>
     api.put<Staff>(`/staff/${staffId}/shops`, { shopIds, primaryShopId }),
   setVisibility: (staffId: string, shopId: string, visible: boolean) =>
     api.put<Staff>(`/staff/${staffId}/shops/${shopId}/visibility`, { visible }),
   invitations: () => api.get<StaffInvitation[]>('/staff-invitations'),
+  searchByCode: (code: string) =>
+    api.get<{ staff: StaffCodeMatch }>(`/staff/search/code/${encodeURIComponent(code)}`),
+  linkByCode: (input: { staffCode: string; shopId: string; roleKey: InviteRoleKey }) =>
+    api.post<{ invitationId: string; staffId: string; status: 'accepted' }>(
+      '/staff/link-by-code',
+      input,
+    ),
   invite: (input: { email: string; displayName: string; roleKey: InviteRoleKey; shopId: string }) =>
     api.post<{ invitationId: string; staffId: string; inviteUrl: string; emailSent: boolean }>(
       '/staff-invitations',

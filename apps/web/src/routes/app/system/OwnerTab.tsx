@@ -66,7 +66,8 @@ export function OwnerProfileCard() {
       },
       {
         onSuccess: () => setMessage({ type: 'success', text: 'オーナー情報を保存しました' }),
-        onError: (e) => setMessage({ type: 'error', text: errorMessage(e) || '保存に失敗しました' }),
+        onError: (e) =>
+          setMessage({ type: 'error', text: errorMessage(e) || '保存に失敗しました' }),
       },
     );
   };
@@ -175,10 +176,25 @@ export function AccountCard() {
       </CardHeader>
       <CardContent>
         <div className="sy-4">
+          {me?.staff.staff_code ? (
+            <div className="flex items-center justify-between rounded-lg border p-4">
+              <div>
+                <div className="font-medium">スタッフID</div>
+                <div className="text-sm text-muted-foreground">
+                  別の店舗に招待してもらうときは、このIDをオーナーに伝えてください
+                </div>
+              </div>
+              <span className="font-mono text-lg tracking-widest" data-testid="own-staff-code">
+                {me.staff.staff_code}
+              </span>
+            </div>
+          ) : null}
           <div className="flex items-center justify-between rounded-lg border p-4">
             <div>
               <div className="font-medium">パスワード</div>
-              <div className="text-sm text-muted-foreground">ログイン用のパスワードを変更します</div>
+              <div className="text-sm text-muted-foreground">
+                ログイン用のパスワードを変更します
+              </div>
             </div>
             <Button variant="outline" size="sm" onClick={() => setPwOpen(true)}>
               パスワード変更

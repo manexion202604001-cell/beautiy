@@ -6,6 +6,7 @@ import { AppLayout } from './AppLayout';
 
 const h = vi.hoisted(() => ({
   perms: null as string[] | null,
+  roleKey: 'owner',
   shops: [] as { id: string; name: string }[],
   setCurrentShopId: vi.fn(),
   logout: vi.fn(),
@@ -13,7 +14,10 @@ const h = vi.hoisted(() => ({
 
 vi.mock('../../lib/auth', () => ({
   useAuth: () => ({
-    me: { user: { email: 'staff@example.com' }, staff: { id: 'me', display_name: '山田 花子', role_name: 'オーナー' } },
+    me: {
+      user: { email: 'staff@example.com' },
+      staff: { id: 'me', display_name: '山田 花子', role_key: h.roleKey, role_name: 'ロール名' },
+    },
     shops: h.shops,
     currentShop: h.shops[0] ?? null,
     currentShopId: h.shops[0]?.id ?? null,
@@ -48,6 +52,7 @@ function renderAt(path: string) {
 beforeEach(() => {
   vi.clearAllMocks();
   h.perms = null;
+  h.roleKey = 'owner';
   h.shops = [
     { id: 's1', name: '渋谷店' },
     { id: 's2', name: '青山店' },
@@ -64,7 +69,11 @@ describe('mobile header', () => {
     const menu = within(header).getByRole('menu');
     expect(menu).toHaveTextContent('山田 花子');
     expect(menu).toHaveTextContent('staff@example.com');
-    expect(within(menu).getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['設定', 'ログアウト']);
+    expect(
+      within(menu)
+        .getAllByRole('menuitem')
+        .map((i) => i.textContent),
+    ).toEqual(['設定', 'ログアウト']);
     await user.click(within(menu).getByRole('menuitem', { name: '設定' }));
     expect(screen.getByTestId('location')).toHaveTextContent('/app/system');
     expect(within(header).queryByRole('menu')).not.toBeInTheDocument();
@@ -82,7 +91,11 @@ describe('mobile header', () => {
     await user.click(within(header).getByRole('button', { name: '店舗を切り替え' }));
     const menu = within(header).getByRole('menu');
     expect(menu).toHaveTextContent('店舗切替');
-    expect(within(menu).getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['渋谷店', '青山店']);
+    expect(
+      within(menu)
+        .getAllByRole('menuitem')
+        .map((i) => i.textContent),
+    ).toEqual(['渋谷店', '青山店']);
     await user.click(within(menu).getByRole('menuitem', { name: '青山店' }));
     expect(h.setCurrentShopId).toHaveBeenCalledWith('s2');
   });
@@ -92,7 +105,9 @@ describe('mobile header', () => {
     renderAt('/app');
     const header = screen.getByRole('banner');
     expect(within(header).getByRole('heading', { name: '渋谷店' })).toBeInTheDocument();
-    expect(within(header).queryByRole('button', { name: '店舗を切り替え' })).not.toBeInTheDocument();
+    expect(
+      within(header).queryByRole('button', { name: '店舗を切り替え' }),
+    ).not.toBeInTheDocument();
     // the sidebar switcher is there but has nothing to switch to
     expect(screen.getByRole('button', { name: '店舗を切り替え' })).toBeDisabled();
   });
@@ -103,13 +118,24 @@ describe('mobile bottom bar', () => {
     const user = userEvent.setup();
     renderAt('/app/staff');
     const bar = screen.getByRole('navigation', { name: 'モバイルメニュー' });
-    expect(within(bar).getAllByRole('link').map((a) => a.textContent)).toEqual(['ホーム', '予約', '顧客', '3メッセージ']);
+    expect(
+      within(bar)
+        .getAllByRole('link')
+        .map((a) => a.textContent),
+    ).toEqual(['ホーム', '予約', '顧客', '3メッセージ']);
     const more = within(bar).getByRole('button', { name: 'その他のメニュー' });
     // a screen of the その他 menu is open → the button is highlighted
     expect(more).toHaveClass('text-primary');
     await user.click(more);
     const items = within(bar).getAllByRole('menuitem');
-    expect(items.map((i) => i.textContent)).toEqual(['同意書一覧', 'メニュー', '予約受付設定', 'スタッフ', '店舗設定', '設定']);
+    expect(items.map((i) => i.textContent)).toEqual([
+      '同意書一覧',
+      'メニュー',
+      '予約受付設定',
+      'スタッフ',
+      '店舗設定',
+      '設定',
+    ]);
     expect(items.map((i) => i.getAttribute('href'))).toEqual([
       '/app/consents',
       '/app/menus',
@@ -125,13 +151,84 @@ describe('mobile bottom bar', () => {
 
   it('leaves out screens the staff member may not open and is not highlighted elsewhere', async () => {
     const user = userEvent.setup();
-    h.perms = ['appointment.read', 'customer.read', 'message.read'];
+    h.perms = MANAGER;
     renderAt('/app');
     const bar = screen.getByRole('navigation', { name: 'モバイルメニュー' });
     const more = within(bar).getByRole('button', { name: 'その他のメニュー' });
     expect(more).toHaveClass('text-muted-foreground');
     await user.click(more);
-    expect(within(bar).getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['メニュー', '予約受付設定', '店舗設定', '設定']);
+    expect(
+      within(bar)
+        .getAllByRole('menuitem')
+        .map((i) => i.textContent),
+    ).toEqual(['同意書一覧', 'メニュー', '予約受付設定', 'スタッフ', '店舗設定']);
+  });
+
+  it('always shows its four items, even without the matching permissions', () => {
+    h.perms = [];
+    renderAt('/app');
+    const bar = screen.getByRole('navigation', { name: 'モバイルメニュー' });
+    expect(
+      within(bar)
+        .getAllByRole('link')
+        .map((a) => a.textContent),
+    ).toEqual(['ホーム', '予約', '顧客', '3メッセージ']);
+    expect(within(bar).queryByRole('button', { name: 'その他のメニュー' })).not.toBeInTheDocument();
+  });
+});
+
+// permissions of the system roles (apps/api/src/auth/permissions.ts) that decide the menu
+const OWNER = [
+  'org.manage',
+  'shop.manage',
+  'staff.manage',
+  'menu.manage',
+  'staff.read',
+  'karte.read',
+  'appointment.read',
+  'customer.read',
+  'message.read',
+];
+const MANAGER = OWNER.filter((p) => p !== 'org.manage');
+const STYLIST = ['staff.read', 'customer.read', 'appointment.read', 'karte.read', 'message.read'];
+const RECEPTION = ['staff.read', 'customer.read', 'appointment.read', 'message.read'];
+
+describe('menu by role', () => {
+  const sidebar = () =>
+    within(screen.getByRole('navigation', { name: 'メインメニュー' }))
+      .getAllByRole('link')
+      .map((a) => a.textContent);
+  const all = [
+    'ダッシュボード',
+    '予約管理',
+    '顧客管理',
+    '同意書一覧',
+    'メッセージ',
+    'メニュー',
+    'スタッフ',
+    '予約受付設定',
+    '店舗設定',
+    '設定',
+  ];
+
+  it.each([
+    ['owner', OWNER, all, 'オーナー'],
+    ['manager', MANAGER, all.filter((l) => l !== '設定'), 'ディレクター'],
+    [
+      'stylist',
+      STYLIST,
+      ['ダッシュボード', '予約管理', '顧客管理', '同意書一覧', 'メッセージ'],
+      'スタッフ',
+    ],
+    ['reception', RECEPTION, ['ダッシュボード', '予約管理', '顧客管理', 'メッセージ'], 'スタッフ'],
+  ])('%s: sidebar items and the role under the name', (roleKey, perms, items, label) => {
+    h.roleKey = roleKey;
+    h.perms = perms;
+    renderAt('/app');
+    expect(sidebar()).toEqual(items);
+    const account = screen.getByRole('link', { name: /山田 花子/ });
+    expect(account).toHaveTextContent(`山田 花子${label}`);
+    expect(account).toHaveAttribute('href', '/app/system?tab=owner');
   });
 });
 
@@ -143,7 +240,11 @@ describe('sidebar shop switcher', () => {
     // [0] = mobile header, [1] = sidebar
     await user.click(switchers[1]!);
     const menu = screen.getByRole('menu');
-    expect(within(menu).getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['渋谷店', '青山店主']);
+    expect(
+      within(menu)
+        .getAllByRole('menuitem')
+        .map((i) => i.textContent),
+    ).toEqual(['渋谷店', '青山店主']);
     await user.click(within(menu).getByRole('menuitem', { name: /青山店/ }));
     expect(h.setCurrentShopId).toHaveBeenCalledWith('s2');
   });

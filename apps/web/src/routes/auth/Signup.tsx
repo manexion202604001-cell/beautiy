@@ -6,11 +6,11 @@ import { Button, Input, Label } from '../../components/shad';
 import { errorMessage } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { AuthCard, AuthErrorBox } from './AuthCard';
+import { PASSWORD_MIN_LENGTH } from '../../lib/password';
 
 type OwnerType = 'individual' | 'company';
 
 /** Passwords are at least this long (API rule) */
-const MIN_PASSWORD = 10;
 
 /**
  * 初期設定 (3 steps): business details → first shop → sign-in account. Creates the organization,
@@ -72,8 +72,8 @@ export default function Signup() {
       setError('メールアドレスは必須です');
       return;
     }
-    if (password.length < MIN_PASSWORD) {
-      setError(`パスワードは${MIN_PASSWORD}文字以上にしてください`);
+    if (password.length < PASSWORD_MIN_LENGTH) {
+      setError(`パスワードは${PASSWORD_MIN_LENGTH}文字以上にしてください`);
       return;
     }
     if (password !== confirmPassword) {
@@ -106,7 +106,7 @@ export default function Signup() {
       if (res.auth.status === 'authenticated') {
         qc.clear();
         acceptTokens(res.auth);
-        navigate('/app/settings-classic?welcome=1', { replace: true });
+        navigate('/app', { replace: true });
       } else navigate('/login');
     } catch (e) {
       setError(errorMessage(e) || 'エラーが発生しました');
@@ -313,8 +313,8 @@ export default function Signup() {
               autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder={`${MIN_PASSWORD}文字以上`}
-              minLength={MIN_PASSWORD}
+              placeholder={`${PASSWORD_MIN_LENGTH}文字以上`}
+              minLength={PASSWORD_MIN_LENGTH}
             />
           </div>
           <div className="sy-2">
@@ -326,7 +326,7 @@ export default function Signup() {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="パスワードを再入力"
-              minLength={MIN_PASSWORD}
+              minLength={PASSWORD_MIN_LENGTH}
             />
           </div>
           <div className="flex gap-3">
