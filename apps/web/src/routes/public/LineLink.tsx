@@ -4,16 +4,20 @@ import { useSearchParams } from 'react-router';
 import { publicMessagingApi } from '../../api/messaging';
 import { Alert, Card, Field, Icon, Input, Spinner } from '../../components/ui';
 import { errorMessage, isApiError } from '../../lib/api';
-import { LINE_MOCK, getLineIdToken, lineAvailable } from './CustomerLogin';
+import { useLiff } from '../../lib/liff';
+import { getLineIdToken, lineAvailable, usingLineMock } from './CustomerLogin';
+import { FriendAddButton } from './FriendAddButton';
 import { PublicShell } from './PublicShell';
 
 /**
- * /line/link?token= (or LIFF ?linkToken=) — links the customer's LINE account to the record the staff
- * issued the QR for. Inside LINE the LIFF id token is used; in development a mock id token is sent.
+ * /line/link?token= (or LIFF https://liff.line.me/<liffId>/line/link?linkToken=…&liffId=…) — links the
+ * customer's LINE account to the record the staff issued the QR for. The page initialises the LIFF
+ * app of the link's LINE account and sends its id token; in development a mock id token is sent.
  */
 export default function LineLink() {
   const [params] = useSearchParams();
   const token = params.get('token') ?? params.get('linkToken') ?? '';
+  const liffState = useLiff({ linkToken: token.length >= 10 ? token : undefined, liffId: params.get('liffId') });
   const [mockName, setMockName] = useState('LINEユーザー');
   const link = useMutation({
     mutationFn: async () => {
@@ -23,7 +27,8 @@ export default function LineLink() {
     },
   });
   const conflict = isApiError(link.error) && link.error.code === 'LINE_ALREADY_LINKED';
-  const showMock = LINE_MOCK && !(window as unknown as { liff?: unknown }).liff;
+  const showMock = usingLineMock();
+  const preparing = liffState.status === 'loading';
 
   return (
     <PublicShell>
@@ -43,8 +48,11 @@ export default function LineLink() {
             <Alert tone="success" title="連携が完了しました">
               今後はLINEで予約の確認やお知らせを受け取れます。
             </Alert>
-            {link.data.following === false ? (
-              <p className="text-sm">お知らせを受け取るには、LINE公式アカウントを友だち追加してください。</p>
+            {link.data.following !== true ? (
+              <div className="space-y-2">
+                <p className="text-sm">お知らせを受け取るには、LINE公式アカウントを友だち追加してください。</p>
+                <FriendAddButton url={liffState.friendUrl} />
+              </div>
             ) : null}
             <p className="text-[13px] text-muted-foreground">このページは閉じて構いません。</p>
           </div>
@@ -68,14 +76,20 @@ export default function LineLink() {
             <button
               type="button"
               onClick={() => link.mutate()}
-              disabled={link.isPending || !lineAvailable()}
-              aria-busy={link.isPending || undefined}
+              disabled={link.isPending || preparing || !lineAvailable()}
+              aria-busy={link.isPending || preparing || undefined}
               className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#06C755] text-[15px] font-semibold text-white shadow-sm hover:brightness-105 disabled:opacity-60"
             >
-              {link.isPending ? <Spinner size={20} /> : <Icon name="line" size={20} />}
+              {link.isPending || preparing ? <Spinner size={20} /> : <Icon name="line" size={20} />}
               LINEで連携する{showMock ? '（開発用モック）' : ''}
             </button>
-            {!lineAvailable() ? <p className="text-xs text-muted-foreground">LINEアプリ内で開いてください。</p> : null}
+            {!preparing && !lineAvailable() ? <p className="text-xs text-muted-foreground">LINEアプリ内で開いてください。</p> : null}
+            {liffState.friendUrl ? (
+              <div className="space-y-2 border-t border-border pt-4">
+                <p className="text-[13px] text-muted-foreground">まだ友だち追加していない方はこちら</p>
+                <FriendAddButton url={liffState.friendUrl} />
+              </div>
+            ) : null}
           </div>
         )}
       </Card>

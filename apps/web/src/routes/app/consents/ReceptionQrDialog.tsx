@@ -22,6 +22,8 @@ const PRINT_CSS = `
 /**
  * 受付QRコード: the QR a walk-in customer scans to fill the consent form and the counselling
  * sheets (opens /consent/:shopSlug). With `staffId` the intake is recorded for that staff member.
+ * When the shop's LINE account has a LIFF ID the QR opens the page inside LINE and the customer's
+ * LINE is linked; otherwise SALOGIC's notice says the reception is without LINE.
  */
 export function ReceptionQrDialog({
   open,
@@ -87,6 +89,9 @@ export function ReceptionQrDialog({
               )}
             </div>
           )}
+          {link && !link.liffId ? (
+            <p className="text-center text-xs text-destructive">この店舗はLIFF ID未設定のため、LINE連携なしの受付になります。</p>
+          ) : null}
           {forms.length > 1 ? (
             <div className="w-full">
               <Select

@@ -14,6 +14,7 @@ import { Slider } from '../../components/shad/slider';
 import { Alert, Button, Checkbox, EmptyState, Field, Icon, Input, PageSpinner, Textarea } from '../../components/ui';
 import { errorMessage, isApiError } from '../../lib/api';
 import { cn } from '../../lib/cn';
+import { liffIdTokenIfLoggedIn, useLiff } from '../../lib/liff';
 import {
   COUNSELING_CATEGORIES,
   type CounselingCategory,
@@ -214,6 +215,8 @@ export default function WalkinConsent() {
     retry: false,
     staleTime: Infinity,
   });
+  // opened from the LIFF QR (https://liff.line.me/<liffId>/consent/…): the LINE user is sent along
+  useLiff({ shop: shopSlug });
 
   const [profile, setProfile] = useState<Profile>(EMPTY);
   const [answers, setAnswers] = useState<FieldValues>({});
@@ -279,6 +282,7 @@ export default function WalkinConsent() {
     }
     setBusy(true);
     setError(null);
+    const lineIdToken = liffIdTokenIfLoggedIn();
     try {
       const res = await walkinApi.publicSubmit(shopSlug, {
         staffId: v.staff?.id ?? null,
@@ -296,6 +300,7 @@ export default function WalkinConsent() {
         agreed: true,
         answers: compactValues(consent.fields, answers),
         ...(signature ? { signature: { dataUrl: signature, signerName } } : {}),
+        ...(lineIdToken ? { lineIdToken } : {}),
       });
       setToken(res.token);
       window.scrollTo({ top: 0 });

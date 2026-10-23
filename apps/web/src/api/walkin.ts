@@ -22,6 +22,8 @@ export interface WalkinIntakeListItem {
   staff_name: string | null;
   has_counseling: boolean;
   consent_submitted_at: string;
+  /** filled inside LINE (LIFF) */
+  line?: { display_name: string | null } | null;
 }
 
 export interface WalkinConsentSnapshot {
@@ -60,6 +62,8 @@ export interface ReceptionLink {
   shop: { id: string; name: string; slug: string; open: boolean };
   staff: { id: string; name: string } | null;
   consentForms: { lineageId: string; templateId: string; name: string; version: number; url: string }[];
+  /** LIFF ID the QR opens in LINE with; null = reception without LINE linking */
+  liffId: string | null;
 }
 
 export interface PublicWalkinForm {
@@ -120,9 +124,11 @@ export const walkinApi = {
       agreed: true;
       answers: FieldValues;
       signature?: { dataUrl: string; signerName: string };
+      /** LIFF id token when the page runs inside LINE: links the LINE user to the customer */
+      lineIdToken?: string;
     },
   ) =>
-    api.post<{ ok: true; intakeId: string; submittedAt: string; token: string; expiresAt: string }>(
+    api.post<{ ok: true; intakeId: string; submittedAt: string; token: string; expiresAt: string; line?: boolean }>(
       `/public/walkin/${encodeURIComponent(slug)}`,
       input,
       none,

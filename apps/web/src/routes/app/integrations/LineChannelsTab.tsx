@@ -25,6 +25,10 @@ import { newIdempotencyKey } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth';
 import { formatDateTime } from '../../../lib/format';
 
+/** The LIFF app's endpoint URL to set in LINE Developers: the web root serves every customer page (lib/liff.ts) */
+const liffEndpointUrl = (c?: LineChannel | null) => c?.liffEndpointUrl ?? `${window.location.origin}/`;
+const FRIEND_URL_RE = /^https:\/\/(lin\.ee|line\.me|page\.line\.me)\/\S+$/;
+
 /** S-56 LINE公式アカウント: org- or shop-level channels, masked secrets, credential verification */
 export function LineChannelsTab() {
   const qc = useQueryClient();
@@ -87,6 +91,8 @@ export function LineChannelsTab() {
                 { label: 'アクセストークン', value: <code>{c.accessTokenMasked}</code> },
                 { label: 'Bot User ID', value: c.bot_user_id ?? '未確認' },
                 { label: 'LIFF ID', value: c.liff_id ?? '—' },
+                { label: 'LINEログインのチャネルID', value: c.login_channel_id ?? (c.liff_id ? '未設定（LIFFに必須）' : '—') },
+                { label: '友だち追加URL', value: c.friend_url ? <span className="break-all">{c.friend_url}</span> : '—' },
                 { label: 'Webhook確認', value: c.webhook_verified_at ? formatDateTime(c.webhook_verified_at, tz) : '未受信' },
               ]}
             />
@@ -99,6 +105,18 @@ export function LineChannelsTab() {
                 onClick={() => void copyText(c.webhookUrl).then((ok) => (ok ? toast.success('Webhook URLをコピーしました') : toast.error('コピーできませんでした')))}
               />
             </div>
+            {c.liff_id ? (
+              <div className="flex items-center gap-2 rounded-lg bg-surface-2 px-3 py-2">
+                <span className="shrink-0 text-xs text-muted-foreground">LIFFエンドポイントURL</span>
+                <code className="min-w-0 flex-1 break-all text-xs">{liffEndpointUrl(c)}</code>
+                <IconButton
+                  icon="copy"
+                  label="LIFFエンドポイントURLをコピー"
+                  size="sm"
+                  onClick={() => void copyText(liffEndpointUrl(c)).then((ok) => (ok ? toast.success('LIFFエンドポイントURLをコピーしました') : toast.error('コピーできませんでした')))}
+                />
+              </div>
+            ) : null}
             <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-3">
               <Button size="sm" icon="check" onClick={() => verify.mutate(c.id)} loading={verify.isPending && verify.variables === c.id}>
                 認証情報を確認
@@ -137,6 +155,7 @@ function LineChannelDialog({ channel, onClose }: { channel: LineChannel | null; 
     basicId: channel?.basic_id ?? '',
     liffId: channel?.liff_id ?? '',
     loginChannelId: channel?.login_channel_id ?? '',
+    friendUrl: channel?.friend_url ?? '',
   });
   const [active, setActive] = useState((channel?.status ?? 'active') === 'active');
   const [verify, setVerify] = useState(true);
@@ -152,6 +171,7 @@ function LineChannelDialog({ channel, onClose }: { channel: LineChannel | null; 
           basicId: nn(form.basicId),
           liffId: nn(form.liffId),
           loginChannelId: nn(form.loginChannelId),
+          friendUrl: nn(form.friendUrl),
           status: active ? 'active' : 'disabled',
           ...(form.channelSecret ? { channelSecret: form.channelSecret } : {}),
           ...(form.accessToken ? { accessToken: form.accessToken } : {}),
@@ -168,6 +188,7 @@ function LineChannelDialog({ channel, onClose }: { channel: LineChannel | null; 
           basicId: nn(form.basicId),
           liffId: nn(form.liffId),
           loginChannelId: nn(form.loginChannelId),
+          friendUrl: nn(form.friendUrl),
           verify,
         },
         key,
@@ -182,7 +203,12 @@ function LineChannelDialog({ channel, onClose }: { channel: LineChannel | null; 
   });
 
   const secretOk = (v: string) => !v || v.length >= 8;
+  // LIFF ID tokens are verified against the LINE Login channel the LIFF app belongs to
+  const loginMissing = !!form.liffId.trim() && !form.loginChannelId.trim();
+  const friendUrlOk = !form.friendUrl.trim() || FRIEND_URL_RE.test(form.friendUrl.trim());
   const valid =
+    !loginMissing &&
+    friendUrlOk &&
     form.name.trim() &&
     (channel ? secretOk(form.channelSecret) && secretOk(form.accessToken) : form.channelId.trim() && form.channelSecret.length >= 8 && form.accessToken.length >= 8);
 
@@ -240,11 +266,29 @@ function LineChannelDialog({ channel, onClose }: { channel: LineChannel | null; 
         >
           <Input type="password" autoComplete="off" value={form.accessToken} onChange={set('accessToken')} maxLength={1000} />
         </Field>
-        <Field label="LIFF ID" optional hint="設定するとLINE連携リンクがLIFFで開きます">
-          <Input value={form.liffId} onChange={set('liffId')} maxLength={100} />
+        <Field
+          label="LIFF ID"
+          optional
+          hint={`設定すると受付QR・LINE連携リンクがLINEの中で開き、お客様のLINEと自動で連携します。LIFFアプリのエンドポイントURLは ${liffEndpointUrl(channel)} にしてください。`}
+        >
+          <Input value={form.liffId} onChange={set('liffId')} placeholder="1234567890-AbCdEfGh" maxLength={100} />
         </Field>
-        <Field label="LINEログインのチャネルID" optional hint="IDトークン検証に使用">
-          <Input value={form.loginChannelId} onChange={set('loginChannelId')} maxLength={100} />
+        <Field
+          label="LINEログインのチャネルID"
+          required
+          hint="LIFFを使うには必須です。LIFFアプリを作成したLINEログインチャネルのIDを入力してください（お客様のLINEアカウントの確認＝IDトークンの検証に使います）。Messaging APIチャネルと同じプロバイダーのチャネルにしてください。"
+          error={loginMissing ? 'LIFF IDを設定する場合は入力してください' : null}
+        >
+          <Input value={form.loginChannelId} onChange={set('loginChannelId')} placeholder="1234567890" maxLength={100} />
+        </Field>
+        <Field
+          label="友だち追加URL"
+          optional
+          className="sm:col-span-2"
+          hint="LINE Official Account Manager の「友だち追加ガイド」にあるURL（https://lin.ee/…）。お客様向けのLINE連携ページなどに「友だち追加」ボタンを表示します。"
+          error={friendUrlOk ? null : 'https://lin.ee/… の形式で入力してください'}
+        >
+          <Input value={form.friendUrl} onChange={set('friendUrl')} placeholder="https://lin.ee/xxxxxxx" maxLength={300} inputMode="url" />
         </Field>
         {channel ? (
           <Switch className="sm:col-span-2" checked={active} onChange={setActive} label="有効" description="無効にすると送受信を停止します。" />

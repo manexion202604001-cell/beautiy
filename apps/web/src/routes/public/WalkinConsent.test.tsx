@@ -3,8 +3,10 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { publicMessagingApi } from '../../api/messaging';
 import { walkinApi, type PublicWalkinView } from '../../api/walkin';
 import { ApiError } from '../../lib/api';
+import { _resetLiffForTests } from '../../lib/liff';
 import WalkinConsent from './WalkinConsent';
 
 const view: PublicWalkinView = {
@@ -41,6 +43,9 @@ function mount(data: PublicWalkinView | Error = view) {
 beforeEach(() => {
   vi.restoreAllMocks();
   window.scrollTo = vi.fn() as unknown as typeof window.scrollTo;
+  _resetLiffForTests();
+  delete (window as unknown as { liff?: unknown }).liff;
+  vi.spyOn(publicMessagingApi, 'liffConfig').mockResolvedValue({ liffId: null, friendUrl: null });
 });
 
 describe('WalkinConsent (/consent/:shopSlug)', () => {
@@ -128,6 +133,31 @@ describe('WalkinConsent (/consent/:shopSlug)', () => {
     expect(await screen.findByText('記入済み（修正する）')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '記入を終了する' }));
     expect(await screen.findByRole('heading', { name: 'ご記入ありがとうございました' })).toBeInTheDocument();
+  });
+
+  it('opened from the LIFF QR inside LINE, sends the LINE id token with the consent', async () => {
+    const user = userEvent.setup();
+    vi.spyOn(publicMessagingApi, 'liffConfig').mockResolvedValue({ liffId: '1650000000-abcdEF', friendUrl: null });
+    const init = vi.fn().mockResolvedValue(undefined);
+    // the LIFF SDK (normally loaded from static.line-scdn.net)
+    (window as unknown as { liff: unknown }).liff = { init, isLoggedIn: () => true, isInClient: () => true, login: vi.fn(), getIDToken: () => 'line-id-token' };
+    const submit = vi
+      .spyOn(walkinApi, 'publicSubmit')
+      .mockResolvedValue({ ok: true, intakeId: 'w1', submittedAt: '2026-10-13T03:00:00.000Z', token: 'tok-1234567890', expiresAt: '2026-10-14T03:00:00.000Z', line: true });
+    mount();
+    await screen.findByRole('heading', { name: '施術同意書の確認とご提出' });
+    await waitFor(() => expect(init).toHaveBeenCalledWith({ liffId: '1650000000-abcdEF' }));
+    expect(publicMessagingApi.liffConfig).toHaveBeenCalledWith({ shop: 'honten' });
+
+    await user.type(screen.getByLabelText(/お名前（姓）/), '来店');
+    await user.type(screen.getByLabelText(/お名前（名）/), '花子');
+    await user.type(screen.getByLabelText(/フリガナ（セイ）/), 'ライテン');
+    await user.type(screen.getByLabelText(/フリガナ（メイ）/), 'ハナコ');
+    await user.type(screen.getByLabelText(/生年月日/), '1990-04-12');
+    await user.type(screen.getByLabelText(/電話番号/), '090-1111-2222');
+    await user.click(screen.getByRole('checkbox', { name: '上記の内容に同意します' }));
+    await user.click(screen.getByRole('button', { name: '同意書を提出する' }));
+    await waitFor(() => expect(submit).toHaveBeenCalledWith('honten', expect.objectContaining({ lineIdToken: 'line-id-token' })));
   });
 
   it('tells the customer to ask staff when the QR cannot be used', async () => {

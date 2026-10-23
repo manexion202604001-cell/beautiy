@@ -3,24 +3,22 @@ import { publicApi } from '../../api/public';
 import type { CustomerAuthResult } from '../../api/types';
 import { Alert, Button, Field, Icon, Input } from '../../components/ui';
 import { errorMessage } from '../../lib/api';
+import { readyLiff, useLiff } from '../../lib/liff';
 import { customerSession } from '../../lib/session';
 import { storageGet, storageSet } from '../../lib/storage';
-
-interface LiffLike {
-  isLoggedIn?: () => boolean;
-  login?: () => void;
-  getIDToken?: () => string | null;
-}
 
 /** LINE mock is enabled in dev or with VITE_LINE_MOCK=true (API LINE_DRIVER=mock accepts "mock:<userId>:<name>") */
 export const LINE_MOCK = import.meta.env.DEV || import.meta.env.VITE_LINE_MOCK === 'true';
 
-/** LIFF id token if running inside LINE (LIFF SDK loaded by the host page), mock token in dev */
+/**
+ * LIFF id token once the page initialised LIFF (lib/liff: useLiff); outside LINE without a LINE
+ * login this starts the LINE login (back to this page) and returns null. Mock token in dev.
+ */
 export function getLineIdToken(displayName = 'LINEユーザー'): string | null {
-  const liff = (window as unknown as { liff?: LiffLike }).liff;
-  if (liff?.getIDToken) {
-    if (liff.isLoggedIn && !liff.isLoggedIn()) {
-      liff.login?.();
+  const liff = readyLiff();
+  if (liff) {
+    if (!liff.isLoggedIn()) {
+      liff.login({ redirectUri: window.location.href });
       return null;
     }
     return liff.getIDToken();
@@ -35,8 +33,11 @@ export function getLineIdToken(displayName = 'LINEユーザー'): string | null 
 }
 
 export function lineAvailable() {
-  return LINE_MOCK || !!(window as unknown as { liff?: LiffLike }).liff;
+  return LINE_MOCK || !!readyLiff();
 }
+
+/** dev mock is used (no LIFF on this page) */
+export const usingLineMock = () => LINE_MOCK && !readyLiff();
 
 /**
  * Customer login: LINE (LIFF) or phone/email one-time code.
@@ -61,6 +62,8 @@ export function CustomerLogin({
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // LINEでログイン: the LIFF app of the shop's LINE account (re-renders once it is ready)
+  useLiff({ shop: slug });
 
   const done = (r: CustomerAuthResult, via: 'line' | 'otp') => {
     customerSession.set({
@@ -179,7 +182,7 @@ export function CustomerLogin({
         >
           <Icon name="line" size={20} />
           LINEでログイン
-          {LINE_MOCK && !(window as unknown as { liff?: unknown }).liff ? '（開発用モック）' : ''}
+          {usingLineMock() ? '（開発用モック）' : ''}
         </button>
       ) : null}
       <Button

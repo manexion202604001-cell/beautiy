@@ -1,6 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useParams } from 'react-router';
 import { CHANNEL_LABEL, publicMessagingApi, type Channel, type Preferences } from '../../api/messaging';
 import { ErrorState, InlineLoading, Switch, useToast } from '../../components/ui';
+import { useLiffConfig } from '../../lib/liff';
+import { customerSession } from '../../lib/session';
+import { FriendAddButton } from './FriendAddButton';
 
 const CHANNELS: Channel[] = ['line', 'email', 'sms'];
 
@@ -9,6 +13,9 @@ export function NotificationChannels({ token, marketingOptIn }: { token: string;
   const qc = useQueryClient();
   const toast = useToast();
   const key = ['public', 'notification-preferences', token];
+  // 友だち追加 of the shop's LINE account (マイページ /my/:shopSlug)
+  const { shopSlug } = useParams();
+  const friendUrl = useLiffConfig({ shop: shopSlug ?? customerSession.lastSlug() ?? undefined }).data?.friendUrl;
   const q = useQuery({ queryKey: key, queryFn: () => publicMessagingApi.myPreferences(token) });
   const save = useMutation({
     mutationFn: (input: Parameters<typeof publicMessagingApi.updateMyPreferences>[1]) =>
@@ -50,6 +57,7 @@ export function NotificationChannels({ token, marketingOptIn }: { token: string;
         );
       })}
       <p className="text-xs text-muted-foreground">LINEは友だち追加と連携が済んでいる場合に、メール・SMSはご登録の連絡先にお送りします。</p>
+      <FriendAddButton url={friendUrl} />
     </div>
   );
 }

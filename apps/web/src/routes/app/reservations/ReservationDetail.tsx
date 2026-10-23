@@ -21,6 +21,7 @@ import { errorMessage } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth';
 import { mediaBadges } from '../../../lib/mediaSync';
 import { zonedParts, zonedToIso } from '../../../lib/time';
+import { LineMergeCandidatesPanel } from './LineMergeCandidatesPanel';
 import { MessageDialog } from './MessageDialog';
 import { formatCurrency } from './model';
 
@@ -297,6 +298,7 @@ export default function ReservationDetail() {
               </div>
             ) : null}
           </div>
+          <LineMergeCandidatesPanel customerId={a.customer_id} shopId={a.shop_id} />
 
           <div className="border-t pt-4">
             <div className="text-center sy-3">

@@ -1,5 +1,5 @@
 import { lazy, Suspense, type ReactNode } from 'react';
-import { createBrowserRouter, createHashRouter, Navigate, useRouteError } from 'react-router';
+import { createBrowserRouter, createHashRouter, useRouteError } from 'react-router';
 import { AppLayout } from './components/layout/AppLayout';
 import { RequireAuth } from './components/layout/RequireAuth';
 import { ErrorState, PageSpinner } from './components/ui';
@@ -75,6 +75,7 @@ const Ops = lazy(() => import('./routes/app/ops/Ops'));
 const Migration = lazy(() => import('./routes/app/migration/Migration'));
 const Unsubscribe = lazy(() => import('./routes/public/Unsubscribe'));
 const LineLink = lazy(() => import('./routes/public/LineLink'));
+const LiffEntry = lazy(() => import('./routes/public/LiffEntry'));
 const ShortLink = lazy(() => import('./routes/public/ShortLink'));
 
 const s = (el: ReactNode) => <Suspense fallback={<PageSpinner />}>{el}</Suspense>;
@@ -92,7 +93,9 @@ function RouteError() {
 const createRouter = import.meta.env.VITE_DEMO ? createHashRouter : createBrowserRouter;
 
 export const router = createRouter([
-  { path: '/', element: <Navigate to="/app" replace /> },
+  // `/` is also the LIFF endpoint URL (?liff.state=…); without it LiffEntry goes to /app
+  { path: '/', element: s(<LiffEntry />), errorElement: <RouteError /> },
+  { path: '/liff/*', element: s(<LiffEntry />), errorElement: <RouteError /> },
   { path: '/login', element: s(<Login />), errorElement: <RouteError /> },
   { path: '/signup', element: s(<Signup />), errorElement: <RouteError /> },
   { path: '/forgot-password', element: s(<ForgotPassword />), errorElement: <RouteError /> },
