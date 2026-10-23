@@ -66,7 +66,7 @@ describe('customers', () => {
   it('lists the customers of one shop: registered there, related to it, or booked there (カルテ / 受付の紐付け)', async () => {
     const t = await createTenant();
     const shop2 = (await t.owner.post('/v1/shops', { name: '2号店', slug: `s2-${Date.now()}` })).body;
-    const registered = (await t.owner.post('/v1/customers', { lastName: '本店', firstName: '登録' })).body.customer;
+    const registered = (await t.owner.post('/v1/customers', { lastName: '本店', firstName: '登録', primaryShopId: t.shopId })).body.customer;
     const elsewhere = (await t.owner.post('/v1/customers', { lastName: '二号店', firstName: '登録', primaryShopId: shop2.id })).body.customer;
     const booked = (await t.owner.post('/v1/customers', { lastName: '二号店', firstName: '予約', primaryShopId: shop2.id })).body.customer;
     await insertAppointment(t.organizationId, { shopId: t.shopId, customerId: booked.id, startAt: new Date(Date.now() - 86_400_000), status: 'cancelled' });
