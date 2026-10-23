@@ -251,7 +251,7 @@ describe('Staff (スタッフ管理)', () => {
     mount();
     const ownerRow = await rowOf('佐藤 オーナー');
     await user.click(first(within(ownerRow).getAllByRole('button', { name: '担当顧客' })));
-    expect(navigate).toHaveBeenCalledWith('/app/customers?staff_id=owner');
+    expect(navigate).toHaveBeenCalledWith('/app/customers/manage?staff_id=owner');
 
     expect(within(ownerRow).getByRole('button', { name: '上へ' })).toBeDisabled();
     await user.click(within(ownerRow).getByRole('button', { name: '下へ' }));

@@ -152,6 +152,7 @@ function mount(path: string) {
         <MemoryRouter initialEntries={[path]}>
           <Routes>
             <Route path="/app/customers" element={<Customers />} />
+            <Route path="/app/customers/manage" element={<Customers variant="manage" />} />
             <Route path="/app/customers/new" element={<CustomerCreate />} />
             <Route path="/app/customers/kartes/:id" element={<KarteShow />} />
             <Route path="/app/customers/:id" element={<CustomerShow />} />
@@ -238,17 +239,29 @@ describe('顧客管理 list', () => {
     );
   }
 
-  it('lists customers under the カルテ heading and opens a customer', async () => {
-    const search = mockList([listItem({}), listItem({ id: 'c2', display_name: '担当 なし', primary_staff_id: null, primary_staff_name: null, has_line: false })], 120);
+  it('lists the shop\'s customers under the カルテ heading, all at once, and opens a customer', async () => {
+    const first = [listItem({}), listItem({ id: 'c2', display_name: '担当 なし', primary_staff_id: null, primary_staff_name: null, has_line: false })];
+    const search = vi.spyOn(customersApi, 'search').mockImplementation(async (q) =>
+      q.unassigned
+        ? { items: first.filter((c) => !c.primary_staff_id), nextCursor: null, total: 1 }
+        : q.cursor
+          ? { items: [listItem({ id: 'c3', display_name: '三人 目' })], nextCursor: null, total: 3 }
+          : { items: first, nextCursor: 'more', total: 3 },
+    );
     vi.spyOn(customersApi, 'duplicatePairs').mockResolvedValue([]);
-    vi.spyOn(customersApi, 'nameDuplicates').mockResolvedValue({ groups: [], total: 0 });
+    const nameDups = vi.spyOn(customersApi, 'nameDuplicates').mockResolvedValue({ groups: [], total: 4 });
     const user = mount('/app/customers?q=山田');
 
     expect(screen.getByRole('heading', { name: 'カルテ' })).toBeInTheDocument();
     expect(screen.getByPlaceholderText('名前、電話番号で検索...')).toHaveValue('山田');
-    await waitFor(() => expect(document.querySelectorAll('[data-customer]')).toHaveLength(2));
-    expect(search).toHaveBeenCalledWith(expect.objectContaining({ q: '山田', limit: 50 }));
-    expect(screen.getByText('(120件)')).toBeInTheDocument();
+    // the rest of the shop is fetched without a 「もっと見る」 button
+    await waitFor(() => expect(document.querySelectorAll('[data-customer]')).toHaveLength(3));
+    expect(search).toHaveBeenCalledWith(expect.objectContaining({ q: '山田', shopId: 'shop-1', limit: 1000 }));
+    expect(search).toHaveBeenCalledWith(expect.objectContaining({ cursor: 'more', shopId: 'shop-1' }));
+    expect(screen.queryByRole('button', { name: /もっと見る/ })).toBeNull();
+    expect(screen.getByText('(3件)')).toBeInTheDocument();
+    // 名前重複 lives on the 顧客管理 screen
+    expect(nameDups).not.toHaveBeenCalled();
     expect(screen.getAllByText('担当: 佐藤').length).toBeGreaterThan(0);
     expect(screen.getAllByText('担当未設定').length).toBeGreaterThan(0);
     // the 顧客管理 list does not carry the LINE mark; the tabs with nothing to do are not offered
@@ -259,17 +272,40 @@ describe('顧客管理 list', () => {
     expect(within(screen.getByRole('tab', { name: /未設定/ })).getByText('1')).toBeInTheDocument();
 
     await user.click(screen.getByRole('tab', { name: /未設定/ }));
-    await waitFor(() => expect(search).toHaveBeenCalledWith(expect.objectContaining({ unassigned: true, limit: 50 })));
+    await waitFor(() => expect(search).toHaveBeenCalledWith(expect.objectContaining({ unassigned: true, shopId: 'shop-1', limit: 1000 })));
 
     await user.click(document.querySelector('[data-customer="c2"]')!);
     expect(where()).toBe('/app/customers/c2');
+  });
+
+  it('顧客管理 lists every customer 50 at a time with the 担当未定 / 名前重複 tabs', async () => {
+    const search = vi.spyOn(customersApi, 'search').mockImplementation(async (q) =>
+      q.cursor
+        ? { items: [listItem({ id: 'c3', display_name: '三人 目' })], nextCursor: null, total: 3 }
+        : { items: [listItem({}), listItem({ id: 'c2', primary_staff_id: null, primary_staff_name: null })], nextCursor: 'more', total: 3 },
+    );
+    vi.spyOn(customersApi, 'duplicatePairs').mockResolvedValue([]);
+    vi.spyOn(customersApi, 'nameDuplicates').mockResolvedValue({ groups: [], total: 4 });
+    const user = mount('/app/customers/manage?staff_id=staff-1');
+
+    expect(screen.getByRole('heading', { name: '顧客管理' })).toBeInTheDocument();
+    await waitFor(() => expect(document.querySelectorAll('[data-customer]')).toHaveLength(2));
+    expect(search).toHaveBeenCalledWith({ staffId: 'staff-1', limit: 50, cursor: undefined });
+    expect(screen.getByText('(2/3件)')).toBeInTheDocument();
+    expect(screen.getAllByText('担当未定').length).toBeGreaterThan(0);
+    expect(within(await screen.findByRole('tab', { name: /名前重複/ })).getByText('4')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'もっと見る（残り1件）' }));
+    await waitFor(() => expect(document.querySelectorAll('[data-customer]')).toHaveLength(3));
+    // the customer opened from here comes back here
+    await user.click(document.querySelector('[data-customer="c3"]')!);
+    expect(where()).toBe('/app/customers/c3?from=manage');
   });
 
   it('picker mode hands the customer back to the reservation form', async () => {
     mockList([listItem({ name_source: 'line' })]);
     vi.spyOn(customersApi, 'duplicatePairs').mockResolvedValue([]);
     vi.spyOn(customersApi, 'nameDuplicates').mockResolvedValue({ groups: [], total: 0 });
-    const user = mount('/app/customers?mode=select');
+    const user = mount('/app/customers/manage?mode=select');
     expect(screen.getByRole('heading', { name: '顧客を選択' })).toBeInTheDocument();
     await waitFor(() => expect(document.querySelectorAll('[data-customer]')).toHaveLength(1));
     expect(screen.getByText('(1/1件)')).toBeInTheDocument();
@@ -322,7 +358,7 @@ describe('顧客管理 list', () => {
     const link = vi.spyOn(customersApi, 'linkMaster').mockResolvedValue({ member_no: 'M00000042', customerIds: ['c1', 'c2'] });
     const dismiss = vi.spyOn(customersApi, 'dismissNameDuplicate').mockResolvedValue({ dismissed: 2 });
     const merge = vi.spyOn(customersApi, 'merge').mockResolvedValue({ mergeLogId: 'm', targetId: 'c1', sourceId: 'c2', moved: {} });
-    const user = mount('/app/customers');
+    const user = mount('/app/customers/manage');
 
     await user.click(await screen.findByRole('tab', { name: /名前重複/ }));
     expect(screen.getByText('名前重複候補')).toBeInTheDocument();

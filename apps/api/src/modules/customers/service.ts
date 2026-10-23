@@ -24,6 +24,7 @@ export const customerListColumns = [
   'customers.email',
   'customers.primary_shop_id',
   'customers.primary_staff_id',
+  'customers.member_no',
   'customers.acquisition_source',
   'customers.first_visit_at',
   'customers.last_visit_at',
@@ -86,11 +87,21 @@ export async function searchCustomers(ctx: Ctx, input: SearchCustomersInput) {
     );
   }
   if (input.shopId) {
+    // customers of the shop (SALOGIC keeps one record per shop: registered there, or booked there):
+    // registered at the shop, related to it (visited / staff in charge), or with any reservation there
     const shopId = input.shopId;
     q = q.where((eb) =>
       eb.or([
         eb('customers.primary_shop_id', '=', shopId),
         eb.exists(eb.selectFrom('customer_shop_relations as r').select(sql`1`.as('x')).whereRef('r.customer_id', '=', 'customers.id').where('r.shop_id', '=', shopId)),
+        eb.exists(
+          eb
+            .selectFrom('appointments as ap')
+            .select(sql`1`.as('x'))
+            .whereRef('ap.customer_id', '=', 'customers.id')
+            .where('ap.shop_id', '=', shopId)
+            .where('ap.deleted_at', 'is', null),
+        ),
       ]),
     );
   }

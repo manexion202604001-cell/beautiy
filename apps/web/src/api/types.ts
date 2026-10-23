@@ -649,6 +649,7 @@ export interface AppointmentListItem {
   version: number;
   customer_name: string;
   customer_name_kana: string;
+  customer_phone?: string | null;
   customer_visit_count: number | null;
   staff_name: string | null;
   staff_color: string | null;

@@ -109,7 +109,8 @@ export default function CustomerShow() {
   const qc = useQueryClient();
   const toast = useToast();
   const { can, timezone: tz, currentShopId } = useAuth();
-  const backPath = '/app/customers';
+  // opened from 顧客管理 (?from=manage) the back button returns there, otherwise to カルテ
+  const backPath = params.get('from') === 'manage' ? '/app/customers/manage' : '/app/customers';
 
   const customerQ = useCustomer(id);
   const c = customerQ.data;

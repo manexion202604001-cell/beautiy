@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { asSystem, createStaffUser, createTenant } from '../../test/helpers.js';
+import { asSystem, createStaffUser, createTenant, insertAppointment } from '../../test/helpers.js';
 import { resolveCustomer } from './identity.js';
 
 describe('customers', () => {
@@ -61,6 +61,43 @@ describe('customers', () => {
     expect(mine.body.items[0]).toMatchObject({ has_line: false });
     expect(typeof mine.body.items[0].primary_staff_name).toBe('string');
     expect(unassigned.body.items[0].primary_staff_name).toBeNull();
+  });
+
+  it('lists the customers of one shop: registered there, related to it, or booked there (カルテ / 受付の紐付け)', async () => {
+    const t = await createTenant();
+    const shop2 = (await t.owner.post('/v1/shops', { name: '2号店', slug: `s2-${Date.now()}` })).body;
+    const registered = (await t.owner.post('/v1/customers', { lastName: '本店', firstName: '登録' })).body.customer;
+    const elsewhere = (await t.owner.post('/v1/customers', { lastName: '二号店', firstName: '登録', primaryShopId: shop2.id })).body.customer;
+    const booked = (await t.owner.post('/v1/customers', { lastName: '二号店', firstName: '予約', primaryShopId: shop2.id })).body.customer;
+    await insertAppointment(t.organizationId, { shopId: t.shopId, customerId: booked.id, startAt: new Date(Date.now() - 86_400_000), status: 'cancelled' });
+    const visited = (await t.owner.post('/v1/customers', { lastName: '二号店', firstName: '来店', primaryShopId: shop2.id })).body.customer;
+    await asSystem(t.organizationId, (ctx) =>
+      ctx.trx.insertInto('customer_shop_relations').values({ organization_id: t.organizationId, customer_id: visited.id, shop_id: t.shopId, relation_type: 'visited' }).execute(),
+    );
+    // a deleted booking does not make the customer one of the shop's
+    const removed = (await t.owner.post('/v1/customers', { lastName: '二号店', firstName: '削除', primaryShopId: shop2.id })).body.customer;
+    const gone = await insertAppointment(t.organizationId, { shopId: t.shopId, customerId: removed.id, startAt: new Date(Date.now() - 86_400_000) });
+    await asSystem(t.organizationId, (ctx) => ctx.trx.updateTable('appointments').set({ deleted_at: new Date() }).where('id', '=', gone.id).execute());
+
+    const ids = async (qs: string) => ((await t.owner.get(`/v1/customers?${qs}`)).body.items as { id: string }[]).map((c) => c.id).sort();
+    expect(await ids(`shopId=${t.shopId}`)).toEqual([registered.id, booked.id, visited.id].sort());
+    expect(await ids(`shopId=${shop2.id}`)).toEqual([elsewhere.id, booked.id, visited.id, removed.id].sort());
+    // the reception's link dialog searches the shop's customers by name
+    expect(await ids(`shopId=${t.shopId}&q=${encodeURIComponent('二号店')}&limit=20`)).toEqual([booked.id, visited.id].sort());
+    const page = await t.owner.get(`/v1/customers?shopId=${t.shopId}&limit=1000`);
+    expect(page.status).toBe(200);
+    expect(page.body.total).toBe(3);
+    expect((await t.owner.get('/v1/customers?limit=1001')).status).toBe(400);
+  });
+
+  it('shows the shared 会員番号 on list rows', async () => {
+    const t = await createTenant();
+    const a = (await t.owner.post('/v1/customers', { lastName: '会員', firstName: '一' })).body.customer;
+    const b = (await t.owner.post('/v1/customers', { lastName: '会員', firstName: '一' })).body.customer;
+    const linked = await t.owner.post('/v1/customers/link-master', { customerIds: [a.id, b.id] });
+    expect(linked.status).toBe(200);
+    const rows = (await t.owner.get(`/v1/customers?q=${encodeURIComponent('会員')}`)).body.items as { id: string; member_no: string | null }[];
+    expect(rows.map((r) => r.member_no)).toEqual([linked.body.member_no, linked.body.member_no]);
   });
 
   it('audits customer detail views', async () => {

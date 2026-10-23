@@ -386,7 +386,7 @@ export default function Staff() {
           size="sm"
           variant="outline"
           className={size}
-          onClick={() => navigate(`/app/customers?staff_id=${s.id}`)}
+          onClick={() => navigate(`/app/customers/manage?staff_id=${s.id}`)}
           title="担当顧客"
           aria-label="担当顧客"
         >
