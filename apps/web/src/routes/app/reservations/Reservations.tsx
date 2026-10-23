@@ -1,4 +1,4 @@
-import { useQueries, useQueryClient } from '@tanstack/react-query';
+import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, Clock, Plus, RotateCcw, Search, User, X } from 'lucide-react';
 import {
   useCallback,
@@ -22,6 +22,7 @@ import {
   useExceptions,
   useShifts,
 } from '../../../api/schedules';
+import { staffScreenApi } from '../../../api/staffScreen';
 import type { AppointmentListItem, DayStaffSchedule } from '../../../api/types';
 import { Avatar, Badge, Button, Card, CardContent, Input, Select, Tabs } from '../../../components/shad';
 import { useToast } from '../../../components/ui';
@@ -231,12 +232,23 @@ export default function Reservations() {
     },
     [exceptionsQ.data, hoursQ.data],
   );
+  // the selected staff member's weekly pattern (スタッフ別 営業時間): 休み weekdays are greyed in the month view
+  const staffHoursQ = useQuery({
+    queryKey: ['staff', 'business-hours', staffFilter, shopId ?? ''],
+    queryFn: () => staffScreenApi.businessHours(staffFilter, shopId!),
+    enabled: view === 'month' && staffFilter !== 'all' && !!shopId,
+    staleTime: 60_000,
+  });
+  /** month view: the staff member does not work that day (a dated shift wins over the weekly pattern) */
   const staffOffDay = useCallback(
-    (staffId: string, dateStr: string) =>
-      (shiftsQ.data ?? []).some(
-        (s) => s.staff_id === staffId && s.date === dateStr && s.shift_type === 'off',
-      ),
-    [shiftsQ.data],
+    (staffId: string, dateStr: string) => {
+      const shifts = (shiftsQ.data ?? []).filter((s) => s.staff_id === staffId && s.date === dateStr);
+      if (shifts.length) return !shifts.some((s) => s.shift_type === 'work');
+      const hours = staffHoursQ.data;
+      if (!hours?.configured) return false;
+      return hours.hours.find((h) => h.weekday === weekdayOf(dateStr))?.isClosed ?? false;
+    },
+    [shiftsQ.data, staffHoursQ.data],
   );
 
   // --- colours
@@ -409,14 +421,19 @@ export default function Reservations() {
     };
   }, [ghost, startCreate]);
 
-  // --- drag & drop (day view): move to another staff member and / or time
+  // --- drag & drop (day view): move to another staff member and / or time.
+  // Like SALOGIC the booking keeps its length and may land in greyed (closed) time;
+  // the API still refuses overlaps, busy resources and completed / cancelled bookings.
   const moveReservation = async (id: string, staffId: string, hour?: number, minute?: number) => {
     const r = reservations.find((x) => x.id === id);
     if (!r) return;
+    const lengthMin = Math.round((new Date(r.end_at).getTime() - new Date(r.start_at).getTime()) / 60_000);
     try {
       await appointmentsApi.update(id, {
         version: r.version,
         staffId,
+        allowOutsideSchedule: true,
+        ...(lengthMin >= 5 && lengthMin <= 720 && lengthMin % 5 === 0 ? { durationMin: lengthMin } : {}),
         ...(hour !== undefined && minute !== undefined
           ? { startAt: zonedToIso(date, `${pad2(hour)}:${pad2(minute)}`, tz) }
           : {}),
@@ -583,6 +600,9 @@ export default function Reservations() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1 truncate text-sm font-medium">
                       {r.customer_name}
+                      {r.customer_phone ? (
+                        <span className="text-xs font-normal text-muted-foreground">{r.customer_phone}</span>
+                      ) : null}
                     </div>
                     <div className="truncate text-xs text-muted-foreground">
                       {menuName(r)} / {staffName(r)}

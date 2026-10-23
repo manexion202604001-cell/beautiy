@@ -383,6 +383,7 @@ export async function listAppointments(ctx: Ctx, input: ListAppointmentsInput) {
       'appointments.version',
       sql<string>`trim(coalesce(customers.last_name, '') || ' ' || coalesce(customers.first_name, ''))`.as('customer_name'),
       sql<string>`trim(coalesce(customers.last_name_kana, '') || ' ' || coalesce(customers.first_name_kana, ''))`.as('customer_name_kana'),
+      'customers.phone as customer_phone',
       'customers.visit_count as customer_visit_count',
       'staffs.display_name as staff_name',
       'staffs.color as staff_color',
