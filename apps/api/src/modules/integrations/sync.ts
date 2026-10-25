@@ -158,6 +158,9 @@ async function resolveExternalCustomer(ctx: Ctx, account: AdapterAccount, nb: Ex
 }
 
 /** Internal appointments of the staff whose occupied range intersects the external booking */
+/** the appointments.source a booking of this medium got when it was copied from the previous system */
+const COPIED_SOURCE: Record<string, string> = { minimo_mail: 'minimo', hotpepper_mail: 'external' };
+
 async function findClashes(ctx: Ctx, staffId: string | null, menuIds: string[], nb: ExternalBooking, excludeId?: string | null) {
   if (!staffId) return [];
   const menus = menuIds.length
@@ -369,6 +372,32 @@ export async function applyExternalBooking(ctx: Ctx, account: AdapterAccount, ex
       await recordConflict(ctx, { type: 'duplicate', externalBookingId: ext.id, appointmentId: dup.id, details: { ...details, linkedAppointmentId: dup.id }, state: 'resolved', resolution: 'merged' });
       // the slot is now held by the medium's own booking → an earlier pushed block is redundant
       await enqueuePushJob(ctx, account.id, dup.id, 'linked');
+      stats.linked++;
+      return 'linked';
+    }
+  }
+
+  // ---- duplicate: the same booking copied from the previous system (staff typed media bookings into
+  // SALOGIC by hand, under a customer record of their own): same stylist, same start, same medium
+  const copiedSource = COPIED_SOURCE[account.provider];
+  if (staffId && copiedSource) {
+    const copied = await ctx.trx
+      .selectFrom('appointments')
+      .select(['id'])
+      .where('shop_id', '=', shopId)
+      .where('staff_id', '=', staffId)
+      .where('start_at', '=', nb.start)
+      .where('source', '=', copiedSource as never)
+      .where(sql<boolean>`coalesce((source_detail->>'migrated')::boolean, false)`)
+      .where('status', 'in', [...ACTIVE_STATUSES])
+      .where('deleted_at', 'is', null)
+      .where((eb) => eb.not(eb.exists(eb.selectFrom('external_bookings as eb2').select(sql`1`.as('x')).whereRef('eb2.appointment_id', '=', 'appointments.id'))))
+      .executeTakeFirst();
+    if (copied) {
+      await setExternalState(ctx, ext.id, { sync_state: 'synced', appointment_id: copied.id });
+      await closeOpenConflicts(ctx, ext.id, 'resolved', 'auto_resolved');
+      await recordConflict(ctx, { type: 'duplicate', externalBookingId: ext.id, appointmentId: copied.id, details: { ...details, linkedAppointmentId: copied.id, copied: true }, state: 'resolved', resolution: 'merged' });
+      await enqueuePushJob(ctx, account.id, copied.id, 'linked');
       stats.linked++;
       return 'linked';
     }

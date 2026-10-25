@@ -530,4 +530,50 @@ describe('Hot Pepper / LiME booking-notification mail sync', () => {
     const manual = await t.owner.post('/v1/appointments', { shopId: t.shopId, staffId: ena.staffId, startAt: jst(date, '11:00'), menuIds: [brow.id] });
     expect(manual.body.error.code).toBe('STAFF_NOT_AVAILABLE');
   });
+
+  it('links a minimo mail to the same booking staff typed into the previous system (copied, other customer record)', async () => {
+    const t = await createTenant();
+    await t.owner.patch(`/v1/staff/${t.ownerStaffId}`, { isBookable: false });
+    const suzuna = await createStaffUser(t, 'stylist', { displayName: 'suzuna' });
+    const cut = await createMenu(t, { name: 'まつ毛パーマ', durationMin: 60 });
+    const mm = (
+      await t.owner.post('/v1/integrations', {
+        provider: 'minimo_mail',
+        shopId: t.shopId,
+        displayName: 'minimo',
+        config: { pushBlocks: false, mail: { unknownStaffAsFree: true, createMissingMenus: true, requiresText: '■予約内容' } },
+      })
+    ).body;
+    const date = nextWeekday(WED);
+    const [y, mo, d] = date.split('-');
+    // the copy from SALOGIC: same stylist and time, its own customer record
+    const other = await createCustomer(t);
+    const copy = (await t.owner.post('/v1/appointments', { shopId: t.shopId, customerId: other.id, staffId: suzuna.staffId, startAt: jst(date, '13:00'), menuIds: [cut.id], source: 'minimo' })).body;
+    await asSystem(t.organizationId, (ctx) =>
+      ctx.trx.updateTable('appointments').set({ source_detail: JSON.stringify({ migrated: true }) }).where('id', '=', copy.id).execute(),
+    );
+    const text = [
+      '下記の予約が確定されました。（すぐ予約）',
+      '■予約内容',
+      '・予約ID',
+      '\u3000I+Copy0001',
+      '・氏名',
+      '\u3000山田 花子（ヤマダ ハナコ）',
+      '・来店日時',
+      `\u3000${y}年${Number(mo)}月${Number(d)}日（水）13:00`,
+      '・担当者',
+      '\u3000🩶 suzuna🩶',
+      '・メニュー',
+      '\u3000まつ毛パーマ',
+      '\u3000(施術時間：60分)',
+    ].join('\n');
+    expect((await post(tokenOf(mm), { subject: '【ミニモ】🩶 suzuna🩶様宛の新着メッセージのお知らせ', text, messageId: `<copy-${Math.random()}@minimodel.jp>` })).status).toBe(200);
+    await runJobs();
+    // no second booking: the mail is linked to the copy
+    expect(await externalAppointments(t)).toHaveLength(0);
+    const ext = await asSystem(t.organizationId, (ctx) =>
+      ctx.trx.selectFrom('external_bookings').select(['appointment_id', 'sync_state']).where('integration_account_id', '=', mm.id).executeTakeFirstOrThrow(),
+    );
+    expect(ext).toEqual({ appointment_id: copy.id, sync_state: 'synced' });
+  });
 });

@@ -26,8 +26,8 @@ import { systemActor, type Ctx } from '../auth/actor.js';
 import { db } from '../db/client.js';
 import { withSystem, withTenant } from '../db/tenant.js';
 import '../modules/index.js';
-import { createAppointment } from '../modules/appointments/service.js';
 import { createMenu } from '../modules/catalog/service.js';
+import { ACTIVE_STATUSES, createAppointment } from '../modules/appointments/service.js';
 import { createCustomer } from '../modules/customers/service.js';
 import { sha256 } from '../lib/crypto.js';
 import { addMinutes } from '../lib/time.js';
@@ -144,6 +144,7 @@ async function main() {
         .execute();
       const menus = await ctx.trx.selectFrom('menus').select(['id', 'name']).where('shop_id', '=', shop.id).where('deleted_at', 'is', null).orderBy('sort_order').execute();
       const hpb = await ctx.trx.selectFrom('integration_accounts').select('id').where('shop_id', '=', shop.id).where('provider', '=', 'hotpepper_mail').executeTakeFirst();
+      const minimo = await ctx.trx.selectFrom('integration_accounts').select('id').where('shop_id', '=', shop.id).where('provider', '=', 'minimo_mail').executeTakeFirst();
       const keys = await ctx.trx.selectFrom('import_keys').select(['key', 'resource_id']).where('kind', '=', KEY_RESERVATION).execute();
       const shopStaff = await ctx.trx.selectFrom('staff_shop_assignments').select('staff_id').where('shop_id', '=', shop.id).where('ended_on', 'is', null).execute();
       return {
@@ -151,6 +152,7 @@ async function main() {
         staffNames: new Map(staff.map((s) => [s.id, s.display_name])),
         menus: menus.reduce((m, x) => (m.has(x.name) ? m : m.set(x.name, x.id)), new Map<string, string>()),
         hpbId: hpb?.id ?? null,
+        minimoId: minimo?.id ?? null,
         keys: new Map(keys.map((k) => [k.key, k.resource_id])),
         shopStaffIds: shopStaff.map((x) => x.staff_id),
       };
@@ -207,6 +209,26 @@ async function main() {
             return;
           }
           const detail = (live?.source_detail ?? {}) as { salogicFingerprint?: string; migrated?: boolean };
+          // a minimo booking staff typed into SALOGIC by hand, which the minimo mail connector took in
+          // (under a customer record of its own): keep the mail's booking, drop the copy
+          if (res.source === 'minimo' && ref.minimoId && res.staff_id && ref.staff.get(res.staff_id) && !(live && !detail.migrated)) {
+            const viaMail = await ctx.trx
+              .selectFrom('external_bookings as eb')
+              .innerJoin('appointments as a', 'a.id', 'eb.appointment_id')
+              .select('a.id')
+              .where('eb.integration_account_id', '=', ref.minimoId)
+              .where('a.staff_id', '=', ref.staff.get(res.staff_id)!)
+              .where('a.start_at', '=', new Date(res.start_at))
+              .where('a.status', 'in', [...ACTIVE_STATUSES])
+              .where('a.deleted_at', 'is', null)
+              .executeTakeFirst();
+            if (viaMail) {
+              if (live && live.id !== viaMail.id) await withdraw(ctx, live.id, 'minimo のメールで取り込んだ予約と同じ');
+              await saveKey(ctx, key, viaMail.id);
+              r.linkedToMail!++;
+              return;
+            }
+          }
           // a booking the Hot Pepper mail connector created is kept up to date by the media's mails
           if (live && (!detail.migrated || detail.salogicFingerprint === fp)) {
             r.unchanged!++;
