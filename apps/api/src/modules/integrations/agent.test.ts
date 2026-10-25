@@ -337,4 +337,22 @@ describe('媒体の自動枠止め (sync agent)', () => {
     ).toEqual([[jst(date, '15:00'), 'W1']]);
     void fresh;
   });
+
+  it('mails the owners when the shop has no address, and reminds every few hours while it lasts', async () => {
+    const { t, minimo, agentId } = await setup();
+    await t.owner.patch(`/v1/integrations/${minimo.id}`, { config: { pushBlocks: true, mail: { agentManaged: true } } });
+    await asSystem(t.organizationId, (ctx) => ctx.trx.updateTable('shops').set({ email: null }).where('id', '=', t.shopId).execute());
+    const ownerEmail = await asSystem(t.organizationId, (ctx) =>
+      ctx.trx.selectFrom('staffs as s').innerJoin('users as u', 'u.id', 's.user_id').select('u.email').where('s.id', '=', t.ownerStaffId).executeTakeFirstOrThrow(),
+    );
+    const mine = () => mockOutbox.filter((m) => m.to === ownerEmail.email && m.subject.includes('自動枠止め'));
+    const base = mine().length;
+    const now = Date.now();
+    await runAgentWatchdog(new Date(now), [agentId]);
+    expect(mine().length - base).toBe(1);
+    await runAgentWatchdog(new Date(now + 3600_000), [agentId]);
+    expect(mine().length - base).toBe(1);
+    await runAgentWatchdog(new Date(now + 4 * 3600_000), [agentId]);
+    expect(mine().length - base).toBe(2);
+  });
 });

@@ -50,8 +50,38 @@ async function log(entry) {
   chrome.action.setBadgeBackgroundColor({ color: '#d33' });
 }
 
+/** a step that does not answer in time fails instead of freezing the helper */
+function withTimeout(promise, ms, what) {
+  let timer;
+  return Promise.race([
+    promise.finally(() => clearTimeout(timer)),
+    new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`${what}が応答しません`)), ms);
+    }),
+  ]);
+}
+
+/** a notification on this Mac when a medium needs attention (at most once an hour per problem) */
+async function notifyIfNeeded(problems) {
+  const { notified = {} } = await chrome.storage.local.get('notified');
+  const now = Date.now();
+  const fresh = problems.filter((p) => !notified[p] || now - notified[p] > 3600_000);
+  if (!fresh.length) return;
+  for (const p of fresh) notified[p] = now;
+  await chrome.storage.local.set({ notified });
+  chrome.notifications.create(`salon-os-${now}`, {
+    type: 'basic',
+    iconUrl: 'icon128.png',
+    title: 'Salon OS 自動枠止め: 要対応',
+    message: fresh.join('\n').slice(0, 250),
+    priority: 2,
+    requireInteraction: true,
+  });
+}
+
 async function salonOs(s, path, body) {
   const res = await fetch(`${s.baseUrl}/v1${path}`, {
+    signal: AbortSignal.timeout(30_000),
     method: 'POST',
     headers: { 'content-type': 'application/json', authorization: `Bearer ${s.token}` },
     body: JSON.stringify(body),
@@ -61,11 +91,13 @@ async function salonOs(s, path, body) {
   return json;
 }
 
-let running = false;
+let running = 0;
+/** a run that has not finished after this long is considered stuck and a new one may start */
+const STUCK_MS = 9 * 60_000;
 
 export async function runCycle(trigger) {
-  if (running) return { ok: false, message: '実行中です' };
-  running = true;
+  if (running && Date.now() - running < STUCK_MS) return { ok: false, message: '実行中です' };
+  running = Date.now();
   try {
     const s = await settings();
     if (!s.token) {
@@ -116,6 +148,12 @@ export async function runCycle(trigger) {
     const failed = results.filter((r) => !r.ok);
     const mediumDown = Object.entries(status).filter(([, v]) => !v.ok);
     const ok = !failed.length && !mediumDown.length;
+    await notifyIfNeeded(
+      mediumDown.map(
+        ([p, v]) =>
+          `${p === 'minimo_mail' ? 'minimo' : 'サロンボード'}: ${v.message}。この Chrome でログインし直してください`,
+      ),
+    );
     await log({
       ok,
       trigger,
@@ -132,7 +170,7 @@ export async function runCycle(trigger) {
     await log({ ok: false, trigger, message: e.message });
     return { ok: false };
   } finally {
-    running = false;
+    running = 0;
   }
 }
 
@@ -178,42 +216,45 @@ async function navigate(tab, url) {
 /** run a function inside the medium's own page (its login, its security tokens) */
 async function inPage(tab, func, ...args) {
   if (typeof func !== 'function') return fetchInPage(tab, func, ...args);
-  const [{ result }] = await chrome.scripting.executeScript({
-    target: { tabId: tab.id },
-    world: 'MAIN',
-    args,
-    func,
-  });
+  const [{ result }] = await withTimeout(
+    chrome.scripting.executeScript({ target: { tabId: tab.id }, world: 'MAIN', args, func }),
+    90_000,
+    '媒体の画面',
+  );
   return result;
 }
 
 /** run fetch inside the medium's own page, so its login cookie is used exactly as the screen does */
 async function fetchInPage(tab, method, path, body) {
-  const [{ result }] = await chrome.scripting.executeScript({
-    target: { tabId: tab.id },
-    world: 'MAIN',
-    args: [method, path, body ?? null],
-    func: async (m, p, b) => {
-      const res = await fetch(p, {
-        method: m,
-        credentials: 'include',
-        headers: {
-          Accept: 'application/json',
-          'X-From': location.href,
-          ...(b ? { 'Content-Type': 'application/json' } : {}),
-        },
-        body: b ? JSON.stringify(b) : undefined,
-      });
-      const text = await res.text();
-      let json = null;
-      try {
-        json = JSON.parse(text);
-      } catch {
-        /* login page or error page */
-      }
-      return { status: res.status, json };
-    },
-  });
+  const [{ result }] = await withTimeout(
+    chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      world: 'MAIN',
+      args: [method, path, body ?? null],
+      func: async (m, p, b) => {
+        const res = await fetch(p, {
+          method: m,
+          credentials: 'include',
+          headers: {
+            Accept: 'application/json',
+            'X-From': location.href,
+            ...(b ? { 'Content-Type': 'application/json' } : {}),
+          },
+          body: b ? JSON.stringify(b) : undefined,
+        });
+        const text = await res.text();
+        let json = null;
+        try {
+          json = JSON.parse(text);
+        } catch {
+          /* login page or error page */
+        }
+        return { status: res.status, json };
+      },
+    }),
+    90_000,
+    '媒体の画面',
+  );
   return result;
 }
 

@@ -44,6 +44,8 @@ type AgentProvider = (typeof AGENT_PROVIDERS)[number];
 const STUCK_MIN = 30;
 /** without a report for this long the helper counts as stopped */
 const STALE_MIN = 30;
+/** while a problem lasts, the alert is repeated after this many hours */
+const REMIND_HOURS = 3;
 
 // ------------------------------------------------------------------ owner side: issue / list / revoke
 
@@ -566,7 +568,8 @@ export async function runAgentWatchdog(now = new Date(), only?: string[]) {
             .execute();
         return;
       }
-      if (agent.alerted_at) return;
+      // once per incident, then a reminder every few hours while it lasts
+      if (agent.alerted_at && agent.alerted_at.getTime() > now.getTime() - REMIND_HOURS * 3600_000) return;
       const shop = await trx
         .selectFrom('shops')
         .select(['name', 'email'])
@@ -577,6 +580,19 @@ export async function runAgentWatchdog(now = new Date(), only?: string[]) {
         for (const e of parseIntegrationConfig(a.config).mail?.notifyEmails ?? [])
           recipients.add(e);
       if (!recipients.size && shop?.email) recipients.add(shop.email);
+      // no address for the shop: the organisation's owners (otherwise nobody would hear of it)
+      if (!recipients.size) {
+        const owners = await trx
+          .selectFrom('staffs as s')
+          .innerJoin('roles as r', 'r.id', 's.role_id')
+          .innerJoin('users as u', 'u.id', 's.user_id')
+          .select('u.email')
+          .where('r.key', '=', 'owner')
+          .where('s.status', '=', 'active')
+          .where('s.deleted_at', 'is', null)
+          .execute();
+        for (const o of owners) if (o.email) recipients.add(o.email);
+      }
       const label = (p: string) => PROVIDER_PROFILES[p]?.label ?? p;
       const lines = [
         `${shop?.name ?? ''} の媒体の自動枠止め（${agent.name}）が止まっています。`,
