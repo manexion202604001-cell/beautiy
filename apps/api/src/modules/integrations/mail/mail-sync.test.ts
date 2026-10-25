@@ -575,5 +575,20 @@ describe('Hot Pepper / LiME booking-notification mail sync', () => {
       ctx.trx.selectFrom('external_bookings').select(['appointment_id', 'sync_state']).where('integration_account_id', '=', mm.id).executeTakeFirstOrThrow(),
     );
     expect(ext).toEqual({ appointment_id: copy.id, sync_state: 'synced' });
+
+    // SALOGIC filed another minimo booking as 電話: the customer's name tells it is the same one
+    const sameName = await createCustomer(t, { lastName: '山田', firstName: '太郎' });
+    const phoneCopy = (await t.owner.post('/v1/appointments', { shopId: t.shopId, customerId: sameName.id, staffId: suzuna.staffId, startAt: jst(date, '16:00'), menuIds: [cut.id], source: 'phone' })).body;
+    await asSystem(t.organizationId, (ctx) =>
+      ctx.trx.updateTable('appointments').set({ source_detail: JSON.stringify({ migrated: true }) }).where('id', '=', phoneCopy.id).execute(),
+    );
+    const text2 = text.replace('I+Copy0001', 'I+Copy0002').replace('山田 花子（ヤマダ ハナコ）', '山田 太郎（ヤマダ タロウ）').replace('13:00', '16:00');
+    expect((await post(tokenOf(mm), { subject: '【ミニモ】🩶 suzuna🩶様宛の新着メッセージのお知らせ', text: text2, messageId: `<copy2-${Math.random()}@minimodel.jp>` })).status).toBe(200);
+    await runJobs();
+    expect(await externalAppointments(t)).toHaveLength(0);
+    const ext2 = await asSystem(t.organizationId, (ctx) =>
+      ctx.trx.selectFrom('external_bookings').select(['appointment_id']).where('integration_account_id', '=', mm.id).where('external_booking_id', 'like', '%0002%').executeTakeFirstOrThrow(),
+    );
+    expect(ext2.appointment_id).toBe(phoneCopy.id);
   });
 });

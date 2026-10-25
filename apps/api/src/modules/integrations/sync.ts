@@ -1,4 +1,5 @@
 import { sql } from 'kysely';
+import { normalizeName } from '../../lib/normalize.js';
 import type { Ctx } from '../../auth/actor.js';
 import { withSystem, type Tx } from '../../db/tenant.js';
 import { enqueue, PermanentJobError, registerJob, type JobContext } from '../../jobs/queue.js';
@@ -379,20 +380,30 @@ export async function applyExternalBooking(ctx: Ctx, account: AdapterAccount, ex
 
   // ---- duplicate: the same booking copied from the previous system (staff typed media bookings into
   // SALOGIC by hand, under a customer record of their own): same stylist, same start, same medium
+  // (SALOGIC often filed them as 電話: then the customer's name tells it is the same booking)
   const copiedSource = COPIED_SOURCE[account.provider];
   if (staffId && copiedSource) {
-    const copied = await ctx.trx
+    const candidates = await ctx.trx
       .selectFrom('appointments')
-      .select(['id'])
-      .where('shop_id', '=', shopId)
-      .where('staff_id', '=', staffId)
-      .where('start_at', '=', nb.start)
-      .where('source', '=', copiedSource as never)
-      .where(sql<boolean>`coalesce((source_detail->>'migrated')::boolean, false)`)
-      .where('status', 'in', [...ACTIVE_STATUSES])
-      .where('deleted_at', 'is', null)
+      .leftJoin('customers as cu', 'cu.id', 'appointments.customer_id')
+      .select(['appointments.id', 'appointments.source', 'cu.last_name', 'cu.first_name', 'cu.last_name_kana', 'cu.first_name_kana'])
+      .where('appointments.shop_id', '=', shopId)
+      .where('appointments.staff_id', '=', staffId)
+      .where('appointments.start_at', '=', nb.start)
+      .where(sql<boolean>`coalesce((appointments.source_detail->>'migrated')::boolean, false)`)
+      .where('appointments.status', 'in', [...ACTIVE_STATUSES])
+      .where('appointments.deleted_at', 'is', null)
       .where((eb) => eb.not(eb.exists(eb.selectFrom('external_bookings as eb2').select(sql`1`.as('x')).whereRef('eb2.appointment_id', '=', 'appointments.id'))))
-      .executeTakeFirst();
+      .execute();
+    const mine = customerId
+      ? await ctx.trx.selectFrom('customers').select(['last_name', 'first_name', 'last_name_kana', 'first_name_kana']).where('id', '=', customerId).executeTakeFirst()
+      : undefined;
+    const names = (c: { last_name: string | null; first_name: string | null; last_name_kana: string | null; first_name_kana: string | null } | undefined) =>
+      c ? [normalizeName(`${c.last_name ?? ''}${c.first_name ?? ''}`), normalizeName(`${c.last_name_kana ?? ''}${c.first_name_kana ?? ''}`)].filter((x) => x.length >= 2) : [];
+    const myNames = names(mine);
+    const copied =
+      candidates.find((c) => c.source === copiedSource) ??
+      candidates.find((c) => names(c).some((n) => myNames.includes(n)));
     if (copied) {
       await setExternalState(ctx, ext.id, { sync_state: 'synced', appointment_id: copied.id });
       await closeOpenConflicts(ctx, ext.id, 'resolved', 'auto_resolved');

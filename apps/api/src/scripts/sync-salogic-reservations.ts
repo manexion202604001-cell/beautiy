@@ -22,6 +22,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
 import { sql } from 'kysely';
+import { normalizeName } from '../lib/normalize.js';
 import { systemActor, type Ctx } from '../auth/actor.js';
 import { db } from '../db/client.js';
 import { withSystem, withTenant } from '../db/tenant.js';
@@ -209,22 +210,33 @@ async function main() {
             return;
           }
           const detail = (live?.source_detail ?? {}) as { salogicFingerprint?: string; migrated?: boolean };
-          // a minimo booking staff typed into SALOGIC by hand, which the minimo mail connector took in
-          // (under a customer record of its own): keep the mail's booking, drop the copy
-          if (res.source === 'minimo' && ref.minimoId && res.staff_id && ref.staff.get(res.staff_id) && !(live && !detail.migrated)) {
+          // a media booking staff typed into SALOGIC by hand (minimo, often filed as 電話), which the
+          // mail connector took in under a customer record of its own: keep the mail's booking, drop the copy.
+          // Same stylist and start, and either the minimo route or the same customer name.
+          const staffHere = res.staff_id ? ref.staff.get(res.staff_id) : undefined;
+          const mediaIds = [ref.minimoId, ref.hpbId].filter((x): x is string => !!x);
+          if (staffHere && mediaIds.length && !(live && !detail.migrated)) {
             const viaMail = await ctx.trx
               .selectFrom('external_bookings as eb')
               .innerJoin('appointments as a', 'a.id', 'eb.appointment_id')
-              .select('a.id')
-              .where('eb.integration_account_id', '=', ref.minimoId)
-              .where('a.staff_id', '=', ref.staff.get(res.staff_id)!)
+              .leftJoin('customers as cu', 'cu.id', 'a.customer_id')
+              .select(['a.id', 'eb.integration_account_id', 'cu.last_name', 'cu.first_name', 'cu.last_name_kana', 'cu.first_name_kana'])
+              .where('eb.integration_account_id', 'in', mediaIds)
+              .where('a.staff_id', '=', staffHere)
               .where('a.start_at', '=', new Date(res.start_at))
               .where('a.status', 'in', [...ACTIVE_STATUSES])
               .where('a.deleted_at', 'is', null)
-              .executeTakeFirst();
-            if (viaMail) {
-              if (live && live.id !== viaMail.id) await withdraw(ctx, live.id, 'minimo のメールで取り込んだ予約と同じ');
-              await saveKey(ctx, key, viaMail.id);
+              .execute();
+            const want = [normalizeName(res.customer_name ?? ''), normalizeName(res.customer_name_kana ?? '')].filter((x) => x.length >= 2);
+            const minimoRoute = res.source === 'minimo' || (res as { salonboard_route?: string }).salonboard_route === 'minimo';
+            const same = viaMail.find(
+              (v) =>
+                (minimoRoute && v.integration_account_id === ref.minimoId) ||
+                [normalizeName(`${v.last_name ?? ''}${v.first_name ?? ''}`), normalizeName(`${v.last_name_kana ?? ''}${v.first_name_kana ?? ''}`)].some((n) => n.length >= 2 && want.includes(n)),
+            );
+            if (same) {
+              if (live && live.id !== same.id) await withdraw(ctx, live.id, '媒体のメールで取り込んだ予約と同じ');
+              await saveKey(ctx, key, same.id);
               r.linkedToMail!++;
               return;
             }
