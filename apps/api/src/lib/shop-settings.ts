@@ -70,6 +70,9 @@ export const shopSettingsSchema = z.object({
       dayBeforeHour: z.number().int().min(0).max(23).default(18),
       /** send the same-day reminder N hours before start (0 disables) */
       sameDayHoursBefore: z.number().int().min(0).max(12).default(3),
+      /** customers without LINE get the automatic messages by e-mail (then SMS). Off = LINE only, as
+       * SALOGIC: only customers who added the official LINE are contacted */
+      emailFallback: z.boolean().default(false),
     })
     .prefault({}),
   pos: z

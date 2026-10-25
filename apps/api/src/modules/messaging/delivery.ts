@@ -5,6 +5,7 @@ import type { Messages } from '../../db/types.js';
 import { backoffMs, enqueue, registerJob, RetryLaterError, type JobContext } from '../../jobs/queue.js';
 import { emit } from '../../lib/events.js';
 import { sendEmail, sendSms } from '../../lib/mailer.js';
+import { parseShopSettings } from '../../lib/shop-settings.js';
 import { enqueueDelivery, type OutboundPayload } from './api.js';
 import { channelById, lineRecipientFor, type ActiveChannel } from './channels.js';
 import { clock } from './clock.js';
@@ -74,7 +75,18 @@ export async function prepareDelivery(ctx: Ctx, msg: MessageRow, now: Date): Pro
 
   const payload = payloadOf(msg);
   const prefs = await channelPreferences(ctx, customer.id);
-  const candidates: Channel[] = payload.channelPreference === 'auto' ? ['line', 'email', 'sms'] : [payload.channelPreference];
+  // 'auto': LINE, then e-mail and SMS — the latter only if the shop allows it, or for a booking the
+  // customer made online themselves (they gave their address for it)
+  let fallback = true;
+  if (payload.channelPreference === 'auto' && msg.shop_id) {
+    const shop = await ctx.trx.selectFrom('shops').select('settings').where('id', '=', msg.shop_id).executeTakeFirst();
+    fallback = parseShopSettings(shop?.settings).reminders.emailFallback;
+    if (!fallback && msg.appointment_id) {
+      const appt = await ctx.trx.selectFrom('appointments').select('source').where('id', '=', msg.appointment_id).executeTakeFirst();
+      fallback = appt?.source === 'web';
+    }
+  }
+  const candidates: Channel[] = payload.channelPreference === 'auto' ? (fallback ? ['line', 'email', 'sms'] : ['line']) : [payload.channelPreference];
 
   let optedOut = false;
   let chosen: { channel: Channel; recipient: string; line: ActiveChannel | null } | null = null;

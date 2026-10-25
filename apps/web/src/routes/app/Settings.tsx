@@ -432,6 +432,13 @@ function BookingTab({ shop, editable }: { shop: Shop; editable: boolean }) {
               label="予約完了時に確認メッセージを送る"
               disabled={d || !r.enabled}
             />
+            <Switch
+              checked={!!r.emailFallback}
+              onChange={(v) => setR({ emailFallback: v })}
+              label="LINE 未連携のお客様にはメールで送る"
+              description="オフのときは公式LINEを友だち追加したお客様だけに送ります（SALOGIC と同じ）"
+              disabled={d || !r.enabled}
+            />
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="前日リマインドの送信時刻">
                 <Select

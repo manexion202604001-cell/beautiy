@@ -216,4 +216,22 @@ describe('appointment notifications', () => {
     const count = await asSystem(t.organizationId, (ctx) => ctx.trx.selectFrom('messages').select('id').where('appointment_id', '=', walkIn.body.id).execute());
     expect(count).toHaveLength(0);
   });
+
+  it('reaches customers without LINE by e-mail only when the shop allows it (SALOGIC: LINE only)', async () => {
+    const t = await createTenant();
+    const stylist = await createStaffUser(t, 'stylist');
+    const menu = await createMenu(t);
+    const email = `nolin-${Date.now()}@example.com`;
+    const customer = (await t.owner.post('/v1/customers', { lastName: 'メール', firstName: '花子', email })).body.customer as { id: string };
+    const date = nextWeekday(WED);
+    const { mockOutbox } = await import('../../lib/mailer.js');
+    await t.owner.post('/v1/appointments', { shopId: t.shopId, customerId: customer.id, staffId: stylist.staffId, startAt: jst(date, '13:00'), menuIds: [menu.id] });
+    await runJobs();
+    expect(mockOutbox.filter((m) => m.to === email)).toHaveLength(0);
+
+    await t.owner.patch(`/v1/shops/${t.shopId}`, { settings: { reminders: { emailFallback: true } } });
+    await t.owner.post('/v1/appointments', { shopId: t.shopId, customerId: customer.id, staffId: stylist.staffId, startAt: jst(date, '16:00'), menuIds: [menu.id] });
+    await runJobs();
+    expect(mockOutbox.filter((m) => m.to === email).length).toBeGreaterThan(0);
+  });
 });

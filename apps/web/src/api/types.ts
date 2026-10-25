@@ -93,6 +93,7 @@ export interface ShopSettings {
     confirmation: boolean;
     dayBeforeHour: number;
     sameDayHoursBefore: number;
+    emailFallback?: boolean;
   };
   pos: {
     pointRateBp: number;
