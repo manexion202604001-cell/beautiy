@@ -8,6 +8,7 @@ import { jsonSchemaTransform, serializerCompiler, validatorCompiler, type ZodTyp
 import { sql } from 'kysely';
 import { config, trustProxySetting } from './config.js';
 import { db } from './db/client.js';
+import { pendingMigrations } from './db/migrate.js';
 import { registerModules } from './modules/index.js';
 import contextPlugin, { newRequestId } from './plugins/context.js';
 import errorPlugin from './plugins/errors.js';
@@ -84,6 +85,11 @@ export async function buildApp(opts: { logger?: FastifyServerOptions['logger'] }
   await app.register(idempotencyPlugin);
 
   app.get('/healthz', { config: { auth: 'public' }, schema: { hide: true } }, async () => ({ status: 'ok' }));
+  // which build is live and whether its migrations ran (Render sets RENDER_GIT_COMMIT)
+  app.get('/v1/version', { config: { auth: 'public' }, schema: { hide: true } }, async () => ({
+    commit: process.env.RENDER_GIT_COMMIT?.slice(0, 7) ?? null,
+    pendingMigrations: (await pendingMigrations().catch(() => ['(unknown)'])).length,
+  }));
   app.get('/readyz', { config: { auth: 'public' }, schema: { hide: true } }, async () => {
     await sql`SELECT 1`.execute(db);
     return { status: 'ready' };

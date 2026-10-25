@@ -51,6 +51,25 @@ export async function migrate(connectionString = config.DATABASE_URL, log = cons
   }
 }
 
+/**
+ * Migration files shipped with this build that the database has not applied yet. A worker or API
+ * started before the deploy's migration ran would otherwise hit missing columns (2026-10-23: the
+ * worker went live two days before the API's pre-deploy migration and 77 booking mails failed).
+ */
+export async function pendingMigrations(connectionString = config.DATABASE_URL): Promise<string[]> {
+  const files = (await readdir(dir)).filter((f) => f.endsWith('.sql')).sort();
+  const client = new pg.Client({ connectionString });
+  await client.connect();
+  try {
+    const exists = await client.query<{ t: string | null }>(`SELECT to_regclass('schema_migrations')::text AS t`);
+    if (!exists.rows[0]?.t) return files;
+    const applied = new Set((await client.query<{ name: string }>('SELECT name FROM schema_migrations')).rows.map((r) => r.name));
+    return files.filter((f) => !applied.has(f));
+  } finally {
+    await client.end();
+  }
+}
+
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
   migrate()
     .then(() => {

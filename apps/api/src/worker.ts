@@ -4,6 +4,7 @@
  */
 import pino from 'pino';
 import { config } from './config.js';
+import { pendingMigrations } from './db/migrate.js';
 import { assertDatabaseReady } from './db/preflight.js';
 import { runWorker } from './jobs/queue.js';
 import { schedulerTick } from './jobs/scheduler.js';
@@ -16,6 +17,19 @@ const controller = new AbortController();
 
 process.on('SIGTERM', () => controller.abort());
 process.on('SIGINT', () => controller.abort());
+
+// a new build may start before its migrations ran (they run with the API's deploy): wait for them
+// instead of failing every job on a missing column
+for (;;) {
+  const pending = await pendingMigrations().catch((err: unknown) => {
+    logger.error({ err }, 'could not check migrations');
+    return ['(unknown)'];
+  });
+  if (!pending.length || controller.signal.aborted) break;
+  logger.warn({ pending }, 'waiting for database migrations before processing jobs');
+  await new Promise((resolve) => setTimeout(resolve, 30_000));
+}
+if (controller.signal.aborted) process.exit(0);
 
 const scheduler = setInterval(() => {
   schedulerTick()
